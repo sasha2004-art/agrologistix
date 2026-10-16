@@ -43,6 +43,23 @@ input {
   border-radius: 4px;
 }
 
+/* Вторичный текст Vuetify слишком бледный на белом (0.6 → ~3.9:1). Поднимаем до 0.78. */
+.v-application {
+  --v-medium-emphasis-opacity: 0.78 !important;
+}
+
+/* Подзаголовки карточек использует ту же прозрачность, но с своим правилом. */
+.v-card-subtitle {
+  color: #5b584f !important;
+  opacity: 1 !important;
+}
+
+/* Нейтральный чип вместо пшеничного текста на светлом фоне. */
+.soft-chip {
+  background-color: #f3f0e9 !important;
+  color: #5b584f !important;
+}
+
 /* Мягкая поверхность вместо жёсткого outlined-бордера. */
 .soft-card {
   border: 1px solid rgba(43, 42, 38, 0.05) !important;

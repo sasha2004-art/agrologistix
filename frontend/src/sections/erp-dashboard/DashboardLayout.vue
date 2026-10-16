@@ -1,7 +1,7 @@
 <template>
   <v-app-bar height="64" color="surface" class="soft-bar">
     <v-app-bar-title class="text-body-1 font-weight-medium">AgroLogistix</v-app-bar-title>
-    <v-chip size="small" variant="tonal" color="primary" class="mr-2 d-none d-sm-flex">
+    <v-chip size="small" variant="flat" class="soft-chip mr-2 d-none d-sm-flex">
       Калуга — Обнинск
     </v-chip>
     <v-btn variant="text" prepend-icon="mdi-logout" @click="logout">Выйти</v-btn>
