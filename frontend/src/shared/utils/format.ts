@@ -1,0 +1,56 @@
+/** Единые правила числового форматирования для dashboard и печатных листов. */
+
+const numberFormatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 })
+const decimalFormatter = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
+const rubFormatter = new Intl.NumberFormat('ru-RU', {
+  style: 'currency',
+  currency: 'RUB',
+  maximumFractionDigits: 0,
+})
+
+export function formatNumber(value: number): string {
+  return numberFormatter.format(value)
+}
+
+export function formatDecimal(value: number): string {
+  return decimalFormatter.format(value)
+}
+
+export function formatRub(value: number): string {
+  return rubFormatter.format(value)
+}
+
+export function formatKg(value: number): string {
+  return `${numberFormatter.format(value)} кг`
+}
+
+export function formatKm(value: number): string {
+  return `${decimalFormatter.format(value)} км`
+}
+
+export function formatSpeed(value: number): string {
+  return `${numberFormatter.format(value)} км/ч`
+}
+
+/** Доля 0..1 → проценты для отображения (например, свежесть). */
+export function formatFreshness(fraction: number): string {
+  return `${decimalFormatter.format(fraction * 100)} %`
+}
+
+/** Значение 0..100 → проценты. */
+export function formatPercent(value: number): string {
+  return `${decimalFormatter.format(value)} %`
+}
+
+export function formatDateTime(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value)
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
