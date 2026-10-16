@@ -86,6 +86,9 @@ python scripts/generate_launch_doc.py --check
    `/var/www/agrologistix`.
 6. Standalone Nginx раздаёт статику, делает SPA fallback на `index.html` и
    проксирует `/api/` на `127.0.0.1:8000`.
+7. Nginx завершает TLS сертификатом Let's Encrypt из
+   `/etc/letsencrypt/live/<domain>`; HTTP редиректится на HTTPS, кроме
+   `/health` и ACME-challenge.
 
 Пример backend-юнита:
 
@@ -113,6 +116,43 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now agrologistix-backend.service
 sudo systemctl status agrologistix-backend.service
 ```
+
+## HTTPS (Let's Encrypt)
+
+Конфиг `deploy/nginx/agrologistix.conf` слушает `80` и `443`, а сертификат берётся
+из `/etc/letsencrypt/live/<domain>`. Первичный выпуск выполняется один раз
+с локальной машины:
+
+```bash
+DEPLOY_HOST=<host> DEPLOY_USER=<user> DEPLOY_DOMAIN=<domain> DEPLOY_WEB_ROOT=/var/www/agrologistix DEPLOY_SSH_KEY_PATH=<key> bash deploy/setup-https.sh
+```
+
+Скрипт `deploy/setup-https.sh` идемпотентен и выполняет шаги:
+
+1. ставит HTTP-only bootstrap-конфиг
+   `deploy/nginx/agrologistix-http-bootstrap.conf` (нужен, чтобы ACME ответил до
+   появления сертификата);
+2. выпускает сертификат: `certbot certonly --webroot -w /var/www/agrologistix -d <domain>`;
+3. ставит TLS-конфиг `deploy/nginx/agrologistix.conf` и перезагружает Nginx;
+4. включает `certbot.timer` и deploy-hook, который
+   перезагружает Nginx после каждого продления.
+
+Проверка:
+
+```bash
+curl -I https://<domain>/health
+curl -I http://<domain>/health   # 301 на https
+certbot renew --dry-run --no-random-sleep-on-renew
+```
+
+`deploy/deploy.sh` требует `DEPLOY_DOMAIN` и перед копированием конфига
+проверяет наличие сертификата: если его нет, деплой останавливается с
+подсказкой запустить bootstrap.
+
+Если домен проксируется через Cloudflare, режим SSL/TLS должен быть
+`Full` или `Full (strict)`. В режиме `Flexible` Nginx получает HTTP-запросы,
+и редирект `http → https` создаст цикл; в этом случае включите `Full (strict)`
+после выпуска сертификата.
 
 ## Деплой через GitHub Actions
 

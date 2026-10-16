@@ -24,7 +24,12 @@
     "frontend_build_directory": "frontend/dist",
     "frontend_web_root": "/var/www/agrologistix",
     "backend_install_directory": "/opt/agrologistix",
-    "nginx_site_name": "agrologistix"
+    "nginx_site_name": "agrologistix",
+    "nginx_config": "deploy/nginx/agrologistix.conf",
+    "nginx_bootstrap_config": "deploy/nginx/agrologistix-http-bootstrap.conf",
+    "https_setup_command": "bash deploy/setup-https.sh",
+    "tls_certificate_dir": "/etc/letsencrypt/live/<domain>",
+    "tls_renewal_timer": "certbot.timer"
   },
   "ci": {
     "workflow": ".github/workflows/ci-deploy.yml",

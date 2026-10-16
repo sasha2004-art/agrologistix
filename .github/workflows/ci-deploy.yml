@@ -108,6 +108,7 @@ jobs:
           DEPLOY_APP_DIR: ${{ vars.DEPLOY_APP_DIR }}
           DEPLOY_WEB_ROOT: ${{ vars.DEPLOY_WEB_ROOT }}
           DEPLOY_SERVICE: ${{ vars.DEPLOY_SERVICE }}
+          DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
           DEPLOY_SSH_STRICT: "yes"
           DEPLOY_SSH_KEY_PATH: /home/runner/.ssh/id_ed25519
         run: bash deploy/deploy.sh
