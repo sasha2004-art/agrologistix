@@ -4,7 +4,7 @@ set -euo pipefail
 max_lines=500
 failed=0
 
-for root in backend frontend/src; do
+for root in backend frontend/src scripts; do
     [[ -d "$root" ]] || continue
 
     while IFS= read -r -d '' file; do

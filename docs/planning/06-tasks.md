@@ -16,10 +16,10 @@
 * **Затрагиваемые файлы:** `frontend/package.json`, `frontend/src/main.ts`, `frontend/src/shared/plugins/vuetify.ts`, `frontend/src/shared/types/domain.ts`.
 * **Критерий проверки (Verification):** `npm run build` собирает пустой каркас с темой Vuetify 4 без ошибок типизации.
 
-### `TASK-03` [Dev 1] Настройка Docker Compose (Uvicorn + Nginx) и GitHub Actions CI/CD
-* **Описание:** Написать `backend/Dockerfile`, `frontend/nginx.conf`, корневой `docker-compose.yml` (1 воркер Uvicorn, лимиты памяти под 2 GB RAM) и пайплайн `.github/workflows/ci-deploy.yml`.
-* **Затрагиваемые файлы:** `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf`, `.github/workflows/ci-deploy.yml`.
-* **Критерий проверки (Verification):** `docker compose config` валиден, Nginx корректно проксирует `/api/v1/health` на FastAPI.
+### `TASK-03` [Dev 1] Production-запуск: systemd, Nginx и GitHub Actions CI/CD
+* **Описание:** Настроить backend как `systemd`-сервис с одним Uvicorn worker, standalone Nginx для статики и reverse proxy `/api/`, а также пайплайн GitHub Actions для сборки frontend, проверки backend и передачи production-артефактов по SSH/rsync.
+* **Затрагиваемые файлы:** `.github/workflows/ci-deploy.yml`, `deploy/agrologistix-backend.service`, `deploy/nginx/agrologistix.conf`, `docs/LAUNCH.md`.
+* **Критерий проверки (Verification):** CI успешно выполняет backend/frontend проверки и проверку актуальности `docs/LAUNCH.md`; Nginx проксирует `/api/v1/health` на локальный FastAPI-процесс.
 
 ---
 

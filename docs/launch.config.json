@@ -1,0 +1,29 @@
+{
+  "project": "AgroLogistix",
+  "python": "3.12",
+  "node": "22",
+  "backend": {
+    "directory": "backend",
+    "venv_directory": "backend/.venv",
+    "dev_port": 8000,
+    "host": "127.0.0.1",
+    "module": "app.main:app",
+    "health_path": "/api/v1/health",
+    "user_pin": "202601",
+    "admin_pin": "999999",
+    "database_path": "./data/app.db"
+  },
+  "frontend": {
+    "directory": "frontend",
+    "dev_port": 5173,
+    "host": "127.0.0.1",
+    "api_base_url": "/api/v1"
+  },
+  "production": {
+    "backend_service_name": "agrologistix-backend.service",
+    "frontend_build_directory": "frontend/dist",
+    "frontend_web_root": "/var/www/agrologistix",
+    "backend_install_directory": "/opt/agrologistix",
+    "nginx_site_name": "agrologistix"
+  }
+}

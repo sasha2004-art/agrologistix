@@ -1,4 +1,4 @@
-name: Backend CI
+name: Project CI
 
 on:
   push:
@@ -40,3 +40,35 @@ jobs:
       - name: Check source file length
         working-directory: .
         run: bash scripts/check_loc.sh
+
+      - name: Check generated launch guide
+        working-directory: .
+        run: python scripts/generate_launch_doc.py --check
+
+  frontend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npx prettier --check "src/**/*.{ts,vue,scss}" "*.{json,ts,js,html}"
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check and build
+        run: npm run build

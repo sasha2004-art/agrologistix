@@ -8,7 +8,7 @@
 
 | Роль | Зона ответственности | Рабочая директория |
 | :--- | :--- | :--- |
-| **Dev 1 — Backend / Math / DevOps** | FastAPI, SQLite, SQLModel, интеграции, солвер, экспорт, Docker и CI | `backend/`, `docker-compose.yml`, `.github/`, скрипты |
+| **Dev 1 — Backend / Math / DevOps** | FastAPI, SQLite, SQLModel, интеграции, солвер, экспорт, systemd, Nginx и CI | `backend/`, `.github/`, скрипты |
 | **Dev 2 — Frontend / UI / Map** | Vue, Vuetify, Pinia, роутинг, карта, сценарии UI, печатный лист | `frontend/` |
 
 Оба разработчика работают параллельно. Общие изменения ограничиваются API-контрактами, `.env.example`, корневыми CI-файлами и финальной интеграцией. Каждый такой файл изменяет только один назначенный разработчик.
@@ -137,7 +137,7 @@ Metrics:
 - Реализовать проверку `X-Access-Pin` и `POST /auth/verify-pin`.
 - Разделить пользовательский и админский PIN.
 - Написать первые тесты на `200`, `401`, роли и доступ к protected endpoint.
-- Подготовить базовый Docker Compose и healthcheck.
+- Подготовить локальный запуск backend через `uvicorn`, frontend через Vite и production-запуск backend через `systemd`.
 - Настроить базовый GitHub Actions CI: `ruff`, backend tests, `check_loc.sh`, `vue-tsc` и frontend build. CI запускается уже на каждом pull request и push в `main`.
 
 **Dev 2 — Frontend**
@@ -166,7 +166,7 @@ Metrics:
 - Реализовать seed Калужской области: 2 склада, 3 культуры, 5 клиентов, 3 грузовика.
 - Сделать идемпотентную инициализацию при старте приложения.
 - Добавить `POST /system/reset-demo` только для администратора.
-- Выполнить первый тестовый деплой в Docker Compose на целевой VPS после создания SQLite и seed-данных: проверить права на `./data/`, запись `.db-wal`, `GET /health` и время ответа.
+- Выполнить первый тестовый деплой на целевой VPS после создания SQLite и seed-данных: установить backend как `systemd`-сервис, настроить standalone Nginx, проверить права на `./data/`, запись `.db-wal`, `GET /health` и время ответа.
 
 **Dev 2 — Frontend**
 
@@ -179,9 +179,9 @@ Metrics:
 
 - Dev 1 показывает фактический JSON `GET /erp/state` и результат первого VPS-деплоя.
 - Dev 2 подключает store к реальному ответу, сохраняя mock как fallback разработки.
-- Совместно проверить запись в смонтированный `./data/`, права SQLite WAL и перезапуск контейнера без потери seed-состояния.
+- Совместно проверить запись в `./data/`, права SQLite WAL и перезапуск `systemd`-сервиса без потери seed-состояния.
 
-**Результат дня:** после запуска база автоматически содержит демонстрационный набор данных, dashboard умеет его загрузить, а целевой контейнер подтверждён на VPS.
+**Результат дня:** после запуска база автоматически содержит демонстрационный набор данных, dashboard умеет его загрузить, а целевой standalone-сервис подтверждён на VPS.
 
 ### Day 4 — ERP API и экран исходных данных
 
@@ -414,8 +414,8 @@ Metrics:
 **Dev 1 — Backend / DevOps**
 
 - Исправить backend-дефекты blocker/high.
-- Завершить `Dockerfile`, Nginx reverse proxy и Compose с одним Uvicorn worker.
-- Завершить CD-часть GitHub Actions: сборка production-артефактов, передача по SSH/rsync и запуск `docker compose up -d --build` на VPS.
+- Настроить production-запуск FastAPI через `systemd` с одним worker и standalone Nginx reverse proxy для `/api/`.
+- Завершить CD-часть GitHub Actions: собрать frontend на раннере, передать `frontend/dist`, backend и конфигурацию `systemd`/Nginx по SSH или rsync на VPS, перезапустить сервис и проверить healthcheck.
 - Проверить переменные окружения и отсутствие секретов в репозитории.
 - Подготовить команду развёртывания и healthcheck. Линтинг, type-check, тесты и `check_loc.sh` уже должны выполняться в CI с Day 2.
 
