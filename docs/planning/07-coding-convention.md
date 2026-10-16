@@ -13,12 +13,15 @@
 ├── .github/
 │   └── workflows/
 │       └── ci-deploy.yml          # Линтинг, сборка фронта и выкладка по SSH
-├── docker-compose.yml             # Nginx + FastAPI (Uvicorn 1 worker)
-├── .env.example
+├── deploy/
+│   ├── agrologistix-backend.service # systemd: Uvicorn 1 worker
+│   └── nginx/
+│       └── agrologistix.conf       # standalone Nginx + proxy /api/
 ├── docs/
-│   └── planning/                  # 01-prd.md ... 07-coding-convention.md
+│   ├── LAUNCH.md                   # генерируемая инструкция запуска
+│   ├── launch.config.json          # источник параметров запуска
+│   └── planning/                   # 01-prd.md ... 08-roadmap-14-days.md
 ├── backend/
-│   ├── Dockerfile
 │   ├── pyproject.toml             # Конфиг зависимостей и Ruff
 │   └── app/
 │       ├── main.py                # Инициализация FastAPI, CORS, Lifespan seed
@@ -46,8 +49,6 @@
 │               ├── solver_router.py
 │               └── export_router.py
 └── frontend/
-    ├── Dockerfile
-    ├── nginx.conf                 # Раздача статики + proxy_pass /api -> backend:8000
     ├── package.json
     ├── eslint.config.js
     └── src/
@@ -104,7 +105,7 @@
 ## 3. Git-гигиена на 2 разработчиков (Zero Merge Conflicts)
 
 ### Разделение зон ответственности
-* **Разработчик 1 (Backend, Math Solver & DevOps):** Работает внутри `backend/`, `docker-compose.yml`, `.github/workflows/`.
+* **Разработчик 1 (Backend, Math Solver & DevOps):** Работает внутри `backend/`, `deploy/`, `.github/workflows/` и скриптов запуска.
 * **Разработчик 2 (Frontend Vertical Slices, Mapbox & Print UI):** Работает внутри `frontend/`.
 * **Точка синхронизации:** Контракт DTO в `backend/app/schemas/` и `frontend/src/shared/types/domain.ts`.
 
@@ -122,6 +123,4 @@
    * Проверяет лимит в 500 строк на все файлы `.py`, `.ts`, `.vue`:
      `find backend frontend/src -type f \( -name "*.py" -o -name "*.ts" -o -name "*.vue" \) -exec awk 'END{if (NR > 500) {print FILENAME, NR; exit 1}}' {} +`
    * Прогоняет `ruff check` на бэкенде и `vue-tsc && vite build` на фронтенде.
-2. Джоба `deploy`:
-   * Копирует собранный `frontend/dist` и код `backend/` по SSH (`appleboy/scp-action` / `rsync`) на целевой VPS.
-   * Выполняет `docker compose up -d --build` на сервере (контейнер Nginx подхватывает готовую статику `dist` за 1 секунду без нагрузки на 1 vCPU / 2 GB RAM).
+2. Джоба `deploy` собирает frontend на GitHub Actions, передаёт `frontend/dist`, backend и конфигурации `systemd`/Nginx по SSH или rsync на VPS, затем перезапускает `agrologistix-backend.service`. Подробная команда поддерживается в `docs/LAUNCH.md`.

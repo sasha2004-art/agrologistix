@@ -13,7 +13,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const { access_pin, ...requestInit } = options
   const headers = new Headers(requestInit.headers)
   if (access_pin) headers.set('X-Access-Pin', access_pin)
-  if (requestInit.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  if (requestInit.body && !headers.has('Content-Type'))
+    headers.set('Content-Type', 'application/json')
 
   return fetch(`${API_BASE}${path}`, { ...requestInit, headers }).then(async (response) => {
     if (!response.ok) throw new Error(`API ${response.status}`)
@@ -86,7 +87,10 @@ export async function verifyPin(accessPin: string): Promise<AuthResponse> {
   )
 }
 
-export async function optimize(requestBody: SolverRequest, accessPin: string): Promise<SolverResponse> {
+export async function optimize(
+  requestBody: SolverRequest,
+  accessPin: string,
+): Promise<SolverResponse> {
   return requestWithFallback<SolverResponse>(
     '/solver/optimize',
     { method: 'POST', access_pin: accessPin, body: JSON.stringify(requestBody) },
@@ -106,9 +110,19 @@ export async function optimize(requestBody: SolverRequest, accessPin: string): P
         distance_km: -28,
       },
       routes: [
-        { route_id: 'route-01', truck_id: 'truck-01', order_ids: ['order-001', 'order-002'], distance_km: 74 },
+        {
+          route_id: 'route-01',
+          truck_id: 'truck-01',
+          order_ids: ['order-001', 'order-002'],
+          distance_km: 74,
+        },
         { route_id: 'route-02', truck_id: 'truck-02', order_ids: ['order-003'], distance_km: 52 },
-        { route_id: 'route-03', truck_id: 'truck-03', order_ids: ['order-004', 'order-005'], distance_km: 60 },
+        {
+          route_id: 'route-03',
+          truck_id: 'truck-03',
+          order_ids: ['order-004', 'order-005'],
+          distance_km: 60,
+        },
       ],
     }),
   )

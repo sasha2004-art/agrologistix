@@ -2,8 +2,8 @@
 
 ## 1. Аппаратные ограничения и Целевой профиль
 * **Целевой сервер:** VPS `1 vCPU / 2 GB RAM / 50 GB SSD` (Linux x86_64).
-* **Ограничение по памяти:** Запрещено использовать тяжёлые брокеры (Redis, RabbitMQ, Celery), ресурсоёмкие БД (PostgreSQL в Docker) и тяжёлые PDF-движки (WeasyPrint, Puppeteer).
-* **Сборка (CI/CD):** Компиляция фронтенда (Vite + TypeScript + Vuetify 4) выполняется исключительно на раннере GitHub Actions, чтобы исключить OOM (Out-Of-Memory) на целевом VPS. На хосте настраивается swap-файл объёмом 2 GB.
+* **Ограничение по памяти:** Запрещено использовать тяжёлые брокеры (Redis, RabbitMQ, Celery), ресурсоёмкие БД (PostgreSQL) и тяжёлые PDF-движки (WeasyPrint, Puppeteer). Приложение запускается напрямую на хосте: FastAPI под `systemd`, статика и reverse proxy через standalone Nginx.
+* **Сборка (CI/CD):** Компиляция фронтенда выполняется исключительно на раннере GitHub Actions, чтобы исключить OOM на целевом VPS. CI передаёт готовый `frontend/dist` на сервер; FastAPI работает как `systemd`-сервис с одним Uvicorn worker, Nginx работает как системный сервис. На хосте настраивается swap-файл объёмом 2 GB.
 
 ## 2. Технологический стек
 
@@ -15,7 +15,7 @@
 * **Код-качество:** ESLint 9 + Prettier + `vue-tsc`.
 
 ### Backend
-* **Core:** Python 3.12-slim, FastAPI 0.115+, Uvicorn 0.30+ (1 worker, async loop).
+* **Core:** Python 3.12, FastAPI 0.115+, Uvicorn 0.30+ (1 worker, async loop).
 * **ORM & Database:** SQLModel 0.0.22+ (Pydantic v2 + SQLAlchemy 2.0), SQLite 3 (в режиме `PRAGMA journal_mode=WAL;`).
 * **Математический солвер:** `scipy.optimize.milp` (движок HiGHS) / `PuLP` для распределения партий + быстрый эвристический 2-opt маршрутизатор на чистом Python (потребление памяти менее 60 МБ, таймаут решения 1.0 сек).
 * **Интеграции и Экспорт:** `httpx` (асинхронные запросы к Open-Meteo и Mapbox с таймаутом 1.5 сек), `openpyxl` (потоковая генерация `.xlsx` в `BytesIO`).
@@ -31,9 +31,9 @@ graph TD
         Print["Browser Print Engine (@media print -> PDF)"]
     end
 
-    subgraph VPS ["VPS (1 vCPU / 2 GB RAM) — Docker Compose"]
+    subgraph VPS ["VPS (1 vCPU / 2 GB RAM) — systemd + Nginx"]
         Nginx["Nginx (Static Files + Reverse Proxy /api)"]
-        FastAPI["FastAPI + Uvicorn (1 Worker)"]
+        FastAPI["FastAPI + Uvicorn (systemd, 1 worker)"]
         Solver["Bio-Logistics Solver (SciPy HiGHS + 2-Opt)"]
         SQLite[("SQLite WAL (app.db + RouteCache)")]
     end
@@ -46,7 +46,7 @@ graph TD
     UI -->|HTTPS / X-Access-Pin| Nginx
     Map -->|Vector Tiles| MapboxAPI
     UI -->|window.print()| Print
-    Nginx -->|Proxy /api/*| FastAPI
+    Nginx -->|proxy_pass /api/*| FastAPI
     FastAPI <--> SQLite
     FastAPI --> Solver
     FastAPI -->|Async HTTPX| OpenMeteo
@@ -76,7 +76,7 @@ graph TD
 APP_ENV=production
 USER_ACCESS_PIN=202601
 ADMIN_ACCESS_PIN=999999
-SQLITE_DB_PATH=/app/data/app.db
+SQLITE_DB_PATH=/opt/agrologistix/data/app.db
 EXTERNAL_API_TIMEOUT_SEC=1.5
 SOLVER_TIME_LIMIT_SEC=1.0
 

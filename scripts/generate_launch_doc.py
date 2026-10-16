@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+"""Generate the canonical local and production launch guide."""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CONFIG_PATH = ROOT / "docs" / "launch.config.json"
+OUTPUT_PATH = ROOT / "docs" / "LAUNCH.md"
+
+
+def load_config() -> dict[str, object]:
+    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+def render(config: dict[str, object]) -> str:
+    backend = config["backend"]
+    frontend = config["frontend"]
+    production = config["production"]
+    ci = config["ci"]
+    assert isinstance(backend, dict)
+    assert isinstance(frontend, dict)
+    assert isinstance(production, dict)
+    assert isinstance(ci, dict)
+
+    ci_variables = "\n".join(f"- `{name}`" for name in ci["variables"])
+    ci_secrets = "\n".join(f"- `{name}`" for name in ci["secrets"])
+    ci_optional = "\n".join(f"- `{name}`" for name in ci["optional_secrets"])
+
+    return f'''# Запуск AgroLogistix
+
+> Этот файл сгенерирован из `docs/launch.config.json` командой
+> `python scripts/generate_launch_doc.py`. Не редактируйте его вручную.
+>
+> Проект запускается напрямую на хосте: backend работает через `uvicorn`,
+> frontend в разработке через Vite, а production-раздача выполняется
+> standalone Nginx и `systemd`.
+
+## Требования
+
+- Python {config["python"]}
+- Node.js {config["node"]} и npm
+- `uv`
+- Nginx нужен только для production-развёртывания
+
+## Первый запуск
+
+Из корня репозитория:
+
+```bash
+uv sync --directory backend --extra dev
+npm ci --prefix frontend
+```
+
+Локальные PIN по умолчанию:
+
+- dispatcher: `{backend["user_pin"]}`
+- admin: `{backend["admin_pin"]}`
+
+## Запуск backend
+
+В отдельном терминале:
+
+```bash
+uv run --directory backend uvicorn {backend["module"]} \\
+  --app-dir backend \\
+  --host {backend["host"]} \\
+  --port {backend["dev_port"]} \\
+  --reload
+```
+
+Проверка:
+
+```bash
+curl -i http://{backend["host"]}:{backend["dev_port"]}{backend["health_path"]}
+curl -i -X POST \\
+  -H 'X-Access-Pin: {backend["user_pin"]}' \\
+  http://{backend["host"]}:{backend["dev_port"]}/api/v1/auth/verify-pin
+```
+
+SQLite создаётся в `{backend["database_path"]}`. Режим WAL включается приложением.
+
+## Запуск frontend
+
+В отдельном терминале:
+
+```bash
+npm run dev --prefix frontend
+```
+
+Откройте <http://{frontend["host"]}:{frontend["dev_port"]}>.
+Vite проксирует запросы `/api` на backend `http://localhost:{backend["dev_port"]}`.
+
+## Проверки
+
+```bash
+uv run --directory backend --locked --extra dev ruff check .
+uv run --directory backend --locked --extra dev ruff format --check .
+uv run --directory backend --locked --extra dev pytest -q
+npm run lint --prefix frontend
+npm run type-check --prefix frontend
+npm run build --prefix frontend
+bash scripts/check_loc.sh
+python scripts/generate_launch_doc.py --check
+```
+
+## Production-схема на хосте
+
+1. На сервере код размещается в `{production["backend_install_directory"]}`.
+2. В `{production["backend_install_directory"]}/backend` выполняется `uv sync --locked --no-dev`.
+3. Backend запускается одним процессом `uvicorn` через
+   `systemd`-юнит `{production["backend_service_name"]}`.
+4. GitHub Actions собирает frontend командой `npm ci && npm run build`.
+5. Каталог `{production["frontend_build_directory"]}` копируется в
+   `{production["frontend_web_root"]}`.
+6. Standalone Nginx раздаёт статику, делает SPA fallback на `index.html` и
+   проксирует `/api/` на `127.0.0.1:{backend["dev_port"]}`.
+
+Пример backend-юнита:
+
+```ini
+[Unit]
+Description=AgroLogistix FastAPI backend
+After=network.target
+
+[Service]
+User=agrologistix
+WorkingDirectory={production["backend_install_directory"]}
+EnvironmentFile={production["backend_install_directory"]}/.env
+ExecStart={production["backend_install_directory"]}/backend/.venv/bin/uvicorn {backend["module"]} --host 127.0.0.1 --port {backend["dev_port"]} --workers 1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+После установки юнита:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now {production["backend_service_name"]}
+sudo systemctl status {production["backend_service_name"]}
+```
+
+## Деплой через GitHub Actions
+
+Workflow `{ci["workflow"]}` выполняет три джобы: `backend-checks`,
+`frontend-checks` и `deploy`. Джоба `deploy` запускается только для
+ветки `main` (или вручную через `workflow_dispatch`) и выполняет:
+
+```bash
+{ci["deploy_command"]}
+```
+
+Скрипт собирает frontend, синхронизирует backend и `frontend/dist` по SSH,
+перезапускает сервис и проверяет health-эндпоинты.
+
+### Repository Variables
+
+{ci_variables}
+
+### Repository Secrets
+
+{ci_secrets}
+
+Опционально (когда появится реальный ключ):
+
+{ci_optional}
+
+`DEPLOY_SSH_KEY` — приватный deploy-ключ, публичная часть которого
+добавлена в `/root/.ssh/authorized_keys` на сервере.
+`DEPLOY_SSH_KNOWN_HOSTS` — вывод `ssh-keyscan <host>`.
+
+## Обновление документа
+
+После изменения команд, портов, путей или production-схемы обновите
+`docs/launch.config.json`, затем выполните:
+
+```bash
+python scripts/generate_launch_doc.py
+```
+
+CI проверяет, что `docs/LAUNCH.md` совпадает с результатом генерации.
+'''
+
+
+def main() -> int:
+    check_only = "--check" in sys.argv
+    expected = render(load_config())
+    if check_only:
+        actual = OUTPUT_PATH.read_text(encoding="utf-8") if OUTPUT_PATH.exists() else ""
+        if actual != expected:
+            print(f"{OUTPUT_PATH} is out of date; run python scripts/generate_launch_doc.py")
+            return 1
+        return 0
+
+    OUTPUT_PATH.write_text(expected, encoding="utf-8")
+    print(f"Generated {OUTPUT_PATH.relative_to(ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

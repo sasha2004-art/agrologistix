@@ -1,10 +1,11 @@
-name: Backend CI
+name: Project CI
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -40,3 +41,73 @@ jobs:
       - name: Check source file length
         working-directory: .
         run: bash scripts/check_loc.sh
+
+      - name: Check generated launch guide
+        working-directory: .
+        run: python scripts/generate_launch_doc.py --check
+
+  frontend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npx prettier --check "src/**/*.{ts,vue,scss}" "*.{json,ts,js,html}"
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check and build
+        run: npm run build
+
+  deploy:
+    needs: [backend-checks, frontend-checks]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend artifacts
+        working-directory: frontend
+        run: npm ci && npm run build
+
+      - name: Configure SSH access
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy release
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_APP_DIR: ${{ vars.DEPLOY_APP_DIR }}
+          DEPLOY_WEB_ROOT: ${{ vars.DEPLOY_WEB_ROOT }}
+          DEPLOY_SERVICE: ${{ vars.DEPLOY_SERVICE }}
+          DEPLOY_SSH_STRICT: "yes"
+          DEPLOY_SSH_KEY_PATH: /home/runner/.ssh/id_ed25519
+        run: bash deploy/deploy.sh

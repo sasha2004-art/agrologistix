@@ -33,7 +33,9 @@ defineProps<{ length: number; error: boolean; shaking: boolean }>()
   border: 2px solid rgba(91, 81, 117, 0.28);
   border-radius: 50%;
   background-color: var(--neu-bg);
-  box-shadow: inset 1px 1px 3px var(--neu-shadow-dark), inset -1px -1px 2px var(--neu-shadow-light);
+  box-shadow:
+    inset 1px 1px 3px var(--neu-shadow-dark),
+    inset -1px -1px 2px var(--neu-shadow-light);
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease,

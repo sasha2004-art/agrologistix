@@ -1,0 +1,16 @@
+[Unit]
+Description=AgroLogistix FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+User=agrologistix
+Group=agrologistix
+WorkingDirectory=/opt/agrologistix/backend
+EnvironmentFile=/opt/agrologistix/.env
+ExecStart=/opt/agrologistix/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
