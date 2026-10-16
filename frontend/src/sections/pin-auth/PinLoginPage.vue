@@ -2,9 +2,9 @@
   <v-main class="d-flex align-center justify-center pa-4">
     <v-card class="login-card soft-card" max-width="420" width="100%">
       <v-card-item class="text-center pt-6 pb-0">
-        <v-icon icon="mdi-leaf" color="primary" size="26" />
-        <v-card-title class="text-h6 mt-3">Терминал логиста</v-card-title>
-        <v-card-subtitle class="mt-1">Введите 6-значный PIN-код диспетчера</v-card-subtitle>
+        <v-icon icon="mdi-spa-outline" color="primary" size="26" />
+        <v-card-title class="text-h6 mt-3">Serenity</v-card-title>
+        <v-card-subtitle class="mt-1">Введите 6-значный PIN-код</v-card-subtitle>
       </v-card-item>
 
       <v-card-text class="text-center pt-6" @click="focusPin">
@@ -21,13 +21,20 @@
           @input="onInput"
           @keydown="onKeydown"
         />
-        <v-alert v-if="hasError" type="error" variant="tonal" density="compact" class="mt-5 text-left">
+        <v-alert
+          v-if="hasError"
+          type="error"
+          variant="tonal"
+          density="compact"
+          class="mt-5 text-left"
+          role="alert"
+          aria-live="assertive"
+        >
           PIN-код не принят. Попробуйте ещё раз.
         </v-alert>
         <div class="status-slot">
           <v-progress-linear v-if="auth.isVerifying" indeterminate color="primary" height="2" />
         </div>
-        <p class="text-caption text-medium-emphasis mt-3 mb-0">Цифры PIN-кода не отображаются</p>
       </v-card-text>
 
       <v-card-actions class="justify-center pb-5">
@@ -38,38 +45,52 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import PinDotsIndicator from './PinDotsIndicator.vue'
 import { useAuthStore } from './useAuthStore'
 
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
 const pin = ref('')
 const hasError = ref(false)
 const shaking = ref(false)
 const pinInput = ref<HTMLInputElement | null>(null)
 let clearTimer: number | undefined
+let shakeTimer: number | undefined
 
 onMounted(() => pinInput.value?.focus())
+onBeforeUnmount(() => {
+  window.clearTimeout(clearTimer)
+  window.clearTimeout(shakeTimer)
+})
 
 function focusPin(): void {
   pinInput.value?.focus()
 }
 
+function syncInput(value: string): void {
+  pin.value = value
+  if (pinInput.value) pinInput.value.value = value
+}
+
 function onInput(event: Event): void {
+  if (auth.isVerifying) return
   const input = event.target as HTMLInputElement
   const digits = input.value.replace(/\D/g, '').slice(0, 6)
-  pin.value = digits
-  input.value = digits
+  syncInput(digits)
   hasError.value = false
   if (digits.length === 6) void submitPin(digits)
 }
 
 function onKeydown(event: KeyboardEvent): void {
+  if (auth.isVerifying) {
+    event.preventDefault()
+    return
+  }
   if (event.key === 'Backspace') {
-    pin.value = pin.value.slice(0, -1)
-    if (pinInput.value) pinInput.value.value = pin.value
+    syncInput(pin.value.slice(0, -1))
     hasError.value = false
     event.preventDefault()
   }
@@ -81,19 +102,20 @@ async function submitPin(value: string): Promise<void> {
   try {
     const accepted = await auth.login(value)
     if (!accepted) throw new Error('PIN не принят')
-    await router.replace('/dashboard')
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
+    await router.replace(redirect)
   } catch {
     hasError.value = true
     shaking.value = true
-    window.setTimeout(() => (shaking.value = false), 300)
+    window.clearTimeout(shakeTimer)
+    shakeTimer = window.setTimeout(() => (shaking.value = false), 300)
     window.clearTimeout(clearTimer)
     clearTimer = window.setTimeout(async () => {
-      pin.value = ''
-      if (pinInput.value) pinInput.value.value = ''
+      syncInput('')
       hasError.value = false
       await nextTick()
       pinInput.value?.focus()
-    }, 420)
+    }, 320)
   }
 }
 </script>

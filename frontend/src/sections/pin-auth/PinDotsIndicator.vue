@@ -26,19 +26,24 @@ defineProps<{ length: number; error: boolean; shaking: boolean }>()
   gap: 14px;
 }
 
+/* Пустая точка: вдавленное состояние + страховочная граница (тень не единственный носитель). */
 .pin-dot {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(43, 42, 38, 0.24);
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(91, 81, 117, 0.28);
   border-radius: 50%;
+  background-color: var(--neu-bg);
+  box-shadow: inset 1px 1px 3px var(--neu-shadow-dark), inset -1px -1px 2px var(--neu-shadow-light);
   transition:
     border-color 0.15s ease,
-    background-color 0.15s ease;
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .pin-dot--filled {
   border-color: rgb(var(--v-theme-primary));
   background-color: rgb(var(--v-theme-primary));
+  box-shadow: var(--neu-lift-sm);
 }
 
 .pin-dots--error .pin-dot {
