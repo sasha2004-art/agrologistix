@@ -61,7 +61,7 @@
         │   ├── types/
         │   │   └── domain.ts      # Строгие интерфейсы сущностей и расчётов
         │   ├── plugins/
-        │   │   └── vuetify.ts     # Настройка Vuetify 4 и темы agroDark
+        │   │   └── vuetify.ts     # Настройка Vuetify 4 и темы agroLight
         │   └── styles/
         │       └── print.scss     # Стили @media print (может быть > 500 строк)
         └── sections/              # Вертикальные срезы по экранам/разделам

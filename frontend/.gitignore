@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vite/
+*.local
+.DS_Store
+
+# Локальные движки/скиллы агентов (не часть кода приложения)
+.agents/
+.pi/
+.impeccable/
