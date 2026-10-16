@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import Field
 
 from app.schemas.base import APIModel
@@ -70,6 +72,17 @@ class ERPStateResponse(APIModel):
     clients: list[ClientResponse] = Field(default_factory=list)
     orders: list[ClientOrderResponse] = Field(default_factory=list)
     trucks: list[TruckResponse] = Field(default_factory=list)
+
+
+class DemoResetResponse(APIModel):
+    status: Literal["ok"] = "ok"
+    warehouses: int = Field(ge=0)
+    products: int = Field(ge=0)
+    stocks: int = Field(ge=0)
+    clients: int = Field(ge=0)
+    orders: int = Field(ge=0)
+    trucks: int = Field(ge=0)
+    seeded: bool = True
 
 
 class ClientOrderPatch(APIModel):
