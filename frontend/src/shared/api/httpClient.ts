@@ -1,129 +1,178 @@
+/**
+ * Typed HTTP-клиент. Единственная точка общения с FastAPI.
+ *
+ * Контракт: заголовок `X-Access-Pin`, JSON в snake_case, ошибки формата
+ * `{ code, detail, request_id? }` (см. `backend/app/schemas/error_schemas.py`).
+ *
+ * В dev-режиме при недоступном backend включается mock-fallback с тем же DTO,
+ * чтобы экраны разрабатывались без запущенного API.
+ */
+
 import * as mockData from './mockData'
-import type { AuthResponse, SolverRequest, SolverResponse, UserRole } from '@/shared/types/domain'
+import type {
+  AuthResponse,
+  DataSource,
+  ERPState,
+  Loaded,
+  SolverRequest,
+  SolverResponse,
+  ValidationErrorBody,
+  WeatherMode,
+  WeatherResponse,
+} from '@/shared/types/domain'
 
 export interface RequestOptions extends RequestInit {
   access_pin?: string
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
-const dispatcherPin = '202601'
-const adminPin = '999999'
+export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
-export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { access_pin, ...requestInit } = options
-  const headers = new Headers(requestInit.headers)
-  if (access_pin) headers.set('X-Access-Pin', access_pin)
-  if (requestInit.body && !headers.has('Content-Type'))
-    headers.set('Content-Type', 'application/json')
-
-  return fetch(`${API_BASE}${path}`, { ...requestInit, headers }).then(async (response) => {
-    if (!response.ok) throw new Error(`API ${response.status}`)
-    return (await response.json()) as T
-  })
+const DEMO_PINS: Record<string, AuthResponse> = {
+  [import.meta.env.VITE_DEMO_USER_PIN ?? '202601']: {
+    role: 'dispatcher',
+    is_admin: false,
+    access_pin_valid: true,
+  },
+  [import.meta.env.VITE_DEMO_ADMIN_PIN ?? '999999']: {
+    role: 'admin',
+    is_admin: true,
+    access_pin_valid: true,
+  },
 }
 
-function canUseMock(error: unknown): boolean {
-  if (!import.meta.env.DEV) return false
-  if (error instanceof TypeError) return true
-  return !(error instanceof Error) || /API (404|500|502|503|504)/.test(error.message)
+export class ApiError extends Error {
+  readonly status: number
+  readonly code: string
+  readonly detail: string
+  readonly fields: Record<string, string[]>
+
+  constructor(status: number, body: Partial<ValidationErrorBody>, fallbackMessage?: string) {
+    super(body.detail || fallbackMessage || `Ошибка API ${status}`)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = body.code ?? 'http_error'
+    this.detail = body.detail ?? fallbackMessage ?? `Ошибка API ${status}`
+    this.fields = body.fields ?? {}
+  }
+}
+
+async function parseErrorBody(response: Response): Promise<Partial<ValidationErrorBody>> {
+  try {
+    return (await response.json()) as Partial<ValidationErrorBody>
+  } catch {
+    return {}
+  }
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { access_pin, ...requestInit } = options
+  const headers = new Headers(requestInit.headers)
+  headers.set('Accept', 'application/json')
+  if (access_pin) headers.set('X-Access-Pin', access_pin)
+  if (requestInit.body !== undefined && !headers.has('Content-Type'))
+    headers.set('Content-Type', 'application/json')
+
+  const response = await fetch(`${API_BASE}${path}`, { ...requestInit, headers })
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorBody(response))
+  }
+  if (response.status === 204) return undefined as T
+  return (await response.json()) as T
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+export function isMockFallbackEnabled(): boolean {
+  return import.meta.env.DEV
+}
+
+function isNetworkError(error: unknown): boolean {
+  return error instanceof TypeError
+}
+
+/** 404/5xx считаем признаком «API ещё не поднят», 4xx — реальной ошибкой запроса. */
+function isFallbackEligible(error: unknown): boolean {
+  if (!isMockFallbackEnabled()) return false
+  if (isNetworkError(error)) return true
+  if (error instanceof ApiError) return error.status === 404 || error.status >= 500
+  return false
 }
 
 async function requestWithFallback<T>(
   path: string,
   options: RequestOptions,
   fallback: () => T,
-): Promise<T> {
+): Promise<Loaded<T>> {
   try {
-    return await request<T>(path, options)
+    return { data: await request<T>(path, options), source: 'api' satisfies DataSource }
   } catch (error) {
-    if (!canUseMock(error)) throw error
-    return fallback()
+    if (!isFallbackEligible(error)) throw error
+    console.warn(`[api] ${path} недоступен, используются dev-mock данные`, error)
+    return { data: clone(fallback()), source: 'mock' }
   }
-}
-
-export interface MockSnapshot {
-  warehouses: typeof mockData.warehouses
-  products: typeof mockData.products
-  warehouse_stocks: typeof mockData.warehouseStocks
-  clients: typeof mockData.clients
-  orders: typeof mockData.clientOrders
-  trucks: typeof mockData.trucks
-  weather: typeof mockData.weatherStates
-}
-
-export function getMockSnapshot(): MockSnapshot {
-  return {
-    warehouses: mockData.warehouses,
-    products: mockData.products,
-    warehouse_stocks: mockData.warehouseStocks,
-    clients: mockData.clients,
-    orders: mockData.clientOrders,
-    trucks: mockData.trucks,
-    weather: mockData.weatherStates,
-  }
-}
-
-export async function loadSnapshot(accessPin: string): Promise<MockSnapshot> {
-  return requestWithFallback<MockSnapshot>(
-    '/erp/state',
-    { method: 'GET', access_pin: accessPin },
-    getMockSnapshot,
-  )
 }
 
 export async function verifyPin(accessPin: string): Promise<AuthResponse> {
-  return requestWithFallback<AuthResponse>(
-    '/auth/verify-pin',
-    {
+  try {
+    return await request<AuthResponse>('/auth/verify-pin', {
       method: 'POST',
       access_pin: accessPin,
-    },
-    () => {
-      const role: UserRole | null =
-        accessPin === adminPin ? 'admin' : accessPin === dispatcherPin ? 'dispatcher' : null
-      if (!role) throw new Error('Неверный PIN-код')
-      return { role, is_admin: role === 'admin', access_pin_valid: true }
-    },
+    })
+  } catch (error) {
+    if (!isFallbackEligible(error)) throw error
+    const demoSession = DEMO_PINS[accessPin]
+    if (!demoSession) throw new ApiError(401, { code: 'unauthorized', detail: 'Неверный PIN-код' })
+    return clone(demoSession)
+  }
+}
+
+export function fetchErpState(accessPin: string): Promise<Loaded<ERPState>> {
+  return requestWithFallback<ERPState>(
+    '/erp/state',
+    { method: 'GET', access_pin: accessPin },
+    () => mockData.mockErpState,
   )
 }
 
-export async function optimize(
+export function fetchWeather(accessPin: string): Promise<Loaded<WeatherResponse>> {
+  return requestWithFallback<WeatherResponse>(
+    '/weather/current',
+    { method: 'GET', access_pin: accessPin },
+    () => mockData.mockWeather,
+  )
+}
+
+export function overrideWeather(
+  mode: WeatherMode,
+  accessPin: string,
+): Promise<Loaded<WeatherResponse>> {
+  return requestWithFallback<WeatherResponse>(
+    '/weather/override',
+    { method: 'POST', access_pin: accessPin, body: JSON.stringify({ mode }) },
+    () => ({ ...mockData.mockWeather, mode, fetched_at: new Date().toISOString() }),
+  )
+}
+
+export function optimize(
   requestBody: SolverRequest,
   accessPin: string,
-): Promise<SolverResponse> {
+): Promise<Loaded<SolverResponse>> {
   return requestWithFallback<SolverResponse>(
     '/solver/optimize',
     { method: 'POST', access_pin: accessPin, body: JSON.stringify(requestBody) },
-    () => ({
-      run_id: 'mock-run-obninsk-001',
-      metrics: {
-        total_cost: 148600,
-        unmet_kg: 0,
-        expected_freshness: 94.8,
-        distance_km: 186,
-        route_count: 3,
-      },
-      comparison_delta: {
-        total_cost: -8200,
-        unmet_kg: -240,
-        expected_freshness: 3.4,
-        distance_km: -28,
-      },
-      routes: [
-        {
-          route_id: 'route-01',
-          truck_id: 'truck-01',
-          order_ids: ['order-001', 'order-002'],
-          distance_km: 74,
-        },
-        { route_id: 'route-02', truck_id: 'truck-02', order_ids: ['order-003'], distance_km: 52 },
-        {
-          route_id: 'route-03',
-          truck_id: 'truck-03',
-          order_ids: ['order-004', 'order-005'],
-          distance_km: 60,
-        },
-      ],
-    }),
+    () => mockData.mockSolverResponse,
   )
+}
+
+/** Человекочитаемое сообщение об ошибке для v-alert. */
+export function describeApiError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'PIN-код не принят или сессия истекла.'
+    if (error.status === 403) return 'Недостаточно прав для этого действия.'
+    return error.detail
+  }
+  if (error instanceof Error) return error.message
+  return 'Не удалось выполнить запрос. Попробуйте ещё раз.'
 }
