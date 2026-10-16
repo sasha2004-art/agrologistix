@@ -1,97 +1,236 @@
-export type UserRole = 'dispatcher' | 'admin'
-export type RoadSurface = 'asphalt' | 'dirt'
-export type DeliveryStatus = 'pending' | 'delivered'
-export type WeatherPreset = 'normal' | 'heatwave_35c' | 'heavy_rain'
+/**
+ * Shared domain types — точка синхронизации с backend.
+ *
+ * Источник правды: `backend/app/schemas/*.py` (Pydantic, `extra="forbid"`).
+ * Все поля идут в snake_case, enum-значения повторяют `backend/app/schemas/enums.py`.
+ */
 
+export type UserRole = 'dispatcher' | 'admin'
+export type RoadType = 'asphalt' | 'dirt'
+export type DeliveryStatus = 'pending' | 'delivered'
+export type TruckStatus = 'active' | 'broken'
+export type StopStatus = 'planned' | 'delivered'
+export type WeatherMode = 'normal' | 'heatwave_35c' | 'heavy_rain'
+export type SolverMode = 'baseline' | 'what_if'
+export type WarningSeverity = 'info' | 'warning' | 'error'
+
+/** auth_schemas.AuthResponse */
 export interface AuthResponse {
   role: UserRole
   is_admin: boolean
   access_pin_valid: boolean
 }
 
+/** erp_schemas.WarehouseResponse */
 export interface Warehouse {
-  warehouse_id: string
+  id: number
   name: string
+  lat: number
+  lon: number
   address: string
-  latitude: number
-  longitude: number
+  is_active: boolean
 }
 
+/** erp_schemas.ProductResponse */
 export interface Product {
-  product_id: string
+  id: number
   name: string
-  unit: 'kg'
-  shelf_life_hours: number
+  code: string
+  base_spoilage_rate: number
+  optimal_temp_c: number
+  base_cost_rub: number
 }
 
+/** erp_schemas.WarehouseStockResponse */
 export interface WarehouseStock {
-  warehouse_id: string
-  product_id: string
-  quantity_kg: number
+  id: number
+  warehouse_id: number
+  product_id: number
+  available_kg: number
+  initial_freshness: number
 }
 
+/** erp_schemas.ClientResponse */
 export interface Client {
-  client_id: string
+  id: number
   name: string
+  lat: number
+  lon: number
+  road_type: RoadType
   address: string
+}
+
+/** erp_schemas.ClientOrderResponse */
+export interface ClientOrder {
+  id: number
+  client_id: number
+  product_id: number
+  requested_kg: number
+  purchase_price_rub: number
+  unmet_penalty_rub: number
+  delivery_status: DeliveryStatus
+}
+
+/** erp_schemas.TruckResponse */
+export interface Truck {
+  id: number
+  name: string
+  plate_number: string
+  warehouse_id: number
+  capacity_kg: number
+  cruise_speed_kmh: number
+  cost_per_km_rub: number
+  fixed_trip_cost_rub: number
+  has_reefer: boolean
+  can_use_dirt: boolean
+  status: TruckStatus
+}
+
+/** erp_schemas.ERPStateResponse */
+export interface ERPState {
+  warehouses: Warehouse[]
+  products: Product[]
+  stocks: WarehouseStock[]
+  clients: Client[]
+  orders: ClientOrder[]
+  trucks: Truck[]
+}
+
+/** erp_schemas.DemoResetResponse */
+export interface DemoResetResponse {
+  status: 'ok'
+  warehouses: number
+  products: number
+  stocks: number
+  clients: number
+  orders: number
+  trucks: number
+  seeded: boolean
+}
+
+/** weather_schemas.WeatherOverrideRequest */
+export interface WeatherOverrideRequest {
+  mode: WeatherMode
+}
+
+/** weather_schemas.WeatherResponse */
+export interface WeatherResponse {
   latitude: number
   longitude: number
-  road_surface: RoadSurface
-}
-
-export interface ClientOrder {
-  order_id: string
-  client_id: string
-  product_id: string
-  quantity_kg: number
-  delivery_status: DeliveryStatus
-  price_per_kg: number
-}
-
-export interface Truck {
-  truck_id: string
-  name: string
-  capacity_kg: number
-  has_reefer: boolean
-  vehicle_type: 'van' | 'medium_truck' | 'heavy_truck'
-  broken: boolean
-}
-
-export interface WeatherState {
-  preset: WeatherPreset
   temperature_c: number
   precipitation_mm: number
-  label: string
+  weather_code: number | null
+  mode: WeatherMode
+  fetched_at: string
 }
 
-export interface Metrics {
-  total_cost: number
-  unmet_kg: number
-  expected_freshness: number
-  distance_km: number
-  route_count: number
-}
-
-export interface ComparisonDelta {
-  total_cost: number
-  unmet_kg: number
-  expected_freshness: number
-  distance_km: number
-}
-
+/** solver_schemas.SolverRequest */
 export interface SolverRequest {
-  mode: 'baseline' | 'what_if'
-  baseline_run_id?: string
+  mode: SolverMode
+  baseline_run_id?: number
 }
 
+/** solver_schemas.SolverWarning */
+export interface SolverWarning {
+  code: string
+  message: string
+  severity: WarningSeverity
+  client_id?: number | null
+  order_id?: number | null
+}
+
+/** solver_schemas.RouteStopResponse */
+export interface RouteStop {
+  order_id?: number | null
+  truck_id: number
+  warehouse_id: number
+  client_id: number
+  product_id: number
+  sequence_order: number
+  shipped_kg: number
+  distance_km: number
+  eta_minutes: number
+  expected_freshness: number
+  trip_leg_cost_rub: number
+  stop_status: StopStatus
+}
+
+/** solver_schemas.RoutePoint */
+export interface RoutePoint {
+  lat: number
+  lon: number
+}
+
+/** solver_schemas.RouteResponse */
+export interface Route {
+  truck_id: number
+  truck_name: string
+  warehouse_id: number
+  total_distance_km: number
+  total_duration_min: number
+  total_cost_rub: number
+  geometry: RoutePoint[]
+  stops: RouteStop[]
+}
+
+/** solver_schemas.Metrics */
+export interface Metrics {
+  total_tco_rub: number
+  total_trip_cost_rub: number
+  total_spoilage_loss_rub: number
+  total_unmet_penalty_rub: number
+  expected_net_profit_rub: number
+  avg_freshness_pct: number
+  shipped_kg: number
+  unmet_kg: number
+}
+
+/** solver_schemas.MetricDelta */
+export interface MetricDelta {
+  before: number
+  after: number
+  delta: number
+  delta_pct: number | null
+}
+
+/** solver_schemas.ComparisonDelta */
+export interface ComparisonDelta {
+  total_tco_rub: MetricDelta
+  total_trip_cost_rub: MetricDelta
+  total_spoilage_loss_rub: MetricDelta
+  total_unmet_penalty_rub: MetricDelta
+  expected_net_profit_rub: MetricDelta
+  avg_freshness_pct: MetricDelta
+  shipped_kg: MetricDelta
+  unmet_kg: MetricDelta
+}
+
+/** solver_schemas.SolverResponse */
 export interface SolverResponse {
-  run_id: string
+  run_id: number
+  parent_run_id?: number | null
+  routes: Route[]
   metrics: Metrics
-  comparison_delta?: ComparisonDelta
-  routes: Array<{
-    route_id: string
-    truck_id: string
-    order_ids: string[]
-    distance_km: number
-  }>
+  warnings: SolverWarning[]
+  comparison?: ComparisonDelta | null
+}
+
+/** error_schemas.APIErrorResponse */
+export interface ApiErrorBody {
+  code: string
+  detail: string
+  request_id?: string | null
+}
+
+/** error_schemas.ValidationErrorResponse */
+export interface ValidationErrorBody extends ApiErrorBody {
+  fields: Record<string, string[]>
+}
+
+/** Откуда пришли данные: живой API или dev-mock (fallback). */
+export type DataSource = 'api' | 'mock'
+
+export interface Loaded<T> {
+  data: T
+  source: DataSource
 }

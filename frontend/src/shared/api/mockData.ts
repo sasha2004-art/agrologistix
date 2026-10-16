@@ -1,136 +1,261 @@
-import type {
-  Client,
-  ClientOrder,
-  Product,
-  Truck,
-  Warehouse,
-  WarehouseStock,
-  WeatherState,
-} from '@/shared/types/domain'
+/**
+ * Dev-only fallback: точная копия seed-набора Калужской области.
+ *
+ * Источник: `backend/app/services/seed_kaluga.py`. Используется только при
+ * `import.meta.env.DEV`, когда локальный API недоступен, чтобы экраны можно было
+ * разрабатывать до/без запущенного backend. Структура должна совпадать с
+ * `ERPStateResponse` один-в-один.
+ */
 
-export const warehouses: Warehouse[] = [
-  {
-    warehouse_id: 'wh-obninsk-north',
-    name: 'Обнинск-Северный',
-    address: 'Обнинск',
-    latitude: 55.128,
-    longitude: 36.612,
-  },
-  {
-    warehouse_id: 'wh-detchino',
-    name: 'Детчино-Агро',
-    address: 'Детчино',
-    latitude: 54.92,
-    longitude: 36.31,
-  },
-]
+import type { ERPState, Metrics, SolverResponse, WeatherResponse } from '@/shared/types/domain'
 
-export const products: Product[] = [
-  { product_id: 'strawberry', name: 'Клубника', unit: 'kg', shelf_life_hours: 36 },
-  { product_id: 'tomato', name: 'Томаты', unit: 'kg', shelf_life_hours: 120 },
-  { product_id: 'cucumber', name: 'Огурцы', unit: 'kg', shelf_life_hours: 96 },
-]
+export const mockErpState: ERPState = {
+  warehouses: [
+    {
+      id: 1,
+      name: 'Хаб Обнинск-Северный',
+      lat: 55.0968,
+      lon: 36.6103,
+      address: 'г. Обнинск, ул. Северная, 1',
+      is_active: true,
+    },
+    {
+      id: 2,
+      name: 'Склад Детчино-Агро',
+      lat: 54.8083,
+      lon: 36.2333,
+      address: 'с. Детчино, ул. Агропромышленная, 7',
+      is_active: true,
+    },
+  ],
+  products: [
+    {
+      id: 1,
+      name: 'Клубника садовая',
+      code: 'strawberry',
+      base_spoilage_rate: 0.08,
+      optimal_temp_c: 4,
+      base_cost_rub: 180,
+    },
+    {
+      id: 2,
+      name: 'Томаты тепличные',
+      code: 'tomato',
+      base_spoilage_rate: 0.035,
+      optimal_temp_c: 10,
+      base_cost_rub: 95,
+    },
+    {
+      id: 3,
+      name: 'Огурцы короткоплодные',
+      code: 'cucumber',
+      base_spoilage_rate: 0.02,
+      optimal_temp_c: 10,
+      base_cost_rub: 70,
+    },
+  ],
+  stocks: [
+    { id: 1, warehouse_id: 1, product_id: 1, available_kg: 4200, initial_freshness: 1 },
+    { id: 2, warehouse_id: 1, product_id: 2, available_kg: 8600, initial_freshness: 1 },
+    { id: 3, warehouse_id: 1, product_id: 3, available_kg: 5400, initial_freshness: 1 },
+    { id: 4, warehouse_id: 2, product_id: 1, available_kg: 2600, initial_freshness: 1 },
+    { id: 5, warehouse_id: 2, product_id: 2, available_kg: 5200, initial_freshness: 1 },
+    { id: 6, warehouse_id: 2, product_id: 3, available_kg: 3800, initial_freshness: 1 },
+  ],
+  clients: [
+    {
+      id: 1,
+      name: 'РЦ «ВкусВилл» Калуга',
+      lat: 54.5138,
+      lon: 36.2612,
+      road_type: 'asphalt',
+      address: 'г. Калуга, ул. Московская, 300',
+    },
+    {
+      id: 2,
+      name: 'Агро-Рынок Малоярославец',
+      lat: 55.0147,
+      lon: 36.4719,
+      road_type: 'asphalt',
+      address: 'г. Малоярославец, ул. Плеханова, 12',
+    },
+    {
+      id: 3,
+      name: 'Фермерский кооператив Боровск',
+      lat: 55.2075,
+      lon: 36.485,
+      road_type: 'dirt',
+      address: 'г. Боровск, ул. Ленина, 44',
+    },
+    {
+      id: 4,
+      name: 'Сеть «Пятёрочка» Балабаново',
+      lat: 55.1797,
+      lon: 36.6597,
+      road_type: 'asphalt',
+      address: 'г. Балабаново, ул. Гагарина, 8',
+    },
+    {
+      id: 5,
+      name: 'Эко-база Таруса',
+      lat: 54.72,
+      lon: 37.18,
+      road_type: 'dirt',
+      address: 'г. Таруса, ул. Окская, 3',
+    },
+  ],
+  orders: [
+    {
+      id: 1,
+      client_id: 1,
+      product_id: 1,
+      requested_kg: 1500,
+      purchase_price_rub: 320,
+      unmet_penalty_rub: 120,
+      delivery_status: 'pending',
+    },
+    {
+      id: 2,
+      client_id: 1,
+      product_id: 2,
+      requested_kg: 2000,
+      purchase_price_rub: 160,
+      unmet_penalty_rub: 80,
+      delivery_status: 'pending',
+    },
+    {
+      id: 3,
+      client_id: 2,
+      product_id: 2,
+      requested_kg: 1200,
+      purchase_price_rub: 150,
+      unmet_penalty_rub: 70,
+      delivery_status: 'pending',
+    },
+    {
+      id: 4,
+      client_id: 2,
+      product_id: 3,
+      requested_kg: 900,
+      purchase_price_rub: 110,
+      unmet_penalty_rub: 50,
+      delivery_status: 'pending',
+    },
+    {
+      id: 5,
+      client_id: 3,
+      product_id: 1,
+      requested_kg: 800,
+      purchase_price_rub: 300,
+      unmet_penalty_rub: 150,
+      delivery_status: 'pending',
+    },
+    {
+      id: 6,
+      client_id: 3,
+      product_id: 3,
+      requested_kg: 1100,
+      purchase_price_rub: 105,
+      unmet_penalty_rub: 45,
+      delivery_status: 'pending',
+    },
+    {
+      id: 7,
+      client_id: 4,
+      product_id: 2,
+      requested_kg: 1800,
+      purchase_price_rub: 155,
+      unmet_penalty_rub: 75,
+      delivery_status: 'pending',
+    },
+    {
+      id: 8,
+      client_id: 4,
+      product_id: 1,
+      requested_kg: 700,
+      purchase_price_rub: 310,
+      unmet_penalty_rub: 140,
+      delivery_status: 'pending',
+    },
+    {
+      id: 9,
+      client_id: 5,
+      product_id: 3,
+      requested_kg: 1000,
+      purchase_price_rub: 115,
+      unmet_penalty_rub: 55,
+      delivery_status: 'pending',
+    },
+  ],
+  trucks: [
+    {
+      id: 1,
+      name: 'Volvo FH16 Еврофура Реф',
+      plate_number: 'А001АА40',
+      warehouse_id: 1,
+      capacity_kg: 20000,
+      cruise_speed_kmh: 75,
+      cost_per_km_rub: 58,
+      fixed_trip_cost_rub: 8500,
+      has_reefer: true,
+      can_use_dirt: false,
+      status: 'active',
+    },
+    {
+      id: 2,
+      name: 'ГАЗон NEXT Реф-Вездеход',
+      plate_number: 'В202ВВ40',
+      warehouse_id: 1,
+      capacity_kg: 6000,
+      cruise_speed_kmh: 62,
+      cost_per_km_rub: 32,
+      fixed_trip_cost_rub: 3800,
+      has_reefer: true,
+      can_use_dirt: true,
+      status: 'active',
+    },
+    {
+      id: 3,
+      name: 'КАМАЗ Компас Тент',
+      plate_number: 'С303СС40',
+      warehouse_id: 2,
+      capacity_kg: 10000,
+      cruise_speed_kmh: 70,
+      cost_per_km_rub: 40,
+      fixed_trip_cost_rub: 4600,
+      has_reefer: false,
+      can_use_dirt: true,
+      status: 'active',
+    },
+  ],
+}
 
-export const warehouseStocks: WarehouseStock[] = [
-  { warehouse_id: 'wh-obninsk-north', product_id: 'strawberry', quantity_kg: 840 },
-  { warehouse_id: 'wh-obninsk-north', product_id: 'tomato', quantity_kg: 1860 },
-  { warehouse_id: 'wh-obninsk-north', product_id: 'cucumber', quantity_kg: 1120 },
-  { warehouse_id: 'wh-detchino', product_id: 'strawberry', quantity_kg: 620 },
-  { warehouse_id: 'wh-detchino', product_id: 'tomato', quantity_kg: 1440 },
-  { warehouse_id: 'wh-detchino', product_id: 'cucumber', quantity_kg: 930 },
-]
+export const mockWeather: WeatherResponse = {
+  latitude: 55.11,
+  longitude: 36.61,
+  temperature_c: 19,
+  precipitation_mm: 0,
+  weather_code: 1,
+  mode: 'normal',
+  fetched_at: new Date().toISOString(),
+}
 
-export const clients: Client[] = [
-  {
-    client_id: 'client-01',
-    name: 'Обнинск Фреш Маркет',
-    address: 'Обнинск',
-    latitude: 55.095,
-    longitude: 36.61,
-    road_surface: 'asphalt',
-  },
-  {
-    client_id: 'client-02',
-    name: 'Калуга Ритейл',
-    address: 'Калуга',
-    latitude: 54.513,
-    longitude: 36.261,
-    road_surface: 'asphalt',
-  },
-  {
-    client_id: 'client-03',
-    name: 'Малоярославец Опт',
-    address: 'Малоярославец',
-    latitude: 55.012,
-    longitude: 36.463,
-    road_surface: 'dirt',
-  },
-  {
-    client_id: 'client-04',
-    name: 'Балабаново Фудсервис',
-    address: 'Балабаново',
-    latitude: 55.178,
-    longitude: 36.657,
-    road_surface: 'asphalt',
-  },
-  {
-    client_id: 'client-05',
-    name: 'Боровск Гастро',
-    address: 'Боровск',
-    latitude: 55.207,
-    longitude: 36.492,
-    road_surface: 'dirt',
-  },
-]
+export const mockMetrics: Metrics = {
+  total_tco_rub: 148600,
+  total_trip_cost_rub: 96400,
+  total_spoilage_loss_rub: 18600,
+  total_unmet_penalty_rub: 33600,
+  expected_net_profit_rub: 412000,
+  avg_freshness_pct: 94.8,
+  shipped_kg: 8600,
+  unmet_kg: 0,
+}
 
-export const clientOrders: ClientOrder[] = clients.map((client, index) => ({
-  order_id: `order-${String(index + 1).padStart(3, '0')}`,
-  client_id: client.client_id,
-  product_id: products[index % products.length].product_id,
-  quantity_kg: 280 + index * 65,
-  delivery_status: index === 0 ? 'delivered' : 'pending',
-  price_per_kg: 185 + index * 12,
-}))
-
-export const trucks: Truck[] = [
-  {
-    truck_id: 'truck-01',
-    name: 'Рефрижератор 01',
-    capacity_kg: 1800,
-    has_reefer: true,
-    vehicle_type: 'medium_truck',
-    broken: false,
-  },
-  {
-    truck_id: 'truck-02',
-    name: 'Фургон 02',
-    capacity_kg: 900,
-    has_reefer: false,
-    vehicle_type: 'van',
-    broken: false,
-  },
-  {
-    truck_id: 'truck-03',
-    name: 'Еврофура 03',
-    capacity_kg: 8000,
-    has_reefer: true,
-    vehicle_type: 'heavy_truck',
-    broken: false,
-  },
-]
-
-export const weatherStates: Record<WeatherState['preset'], WeatherState> = {
-  normal: { preset: 'normal', temperature_c: 19, precipitation_mm: 0, label: 'Нормальная погода' },
-  heatwave_35c: {
-    preset: 'heatwave_35c',
-    temperature_c: 35,
-    precipitation_mm: 0,
-    label: 'Жара · 35°C',
-  },
-  heavy_rain: {
-    preset: 'heavy_rain',
-    temperature_c: 12,
-    precipitation_mm: 18,
-    label: 'Сильный дождь',
-  },
+export const mockSolverResponse: SolverResponse = {
+  run_id: 1,
+  parent_run_id: null,
+  metrics: mockMetrics,
+  warnings: [],
+  comparison: null,
+  routes: [],
 }
