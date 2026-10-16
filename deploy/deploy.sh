@@ -2,7 +2,8 @@
 # Deploy AgroLogistix to the target host without containers.
 #
 # Required environment:
-#   DEPLOY_HOST, DEPLOY_USER, DEPLOY_APP_DIR, DEPLOY_WEB_ROOT, DEPLOY_SERVICE
+#   DEPLOY_HOST, DEPLOY_USER, DEPLOY_APP_DIR, DEPLOY_WEB_ROOT, DEPLOY_SERVICE,
+#   DEPLOY_DOMAIN (TLS certificate must exist, see deploy/setup-https.sh)
 # Optional:
 #   DEPLOY_SSH_KEY_PATH, DEPLOY_SSH_STRICT (default: accept-new)
 set -euo pipefail
@@ -12,6 +13,7 @@ set -euo pipefail
 : "${DEPLOY_APP_DIR:?DEPLOY_APP_DIR is required}"
 : "${DEPLOY_WEB_ROOT:?DEPLOY_WEB_ROOT is required}"
 : "${DEPLOY_SERVICE:?DEPLOY_SERVICE is required}"
+: "${DEPLOY_DOMAIN:?DEPLOY_DOMAIN is required}"
 
 SSH_STRICT="${DEPLOY_SSH_STRICT:-accept-new}"
 SSH_OPTS=(-o "StrictHostKeyChecking=${SSH_STRICT}" -o ConnectTimeout=20)
@@ -43,6 +45,16 @@ rsync -az --delete \
 printf '==> Syncing frontend build to %s\n' "${DEPLOY_WEB_ROOT}"
 rsync -az --delete -e "${SSH_CMD}" frontend/dist/ "${REMOTE}:${DEPLOY_WEB_ROOT}/"
 
+printf '==> Checking the TLS certificate for %s\n' "${DEPLOY_DOMAIN}"
+TLS_FULLCHAIN="/etc/letsencrypt/live/${DEPLOY_DOMAIN}/fullchain.pem"
+if ! ssh "${SSH_OPTS[@]}" "${REMOTE}" "test -f '${TLS_FULLCHAIN}'"; then
+    printf 'TLS certificate %s is missing on the server.\n' "${TLS_FULLCHAIN}" >&2
+    printf 'Run the one-time HTTPS bootstrap first:\n' >&2
+    printf '  DEPLOY_HOST=%s DEPLOY_USER=%s DEPLOY_DOMAIN=%s DEPLOY_WEB_ROOT=%s bash deploy/setup-https.sh\n' \
+        "${DEPLOY_HOST}" "${DEPLOY_USER}" "${DEPLOY_DOMAIN}" "${DEPLOY_WEB_ROOT}" >&2
+    exit 1
+fi
+
 printf '==> Syncing service and nginx configuration\n'
 rsync -az -e "${SSH_CMD}" deploy/agrologistix-backend.service \
     "${REMOTE}:/etc/systemd/system/${DEPLOY_SERVICE}"
@@ -69,6 +81,7 @@ done
 printf 'service=%s\n' "\$(systemctl is-active "${DEPLOY_SERVICE}")"
 printf 'backend_health=%s\n' "\$(curl -fsS http://127.0.0.1:8000/api/v1/health)"
 printf 'nginx_health=%s\n' "\$(curl -fsS http://127.0.0.1/health)"
+printf 'https_health=%s\n' "\$(curl -fsS --resolve '${DEPLOY_DOMAIN}:443:127.0.0.1' 'https://${DEPLOY_DOMAIN}/api/v1/health')"
 REMOTE_SCRIPT
 
 printf '==> Deploy finished\n'

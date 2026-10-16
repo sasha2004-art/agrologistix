@@ -119,6 +119,9 @@ python scripts/generate_launch_doc.py --check
    `{production["frontend_web_root"]}`.
 6. Standalone Nginx раздаёт статику, делает SPA fallback на `index.html` и
    проксирует `/api/` на `127.0.0.1:{backend["dev_port"]}`.
+7. Nginx завершает TLS сертификатом Let's Encrypt из
+   `{production["tls_certificate_dir"]}`; HTTP редиректится на HTTPS, кроме
+   `/health` и ACME-challenge.
 
 Пример backend-юнита:
 
@@ -146,6 +149,48 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now {production["backend_service_name"]}
 sudo systemctl status {production["backend_service_name"]}
 ```
+
+## HTTPS (Let's Encrypt)
+
+Конфиг `{production["nginx_config"]}` слушает `80` и `443`, а сертификат берётся
+из `{production["tls_certificate_dir"]}`. Первичный выпуск выполняется один раз
+с локальной машины:
+
+```bash
+DEPLOY_HOST=<host> \
+DEPLOY_USER=<user> \
+DEPLOY_DOMAIN=<domain> \
+DEPLOY_WEB_ROOT={production["frontend_web_root"]} \
+DEPLOY_SSH_KEY_PATH=<key> \
+{production["https_setup_command"]}
+```
+
+Скрипт `deploy/setup-https.sh` идемпотентен и выполняет шаги:
+
+1. ставит HTTP-only bootstrap-конфиг
+   `{production["nginx_bootstrap_config"]}` (нужен, чтобы ACME ответил до
+   появления сертификата);
+2. выпускает сертификат: `certbot certonly --webroot -w {production["frontend_web_root"]} -d <domain>`;
+3. ставит TLS-конфиг `{production["nginx_config"]}` и перезагружает Nginx;
+4. включает `{production["tls_renewal_timer"]}` и deploy-hook, который
+   перезагружает Nginx после каждого продления.
+
+Проверка:
+
+```bash
+curl -I https://<domain>/health
+curl -I http://<domain>/health   # 301 на https
+certbot renew --dry-run --no-random-sleep-on-renew
+```
+
+`deploy/deploy.sh` требует `DEPLOY_DOMAIN` и перед копированием конфига
+проверяет наличие сертификата: если его нет, деплой останавливается с
+подсказкой запустить bootstrap.
+
+Если домен проксируется через Cloudflare, режим SSL/TLS должен быть
+`Full` или `Full (strict)`. В режиме `Flexible` Nginx получает HTTP-запросы,
+и редирект `http → https` создаст цикл; в этом случае включите `Full (strict)`
+после выпуска сертификата.
 
 ## Деплой через GitHub Actions
 
