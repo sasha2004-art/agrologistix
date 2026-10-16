@@ -1,11 +1,11 @@
 <template>
-  <v-app-bar flat height="64" color="surface">
+  <v-app-bar height="64" color="surface" class="soft-bar">
     <RouterLink class="brand" to="/" aria-label="AgroLogistix, главная">
       <v-icon icon="mdi-leaf" color="primary" />
       <span>AgroLogistix</span>
     </RouterLink>
     <v-spacer />
-    <v-btn to="/login" color="primary" variant="flat">Терминал логиста</v-btn>
+    <v-btn to="/login" color="primary" class="btn-gradient">Терминал логиста</v-btn>
   </v-app-bar>
 
   <v-main>
@@ -17,12 +17,12 @@
           AgroLogistix планирует поставки скоропортящегося урожая из складов Обнинска
           в B2B-точки Калужской области и считает экономику каждого рейса.
         </p>
-        <v-btn to="/login" color="primary" size="large" variant="flat">Открыть терминал</v-btn>
+        <v-btn to="/login" color="primary" size="large" class="btn-gradient">Открыть терминал</v-btn>
       </section>
 
       <v-row class="mt-8 mt-md-12">
         <v-col v-for="capability in capabilities" :key="capability.title" cols="12" md="4">
-          <v-card variant="outlined" class="h-100">
+          <v-card class="soft-card h-100">
             <v-card-item>
               <template #prepend>
                 <v-icon :icon="capability.icon" color="primary" size="22" />
@@ -35,7 +35,7 @@
       </v-row>
     </v-container>
 
-    <v-footer class="justify-center">
+    <v-footer class="soft-footer justify-center">
       <span class="text-caption text-medium-emphasis">© AgroLogistix · Калуга — Обнинск</span>
     </v-footer>
   </v-main>
@@ -87,7 +87,7 @@ const capabilities: Capability[] = [
 
 .hero-kicker {
   margin: 0 0 10px;
-  color: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-primary-darken-1));
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -96,7 +96,7 @@ const capabilities: Capability[] = [
 
 .hero-text {
   margin: 14px 0 26px;
-  color: rgba(248, 250, 252, 0.72);
+  color: rgba(43, 42, 38, 0.72);
   font-size: 16px;
   line-height: 1.6;
 }

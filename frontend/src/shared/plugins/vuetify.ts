@@ -4,23 +4,41 @@ import '@mdi/font/css/materialdesignicons.css'
 
 export const vuetify = createVuetify({
   theme: {
-    defaultTheme: 'agroDark',
+    defaultTheme: 'agroLight',
     themes: {
-      agroDark: {
-        dark: true,
+      agroLight: {
+        dark: false,
         colors: {
-          background: '#0F172A',
-          surface: '#1E293B',
-          primary: '#10B981',
-          secondary: '#38BDF8',
-          warning: '#F59E0B',
-          error: '#EF4444',
-          success: '#22C55E',
+          background: '#FFFFFF',
+          surface: '#FFFFFF',
+          'surface-variant': '#F7F5F0',
+          'surface-light': '#FCFAF6',
+          'on-background': '#2B2A26',
+          'on-surface': '#2B2A26',
+          'on-surface-variant': '#5B584F',
+          primary: '#D9B36C',
+          'primary-lighten-1': '#E6C88A',
+          'primary-darken-1': '#8A6A1F',
+          secondary: '#8CBEDC',
+          'secondary-lighten-1': '#A8CFE4',
+          'secondary-darken-1': '#5E93B5',
+          success: '#7C9A6B',
+          'success-lighten-1': '#93AE84',
+          warning: '#C9A227',
+          'warning-lighten-1': '#D9B85A',
+          error: '#B4553F',
+          'error-lighten-1': '#C56F5C',
+          info: '#457495',
         },
       },
     },
   },
   defaults: {
     VBtn: { rounded: 'lg', class: 'text-none' },
+    VCard: { rounded: 'xl', elevation: 0 },
+    VAppBar: { flat: true },
+    VAlert: { rounded: 'lg' },
+    VChip: { rounded: 'lg' },
+    VAvatar: { rounded: 'lg' },
   },
 })

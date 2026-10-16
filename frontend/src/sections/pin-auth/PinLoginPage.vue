@@ -1,6 +1,6 @@
 <template>
   <v-main class="d-flex align-center justify-center pa-4">
-    <v-card class="login-card" variant="outlined" max-width="420" width="100%">
+    <v-card class="login-card soft-card" max-width="420" width="100%">
       <v-card-item class="text-center pt-6 pb-0">
         <v-icon icon="mdi-leaf" color="primary" size="26" />
         <v-card-title class="text-h6 mt-3">Терминал логиста</v-card-title>
