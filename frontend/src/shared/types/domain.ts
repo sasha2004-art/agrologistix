@@ -4,10 +4,9 @@ export type DeliveryStatus = 'pending' | 'delivered'
 export type WeatherPreset = 'normal' | 'heatwave_35c' | 'heavy_rain'
 
 export interface AuthResponse {
-  authenticated: boolean
   role: UserRole
   is_admin: boolean
-  access_pin?: string
+  access_pin_valid: boolean
 }
 
 export interface Warehouse {
