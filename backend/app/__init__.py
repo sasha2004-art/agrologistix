@@ -1,0 +1,1 @@
+"""AgroLogistix backend application package."""
