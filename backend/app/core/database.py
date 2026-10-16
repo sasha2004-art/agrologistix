@@ -2,10 +2,12 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
+from fastapi import Request
 from sqlalchemy import Engine, event
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.core.config import Settings, get_settings
+from app.models import erp_models, run_models  # noqa: F401  (register SQLModel tables)
 
 
 def _database_url(path: str) -> str:
@@ -36,13 +38,11 @@ def create_database_engine(settings: Settings | None = None) -> Engine:
     return database_engine
 
 
-engine = create_database_engine()
+def init_database(database_engine: Engine) -> None:
+    SQLModel.metadata.create_all(database_engine)
 
 
-def init_database() -> None:
-    SQLModel.metadata.create_all(engine)
-
-
-def get_session() -> Generator[Session, None, None]:
-    with Session(engine) as session:
+def get_session(request: Request) -> Generator[Session, None, None]:
+    database_engine: Engine = request.app.state.db_engine
+    with Session(database_engine) as session:
         yield session
