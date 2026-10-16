@@ -40,6 +40,8 @@ DEFAULT_SPEED_KMH = 60.0
 STRAIGHT_LINE_SEGMENTS = 8
 # Coordinate rounding for the cache key: five decimals are about 1.1 meters.
 CACHE_PRECISION = 5
+# Geometry rounding for JSON payloads: six decimals are about 0.11 meters.
+GEOMETRY_PRECISION = 6
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,8 +105,12 @@ def build_polyline(
 
     return [
         (
-            origin.lat + (destination.lat - origin.lat) * step / segments,
-            origin.lon + (destination.lon - origin.lon) * step / segments,
+            round(
+                origin.lat + (destination.lat - origin.lat) * step / segments, GEOMETRY_PRECISION
+            ),
+            round(
+                origin.lon + (destination.lon - origin.lon) * step / segments, GEOMETRY_PRECISION
+            ),
         )
         for step in range(segments + 1)
     ]
@@ -154,7 +160,10 @@ async def fetch_mapbox_leg(
         route = response.json()["routes"][0]
         route_distance_km = float(route["distance"]) / 1000.0
         route_duration_min = float(route["duration"]) / 60.0
-        geometry = [(float(lat), float(lon)) for lon, lat in route["geometry"]["coordinates"]]
+        geometry = [
+            (round(float(lat), GEOMETRY_PRECISION), round(float(lon), GEOMETRY_PRECISION))
+            for lon, lat in route["geometry"]["coordinates"]
+        ]
         return RouteLeg(
             distance_km=round(route_distance_km, 3),
             base_duration_min=round(route_duration_min, 3),

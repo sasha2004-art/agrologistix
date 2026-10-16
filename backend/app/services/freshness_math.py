@@ -127,15 +127,29 @@ def travel_time_hours(trip: TripConditions) -> float:
     )
 
 
+def freshness_after_hours(
+    cargo: CargoProfile,
+    travel_hours: float,
+    temperature_c: float,
+    has_reefer: bool,
+) -> float:
+    """PRD decay applied to an already known travel time (used per route leg)."""
+
+    if travel_hours < 0.0:
+        raise ValueError("travel_hours must be non-negative")
+    decay = exp(-cargo.spoilage_rate * travel_hours * temperature_factor(temperature_c, has_reefer))
+    return clamp01(cargo.initial_freshness * decay)
+
+
 def expected_freshness(cargo: CargoProfile, trip: TripConditions) -> float:
     """PRD freshness of a batch after one leg, clamped to ``[0, 1]``."""
 
-    decay = exp(
-        -cargo.spoilage_rate
-        * travel_time_hours(trip)
-        * temperature_factor(trip.temperature_c, trip.has_reefer)
+    return freshness_after_hours(
+        cargo,
+        travel_time_hours(trip),
+        trip.temperature_c,
+        trip.has_reefer,
     )
-    return clamp01(cargo.initial_freshness * decay)
 
 
 def spoilage_loss_rub(shipped_kg: float, freshness: float, price_per_kg: float) -> float:
