@@ -1,11 +1,7 @@
-from pydantic import Field, model_validator
+from pydantic import model_validator
 
 from app.schemas.base import APIModel
 from app.schemas.enums import AuthRole
-
-
-class VerifyPinRequest(APIModel):
-    pin: str = Field(pattern=r"^\d{6}$")
 
 
 class AuthResponse(APIModel):
