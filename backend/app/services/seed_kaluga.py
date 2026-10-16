@@ -13,7 +13,7 @@ from app.models.erp_models import (
     Warehouse,
     WarehouseStock,
 )
-from app.models.run_models import RouteCache, RouteStop, SimulationRun
+from app.models.run_models import RouteCache, RouteStop, SimulationRun, WeatherOverrideState
 from app.schemas.enums import DeliveryStatus, RoadType, TruckStatus
 
 WAREHOUSE_SEED: tuple[dict[str, object], ...] = (
@@ -179,6 +179,7 @@ def collect_summary(session: Session, *, seeded: bool = False) -> SeedSummary:
 
 
 def _insert_reference_data(session: Session) -> None:
+    session.add(WeatherOverrideState())
     warehouses = {str(item["name"]): Warehouse(**item) for item in WAREHOUSE_SEED}
     session.add_all(list(warehouses.values()))
     session.flush()
@@ -239,7 +240,7 @@ def seed_database(session: Session) -> SeedSummary:
 def reset_demo_database(session: Session) -> SeedSummary:
     """Drop every persisted record and rebuild the demo state from scratch."""
 
-    for model in (RouteStop, SimulationRun, RouteCache):
+    for model in (RouteStop, SimulationRun, RouteCache, WeatherOverrideState):
         session.exec(delete(model))
     for model in (ClientOrder, WarehouseStock, Truck, Client, Product, Warehouse):
         session.exec(delete(model))
