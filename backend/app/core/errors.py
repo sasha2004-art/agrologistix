@@ -8,6 +8,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 def _error_code(status_code: int) -> str:
     return {
+        status.HTTP_400_BAD_REQUEST: "bad_request",
         status.HTTP_401_UNAUTHORIZED: "unauthorized",
         status.HTTP_403_FORBIDDEN: "forbidden",
         status.HTTP_404_NOT_FOUND: "not_found",
@@ -40,4 +41,4 @@ async def validation_exception_handler(
         "detail": "Request validation failed",
         "fields": fields,
     }
-    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=content)
+    return JSONResponse(status_code=422, content=content)
