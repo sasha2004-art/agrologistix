@@ -1,0 +1,66 @@
+@font-face {
+  font-family: 'Helvetica Regular';
+  src: url('https://db.onlinewebfonts.com/t/a64ff11d2c24584c767f6257e880dc65.eot');
+  src:
+    url('https://db.onlinewebfonts.com/t/a64ff11d2c24584c767f6257e880dc65.eot?#iefix') format('embedded-opentype'),
+    url('https://db.onlinewebfonts.com/t/a64ff11d2c24584c767f6257e880dc65.woff2') format('woff2'),
+    url('https://db.onlinewebfonts.com/t/a64ff11d2c24584c767f6257e880dc65.woff') format('woff'),
+    url('https://db.onlinewebfonts.com/t/a64ff11d2c24584c767f6257e880dc65.ttf') format('truetype'),
+    url('https://db.onlinewebfonts.com/t/a64ff11d2c24584c767f6257e880dc65.svg#Helvetica Regular') format('svg');
+  font-display: swap;
+}
+
+:root {
+  font-family: 'Helvetica Regular', Inter, Roboto, sans-serif;
+  color: #f8fafc;
+  background: #0f172a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --font-sans: 'Helvetica Regular', Inter, Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { min-width: 320px; min-height: 100%; margin: 0; }
+body { min-height: 100vh; background: #0f172a; }
+button, input { font: inherit; }
+::selection { color: white; background: rgba(16, 185, 129, 0.42); }
+:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 20%,
+    rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%,
+    rgba(255,255,255,0.15) 80%, rgba(255,255,255,0.45) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.video-scene { position: fixed; inset: 0; z-index: 0; overflow: hidden; background: #0f172a; }
+.video-scene::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(8, 17, 31, .9) 0%, rgba(8, 17, 31, .68) 48%, rgba(8, 17, 31, .42) 100%), linear-gradient(0deg, #0f172a 0%, transparent 52%);
+}
+.video-scene video { width: 100%; height: 100%; object-fit: cover; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
