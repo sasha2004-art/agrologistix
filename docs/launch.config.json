@@ -25,5 +25,27 @@
     "frontend_web_root": "/var/www/agrologistix",
     "backend_install_directory": "/opt/agrologistix",
     "nginx_site_name": "agrologistix"
+  },
+  "ci": {
+    "workflow": ".github/workflows/ci-deploy.yml",
+    "deploy_command": "bash deploy/deploy.sh",
+    "variables": [
+      "DEPLOY_HOST",
+      "DEPLOY_USER",
+      "DEPLOY_APP_DIR",
+      "DEPLOY_WEB_ROOT",
+      "DEPLOY_SERVICE",
+      "DEPLOY_DOMAIN",
+      "APP_ENV"
+    ],
+    "secrets": [
+      "DEPLOY_SSH_KEY",
+      "DEPLOY_SSH_KNOWN_HOSTS",
+      "USER_ACCESS_PIN",
+      "ADMIN_ACCESS_PIN"
+    ],
+    "optional_secrets": [
+      "MAPBOX_SECRET_TOKEN"
+    ]
   }
 }

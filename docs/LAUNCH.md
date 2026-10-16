@@ -114,6 +114,44 @@ sudo systemctl enable --now agrologistix-backend.service
 sudo systemctl status agrologistix-backend.service
 ```
 
+## Деплой через GitHub Actions
+
+Workflow `.github/workflows/ci-deploy.yml` выполняет три джобы: `backend-checks`,
+`frontend-checks` и `deploy`. Джоба `deploy` запускается только для
+ветки `main` (или вручную через `workflow_dispatch`) и выполняет:
+
+```bash
+bash deploy/deploy.sh
+```
+
+Скрипт собирает frontend, синхронизирует backend и `frontend/dist` по SSH,
+перезапускает сервис и проверяет health-эндпоинты.
+
+### Repository Variables
+
+- `DEPLOY_HOST`
+- `DEPLOY_USER`
+- `DEPLOY_APP_DIR`
+- `DEPLOY_WEB_ROOT`
+- `DEPLOY_SERVICE`
+- `DEPLOY_DOMAIN`
+- `APP_ENV`
+
+### Repository Secrets
+
+- `DEPLOY_SSH_KEY`
+- `DEPLOY_SSH_KNOWN_HOSTS`
+- `USER_ACCESS_PIN`
+- `ADMIN_ACCESS_PIN`
+
+Опционально (когда появится реальный ключ):
+
+- `MAPBOX_SECRET_TOKEN`
+
+`DEPLOY_SSH_KEY` — приватный deploy-ключ, публичная часть которого
+добавлена в `/root/.ssh/authorized_keys` на сервере.
+`DEPLOY_SSH_KNOWN_HOSTS` — вывод `ssh-keyscan <host>`.
+
 ## Обновление документа
 
 После изменения команд, портов, путей или production-схемы обновите

@@ -21,9 +21,15 @@ def render(config: dict[str, object]) -> str:
     backend = config["backend"]
     frontend = config["frontend"]
     production = config["production"]
+    ci = config["ci"]
     assert isinstance(backend, dict)
     assert isinstance(frontend, dict)
     assert isinstance(production, dict)
+    assert isinstance(ci, dict)
+
+    ci_variables = "\n".join(f"- `{name}`" for name in ci["variables"])
+    ci_secrets = "\n".join(f"- `{name}`" for name in ci["secrets"])
+    ci_optional = "\n".join(f"- `{name}`" for name in ci["optional_secrets"])
 
     return f'''# Запуск AgroLogistix
 
@@ -140,6 +146,35 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now {production["backend_service_name"]}
 sudo systemctl status {production["backend_service_name"]}
 ```
+
+## Деплой через GitHub Actions
+
+Workflow `{ci["workflow"]}` выполняет три джобы: `backend-checks`,
+`frontend-checks` и `deploy`. Джоба `deploy` запускается только для
+ветки `main` (или вручную через `workflow_dispatch`) и выполняет:
+
+```bash
+{ci["deploy_command"]}
+```
+
+Скрипт собирает frontend, синхронизирует backend и `frontend/dist` по SSH,
+перезапускает сервис и проверяет health-эндпоинты.
+
+### Repository Variables
+
+{ci_variables}
+
+### Repository Secrets
+
+{ci_secrets}
+
+Опционально (когда появится реальный ключ):
+
+{ci_optional}
+
+`DEPLOY_SSH_KEY` — приватный deploy-ключ, публичная часть которого
+добавлена в `/root/.ssh/authorized_keys` на сервере.
+`DEPLOY_SSH_KNOWN_HOSTS` — вывод `ssh-keyscan <host>`.
 
 ## Обновление документа
 
