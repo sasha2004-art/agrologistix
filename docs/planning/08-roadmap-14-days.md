@@ -116,7 +116,7 @@ Metrics:
 
 - Инициализировать Vue 3 + Vite + TypeScript.
 - Подключить Pinia, Vue Router, Vuetify 4 и `mapbox-gl`.
-- Настроить `main.ts`, базовую тему `agroDark`, `App.vue` и пустые маршруты `/`, `/login`, `/dashboard`.
+- Настроить `main.ts`, базовую тему `agroLight`, `App.vue` и пустые маршруты `/`, `/login`, `/dashboard`.
 - Создать `domain.ts` по согласованному DTO и typed HTTP-клиент.
 - Подготовить mock-режим, чтобы экраны можно было разрабатывать до готовности API.
 

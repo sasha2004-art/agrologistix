@@ -29,7 +29,7 @@ defineProps<{ length: number; error: boolean; shaking: boolean }>()
 .pin-dot {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(248, 250, 252, 0.28);
+  border: 2px solid rgba(43, 42, 38, 0.24);
   border-radius: 50%;
   transition:
     border-color 0.15s ease,

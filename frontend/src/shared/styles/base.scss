@@ -1,8 +1,8 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-family: Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: #f8fafc;
-  background-color: #0f172a;
+  color: #2b2a26;
+  background-color: #ffffff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -23,7 +23,7 @@ body,
 
 body {
   min-height: 100vh;
-  background-color: #0f172a;
+  background-color: #ffffff;
 }
 
 button,
@@ -32,6 +32,6 @@ input {
 }
 
 :focus-visible {
-  outline: 2px solid #38bdf8;
+  outline: 2px solid #5e93b5;
   outline-offset: 2px;
 }

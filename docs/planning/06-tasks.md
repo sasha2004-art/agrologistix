@@ -12,7 +12,7 @@
 * **Критерий проверки (Verification):** Команда `bash scripts/check_loc.sh && ruff check backend/` завершается с кодом `0`.
 
 ### `TASK-02` [Dev 2] Инициализация Vue 3 + TypeScript + Pinia + Vuetify 4
-* **Описание:** Развернуть Vite-проект во `frontend/`, установить `vuetify`, `pinia`, `vue-router`, `mapbox-gl`, настроить ESLint + Prettier и тему `agroDark` (без Tailwind CSS).
+* **Описание:** Развернуть Vite-проект во `frontend/`, установить `vuetify`, `pinia`, `vue-router`, `mapbox-gl`, настроить ESLint + Prettier и тему `agroLight` (без Tailwind CSS).
 * **Затрагиваемые файлы:** `frontend/package.json`, `frontend/src/main.ts`, `frontend/src/shared/plugins/vuetify.ts`, `frontend/src/shared/types/domain.ts`.
 * **Критерий проверки (Verification):** `npm run build` собирает пустой каркас с темой Vuetify 4 без ошибок типизации.
 

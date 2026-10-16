@@ -4,18 +4,25 @@ import '@mdi/font/css/materialdesignicons.css'
 
 export const vuetify = createVuetify({
   theme: {
-    defaultTheme: 'agroDark',
+    defaultTheme: 'agroLight',
     themes: {
-      agroDark: {
-        dark: true,
+      agroLight: {
+        dark: false,
         colors: {
-          background: '#0F172A',
-          surface: '#1E293B',
-          primary: '#10B981',
-          secondary: '#38BDF8',
-          warning: '#F59E0B',
-          error: '#EF4444',
-          success: '#22C55E',
+          background: '#FFFFFF',
+          surface: '#FFFFFF',
+          'surface-variant': '#F5F3EE',
+          'on-background': '#2B2A26',
+          'on-surface': '#2B2A26',
+          'on-surface-variant': '#5B584F',
+          primary: '#D9B36C',
+          'primary-darken-1': '#A8842F',
+          secondary: '#8CBEDC',
+          'secondary-darken-1': '#5E93B5',
+          success: '#7C9A6B',
+          warning: '#C9A227',
+          error: '#B4553F',
+          info: '#8CBEDC',
         },
       },
     },

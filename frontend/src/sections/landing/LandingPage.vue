@@ -87,7 +87,7 @@ const capabilities: Capability[] = [
 
 .hero-kicker {
   margin: 0 0 10px;
-  color: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-primary-darken-1));
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -96,7 +96,7 @@ const capabilities: Capability[] = [
 
 .hero-text {
   margin: 14px 0 26px;
-  color: rgba(248, 250, 252, 0.72);
+  color: rgba(43, 42, 38, 0.72);
   font-size: 16px;
   line-height: 1.6;
 }
