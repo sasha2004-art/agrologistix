@@ -5,22 +5,24 @@ export interface RequestOptions extends RequestInit {
   access_pin?: string
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 const dispatcherPin = '202601'
 const adminPin = '999999'
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers = new Headers(options.headers)
-  if (options.access_pin) headers.set('X-Access-Pin', options.access_pin)
-  if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  const { access_pin, ...requestInit } = options
+  const headers = new Headers(requestInit.headers)
+  if (access_pin) headers.set('X-Access-Pin', access_pin)
+  if (requestInit.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
 
-  return fetch(`${API_BASE}${path}`, { ...options, headers }).then(async (response) => {
+  return fetch(`${API_BASE}${path}`, { ...requestInit, headers }).then(async (response) => {
     if (!response.ok) throw new Error(`API ${response.status}`)
     return (await response.json()) as T
   })
 }
 
 function canUseMock(error: unknown): boolean {
+  if (!import.meta.env.DEV) return false
   if (error instanceof TypeError) return true
   return !(error instanceof Error) || /API (404|500|502|503|504)/.test(error.message)
 }
@@ -62,7 +64,7 @@ export function getMockSnapshot(): MockSnapshot {
 
 export async function loadSnapshot(accessPin: string): Promise<MockSnapshot> {
   return requestWithFallback<MockSnapshot>(
-    '/api/v1/erp/snapshot',
+    '/erp/state',
     { method: 'GET', access_pin: accessPin },
     getMockSnapshot,
   )
@@ -70,20 +72,23 @@ export async function loadSnapshot(accessPin: string): Promise<MockSnapshot> {
 
 export async function verifyPin(accessPin: string): Promise<AuthResponse> {
   return requestWithFallback<AuthResponse>(
-    '/api/v1/auth/verify-pin',
-    { method: 'POST', access_pin: accessPin },
+    '/auth/verify-pin',
+    {
+      method: 'POST',
+      access_pin: accessPin,
+    },
     () => {
       const role: UserRole | null =
         accessPin === adminPin ? 'admin' : accessPin === dispatcherPin ? 'dispatcher' : null
       if (!role) throw new Error('Неверный PIN-код')
-      return { authenticated: true, role, is_admin: role === 'admin', access_pin: accessPin }
+      return { role, is_admin: role === 'admin', access_pin_valid: true }
     },
   )
 }
 
 export async function optimize(requestBody: SolverRequest, accessPin: string): Promise<SolverResponse> {
   return requestWithFallback<SolverResponse>(
-    '/api/v1/solver/optimize',
+    '/solver/optimize',
     { method: 'POST', access_pin: accessPin, body: JSON.stringify(requestBody) },
     () => ({
       run_id: 'mock-run-obninsk-001',
