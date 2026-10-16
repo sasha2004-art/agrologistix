@@ -1,11 +1,11 @@
 <template>
-  <v-app-bar flat height="64" color="surface">
+  <v-app-bar height="64" color="surface" class="soft-bar">
     <RouterLink class="brand" to="/" aria-label="AgroLogistix, главная">
       <v-icon icon="mdi-leaf" color="primary" />
       <span>AgroLogistix</span>
     </RouterLink>
     <v-spacer />
-    <v-btn to="/login" color="primary" variant="flat">Терминал логиста</v-btn>
+    <v-btn to="/login" color="primary" class="btn-gradient">Терминал логиста</v-btn>
   </v-app-bar>
 
   <v-main>
@@ -17,12 +17,12 @@
           AgroLogistix планирует поставки скоропортящегося урожая из складов Обнинска
           в B2B-точки Калужской области и считает экономику каждого рейса.
         </p>
-        <v-btn to="/login" color="primary" size="large" variant="flat">Открыть терминал</v-btn>
+        <v-btn to="/login" color="primary" size="large" class="btn-gradient">Открыть терминал</v-btn>
       </section>
 
       <v-row class="mt-8 mt-md-12">
         <v-col v-for="capability in capabilities" :key="capability.title" cols="12" md="4">
-          <v-card variant="outlined" class="h-100">
+          <v-card class="soft-card h-100">
             <v-card-item>
               <template #prepend>
                 <v-icon :icon="capability.icon" color="primary" size="22" />
@@ -35,7 +35,7 @@
       </v-row>
     </v-container>
 
-    <v-footer class="justify-center">
+    <v-footer class="soft-footer justify-center">
       <span class="text-caption text-medium-emphasis">© AgroLogistix · Калуга — Обнинск</span>
     </v-footer>
   </v-main>
