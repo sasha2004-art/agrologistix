@@ -10,6 +10,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.v1.auth_router import router as auth_router
 from app.api.v1.erp_router import router as erp_router, system_router
 from app.api.v1.health_router import router as health_router
+from app.api.v1.weather_router import router as weather_router
 from app.core.config import Settings, get_settings
 from app.core.database import create_database_engine, init_database
 from app.core.errors import http_exception_handler, validation_exception_handler
@@ -53,6 +54,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api_router.include_router(health_router)
     api_router.include_router(erp_router)
     api_router.include_router(system_router)
+    api_router.include_router(weather_router)
     application.include_router(api_router)
     return application
 

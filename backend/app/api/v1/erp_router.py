@@ -28,6 +28,7 @@ from app.schemas.erp_schemas import (
 )
 from app.schemas.error_schemas import APIErrorResponse
 from app.services.seed_kaluga import reset_demo_database
+from app.services.weather_service import reset_weather_cache
 
 router = APIRouter(prefix="/erp", tags=["erp"])
 system_router = APIRouter(prefix="/system", tags=["system"])
@@ -159,6 +160,7 @@ def patch_warehouse_stock(
 )
 def reset_demo(_context: AdminContext, session: SessionDependency) -> DemoResetResponse:
     summary = reset_demo_database(session)
+    reset_weather_cache()
     return DemoResetResponse(
         warehouses=summary.warehouses,
         products=summary.products,

@@ -86,3 +86,26 @@ class RouteCache(SQLModel, table=True):
     distance_km: float = Field(ge=0.0)
     base_duration_min: float = Field(ge=0.0)
     geojson_geometry: str | None = Field(default=None)
+
+
+WEATHER_OVERRIDE_ID = 1
+
+
+class WeatherOverrideState(SQLModel, table=True):
+    """Singleton row with the active manual weather preset.
+
+    SQLite is the single source of truth for what-if scenarios, so the preset
+    survives restarts and is reset together with the demo dataset.
+    """
+
+    __tablename__ = "weather_override"
+    __table_args__ = (
+        CheckConstraint(
+            "mode IN ('normal', 'heatwave_35c', 'heavy_rain')",
+            name="ck_weather_override_mode",
+        ),
+    )
+
+    id: int = Field(default=WEATHER_OVERRIDE_ID, primary_key=True)
+    mode: str = Field(default=WeatherMode.NORMAL.value, max_length=16)
+    updated_at: datetime = Field(default_factory=utc_now)
