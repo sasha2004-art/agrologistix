@@ -35,3 +35,4 @@ frontend/.vite/
 
 # Generated reports
 reports/
+*.egg-info/

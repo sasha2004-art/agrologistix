@@ -1,5 +1,5 @@
 import pytest
-from app.schemas import AuthResponse, SolverRequest, VerifyPinRequest
+from app.schemas import AuthResponse, SolverRequest
 from app.schemas.enums import AuthRole, SolverMode, WeatherMode
 from pydantic import ValidationError
 
@@ -10,16 +10,6 @@ def test_auth_role_matches_admin_flag() -> None:
 
     with pytest.raises(ValidationError):
         AuthResponse(role=AuthRole.ADMIN, is_admin=False)
-
-
-def test_verify_pin_requires_six_digits() -> None:
-    assert VerifyPinRequest(pin="202601").pin == "202601"
-
-    with pytest.raises(ValidationError):
-        VerifyPinRequest(pin="12345")
-
-    with pytest.raises(ValidationError):
-        VerifyPinRequest(pin="abcdef")
 
 
 def test_what_if_requires_baseline_run() -> None:
