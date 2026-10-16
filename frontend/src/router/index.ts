@@ -5,7 +5,11 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'landing', component: () => import('@/sections/landing/LandingPage.vue') },
-    { path: '/login', name: 'login', component: () => import('@/sections/pin-auth/PinLoginPage.vue') },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/sections/pin-auth/PinLoginPage.vue'),
+    },
     {
       path: '/dashboard',
       name: 'dashboard',

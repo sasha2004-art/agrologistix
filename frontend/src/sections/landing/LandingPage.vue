@@ -7,7 +7,9 @@
   </v-app-bar>
 
   <v-main class="d-flex align-center justify-center pa-6">
-    <v-btn to="/login" color="accent" size="large" class="btn-gradient" min-width="200">Войти</v-btn>
+    <v-btn to="/login" color="accent" size="large" class="btn-gradient" min-width="200"
+      >Войти</v-btn
+    >
   </v-main>
 </template>
 
