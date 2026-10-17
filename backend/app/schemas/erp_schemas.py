@@ -62,6 +62,7 @@ class TruckResponse(APIModel):
     cost_per_km_rub: float = Field(ge=0.0)
     fixed_trip_cost_rub: float = Field(ge=0.0)
     has_reefer: bool
+    has_insulation: bool = False
     can_use_dirt: bool
     status: TruckStatus = TruckStatus.ACTIVE
 

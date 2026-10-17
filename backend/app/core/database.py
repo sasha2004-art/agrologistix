@@ -65,6 +65,11 @@ _SQLITE_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
         "mapbox_checked_at",
         "ALTER TABLE route_cache ADD COLUMN mapbox_checked_at FLOAT",
     ),
+    (
+        "truck",
+        "has_insulation",
+        "ALTER TABLE truck ADD COLUMN has_insulation BOOLEAN NOT NULL DEFAULT 0",
+    ),
 )
 
 

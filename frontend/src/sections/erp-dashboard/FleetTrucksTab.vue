@@ -33,7 +33,7 @@
           <tr
             v-for="truck in erp.trucks"
             :key="truck.id"
-            :class="{ 'row-broken': truck.status === 'broken' }"
+            :class="{ 'row-inactive': truck.status === 'broken' }"
           >
             <td>
               <span class="font-weight-medium">{{ truck.name }}</span>
@@ -44,21 +44,34 @@
             <td class="text-right mono">{{ formatRub(truck.cost_per_km_rub) }}</td>
             <td class="text-right mono">{{ formatRub(truck.fixed_trip_cost_rub) }}</td>
             <td>
+              <!-- Оснащение только иконками: расшифровка — в подсказке и aria-label. -->
               <div class="tag-row">
-                <v-chip
-                  size="small"
-                  class="soft-chip"
-                  :prepend-icon="truck.has_reefer ? 'mdi-snowflake' : 'mdi-weather-sunny'"
+                <v-icon
+                  :icon="truck.has_reefer ? 'mdi-snowflake' : 'mdi-weather-sunny'"
+                  size="20"
+                  :aria-label="truck.has_reefer ? 'Рефрижератор' : 'Без охлаждения'"
                 >
-                  {{ truck.has_reefer ? 'Рефрижератор' : 'Без охлаждения' }}
-                </v-chip>
-                <v-chip
-                  size="small"
-                  class="soft-chip"
-                  :prepend-icon="truck.can_use_dirt ? 'mdi-image-filter-hdr' : 'mdi-highway'"
+                  <v-tooltip activator="parent" location="top">
+                    {{ truck.has_reefer ? 'Рефрижератор' : 'Без охлаждения' }}
+                  </v-tooltip>
+                </v-icon>
+                <v-icon
+                  v-if="truck.has_insulation"
+                  icon="mdi-thermometer-low"
+                  size="20"
+                  aria-label="Утепление кузова"
                 >
-                  {{ truck.can_use_dirt ? 'Грунтовка' : 'Только асфальт' }}
-                </v-chip>
+                  <v-tooltip activator="parent" location="top">Утепление кузова</v-tooltip>
+                </v-icon>
+                <v-icon
+                  :icon="truck.can_use_dirt ? 'mdi-image-filter-hdr' : 'mdi-highway'"
+                  size="20"
+                  :aria-label="truck.can_use_dirt ? 'Грунтовка' : 'Только асфальт'"
+                >
+                  <v-tooltip activator="parent" location="top">
+                    {{ truck.can_use_dirt ? 'Грунтовка' : 'Только асфальт' }}
+                  </v-tooltip>
+                </v-icon>
               </div>
             </td>
             <td>
@@ -67,14 +80,16 @@
                 variant="tonal"
                 :color="truck.status === 'active' ? 'success' : 'error'"
                 :prepend-icon="
-                  truck.status === 'active' ? 'mdi-check-circle-outline' : 'mdi-wrench-outline'
+                  truck.status === 'active'
+                    ? 'mdi-check-circle-outline'
+                    : 'mdi-pause-circle-outline'
                 "
                 :loading="erp.isPending(`truck:${truck.id}`)"
                 :aria-pressed="truck.status === 'active'"
                 :aria-label="`${truck.name}: переключить состояние машины`"
                 @click="toggleTruck(truck)"
               >
-                {{ truck.status === 'active' ? 'В строю' : 'Сломана' }}
+                {{ truck.status === 'active' ? 'В строю' : 'Не в работе' }}
               </v-btn>
             </td>
           </tr>
@@ -137,7 +152,7 @@ function toggleTruck(truck: Truck): void {
   min-width: 860px;
 }
 
-.row-broken {
+.row-inactive {
   opacity: 0.72;
 }
 

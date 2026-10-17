@@ -115,6 +115,7 @@ def unit_cost_rub(
         travel_hours,
         solver_input.weather.temperature_c,
         truck.has_reefer,
+        truck.has_insulation,
     )
     spoilage_per_kg = (1.0 - freshness) * order.price_per_kg
     trip_share = truck.cost_per_km_rub * distance_km / max(order.requested_kg, 1.0)
