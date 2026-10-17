@@ -33,6 +33,8 @@ class SimulationRun(SQLModel, table=True):
     total_unmet_penalty_rub: float = Field(default=0.0, ge=0.0)
     expected_net_profit_rub: float = Field(default=0.0)
     avg_freshness_pct: float = Field(default=100.0, ge=0.0, le=100.0)
+    total_shipped_kg: float = Field(default=0.0, ge=0.0)
+    total_unmet_kg: float = Field(default=0.0, ge=0.0)
 
 
 class RouteStop(SQLModel, table=True):
@@ -68,6 +70,18 @@ class RouteStop(SQLModel, table=True):
     expected_freshness: float = Field(default=1.0, ge=0.0, le=1.0)
     trip_leg_cost_rub: float = Field(default=0.0, ge=0.0)
     stop_status: str = Field(default=StopStatus.PLANNED.value, max_length=16, index=True)
+
+
+class DeliveredOrderStock(SQLModel, table=True):
+    """Warehouse quantities consumed when an order is marked delivered."""
+
+    __tablename__ = "delivered_order_stock"
+    __table_args__ = (CheckConstraint("shipped_kg >= 0", name="ck_delivered_stock_non_negative"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    order_id: int = Field(foreign_key="client_order.id", index=True)
+    stock_id: int = Field(foreign_key="warehouse_stock.id", index=True)
+    shipped_kg: float = Field(ge=0.0)
 
 
 class RouteCache(SQLModel, table=True):

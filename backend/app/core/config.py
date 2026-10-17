@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,6 +32,19 @@ class Settings(BaseSettings):
         if len(pin) != 6 or not pin.isascii() or not pin.isdigit():
             raise ValueError("access PIN must contain exactly six digits")
         return value
+
+    @model_validator(mode="after")
+    def validate_access_pins(self) -> "Settings":
+        user_pin = self.user_access_pin.get_secret_value()
+        admin_pin = self.admin_access_pin.get_secret_value()
+        if user_pin == admin_pin:
+            raise ValueError("user and admin access PINs must be different")
+        if self.app_env.lower() == "production":
+            if not {"user_access_pin", "admin_access_pin"}.issubset(self.model_fields_set):
+                raise ValueError("production requires explicit user and admin access PINs")
+            if user_pin == "202601" or admin_pin == "999999":
+                raise ValueError("production access PINs must not use development defaults")
+        return self
 
     @property
     def cors_origins(self) -> list[str]:

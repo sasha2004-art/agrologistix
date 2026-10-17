@@ -3,8 +3,10 @@
 #
 # Required environment:
 #   DEPLOY_HOST, DEPLOY_USER, DEPLOY_APP_DIR, DEPLOY_WEB_ROOT, DEPLOY_SERVICE,
-#   DEPLOY_DOMAIN (TLS certificate must exist, see deploy/setup-https.sh)
+#   DEPLOY_DOMAIN (TLS certificate must exist, see deploy/setup-https.sh),
+#   APP_ENV, USER_ACCESS_PIN, ADMIN_ACCESS_PIN
 # Optional:
+#   MAPBOX_SECRET_TOKEN (empty keeps the haversine road fallback),
 #   DEPLOY_SSH_KEY_PATH, DEPLOY_SSH_STRICT (default: accept-new)
 set -euo pipefail
 
@@ -14,6 +16,10 @@ set -euo pipefail
 : "${DEPLOY_WEB_ROOT:?DEPLOY_WEB_ROOT is required}"
 : "${DEPLOY_SERVICE:?DEPLOY_SERVICE is required}"
 : "${DEPLOY_DOMAIN:?DEPLOY_DOMAIN is required}"
+: "${APP_ENV:?APP_ENV is required}"
+: "${USER_ACCESS_PIN:?USER_ACCESS_PIN is required}"
+: "${ADMIN_ACCESS_PIN:?ADMIN_ACCESS_PIN is required}"
+MAPBOX_SECRET_TOKEN="${MAPBOX_SECRET_TOKEN:-}"
 
 SSH_STRICT="${DEPLOY_SSH_STRICT:-accept-new}"
 SSH_OPTS=(-o "StrictHostKeyChecking=${SSH_STRICT}" -o ConnectTimeout=20)
@@ -25,6 +31,12 @@ SSH_CMD="ssh $(printf '%q ' "${SSH_OPTS[@]}")"
 REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
+
+# Quoted forms keep tokens with special characters intact inside the remote script.
+QUOTED_APP_ENV=${APP_ENV@Q}
+QUOTED_USER_PIN=${USER_ACCESS_PIN@Q}
+QUOTED_ADMIN_PIN=${ADMIN_ACCESS_PIN@Q}
+QUOTED_MAPBOX=${MAPBOX_SECRET_TOKEN@Q}
 
 if [[ ! -d frontend/dist ]]; then
     printf 'frontend/dist is missing: run "npm ci && npm run build" in frontend/ first\n' >&2
@@ -60,6 +72,8 @@ rsync -az -e "${SSH_CMD}" deploy/agrologistix-backend.service \
     "${REMOTE}:/etc/systemd/system/${DEPLOY_SERVICE}"
 rsync -az -e "${SSH_CMD}" deploy/nginx/agrologistix.conf \
     "${REMOTE}:/etc/nginx/sites-available/agrologistix.conf"
+rsync -az -e "${SSH_CMD}" deploy/sync-backend-env.sh \
+    "${REMOTE}:${DEPLOY_APP_DIR}/sync-backend-env.sh"
 
 printf '==> Activating release on the server\n'
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "bash -s" <<REMOTE_SCRIPT
@@ -68,6 +82,14 @@ cd "${DEPLOY_APP_DIR}/backend"
 uv sync --locked --no-dev
 chown -R agrologistix:agrologistix "${DEPLOY_APP_DIR}"
 mkdir -p "${DEPLOY_APP_DIR}/data"
+bash "${DEPLOY_APP_DIR}/sync-backend-env.sh" \
+    "${DEPLOY_APP_DIR}/.env" \
+    ${QUOTED_APP_ENV} \
+    ${QUOTED_USER_PIN} \
+    ${QUOTED_ADMIN_PIN} \
+    ${QUOTED_MAPBOX}
+chmod 600 "${DEPLOY_APP_DIR}/.env"
+chown agrologistix:agrologistix "${DEPLOY_APP_DIR}/.env"
 ln -sf /etc/nginx/sites-available/agrologistix.conf /etc/nginx/sites-enabled/agrologistix.conf
 systemctl daemon-reload
 systemctl enable "${DEPLOY_SERVICE}" >/dev/null 2>&1 || true

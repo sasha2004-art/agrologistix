@@ -13,6 +13,8 @@ from app.models.erp_models import (
     Warehouse,
     WarehouseStock,
 )
+from app.models.run_models import DeliveredOrderStock, RouteStop
+from app.schemas.enums import DeliveryStatus
 from app.schemas.erp_schemas import (
     ClientOrderPatch,
     ClientOrderResponse,
@@ -37,6 +39,116 @@ SessionDependency = Annotated[Session, Depends(get_session)]
 
 _NOT_FOUND_RESPONSE = {"model": APIErrorResponse, "description": "Entity was not found"}
 _BAD_REQUEST_RESPONSE = {"model": APIErrorResponse, "description": "Request cannot be applied"}
+_CONFLICT_RESPONSE = {"model": APIErrorResponse, "description": "Persisted state is inconsistent"}
+
+# Tolerated rounding drift for kilogram comparisons.
+_KG_EPSILON = 1e-6
+
+
+def _plan_consumption(
+    session: Session, order: ClientOrder, remaining_kg: float
+) -> dict[int, float]:
+    """Warehouse quantities shipped by the latest plan for this order."""
+
+    stops = session.exec(
+        select(RouteStop).where(RouteStop.order_id == order.id).order_by(RouteStop.run_id.desc())
+    ).all()
+    if not stops:
+        return {}
+
+    latest_run_id = stops[0].run_id
+    planned: dict[int, float] = {}
+    for stop in stops:
+        if stop.run_id != latest_run_id:
+            break
+        if stop.product_id != order.product_id:
+            continue
+        planned[stop.warehouse_id] = planned.get(stop.warehouse_id, 0.0) + stop.shipped_kg
+
+    consumed: dict[int, float] = {}
+    budget = min(remaining_kg, sum(planned.values()))
+    for warehouse_id, shipped_kg in planned.items():
+        if budget <= _KG_EPSILON:
+            break
+        take = min(shipped_kg, budget)
+        consumed[warehouse_id] = take
+        budget -= take
+    return consumed
+
+
+def _consume_stock(session: Session, order: ClientOrder, consumed: dict[int, float]) -> float:
+    """Write off warehouse stock and journal exactly what was delivered."""
+
+    stocks = session.exec(
+        select(WarehouseStock).where(
+            WarehouseStock.product_id == order.product_id,
+            WarehouseStock.warehouse_id.in_(consumed),
+        )
+    ).all()
+    stocks_by_warehouse = {stock.warehouse_id: stock for stock in stocks}
+
+    total_kg = 0.0
+    for warehouse_id, shipped_kg in consumed.items():
+        stock = stocks_by_warehouse.get(warehouse_id)
+        if stock is None or stock.available_kg + _KG_EPSILON < shipped_kg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Warehouse stock changed since the latest plan",
+            )
+        stock.available_kg = max(0.0, stock.available_kg - shipped_kg)
+        session.add(stock)
+        session.add(
+            DeliveredOrderStock(
+                order_id=int(order.id or 0),
+                stock_id=int(stock.id or 0),
+                shipped_kg=shipped_kg,
+            )
+        )
+        total_kg += shipped_kg
+    return total_kg
+
+
+def _apply_delivered_status(session: Session, order: ClientOrder) -> None:
+    """Spend stock for the delivered volume and keep the remaining demand alive.
+
+    A plan is required to know *where* the cargo came from. Without any stored
+    plan the order is closed as delivered outside the system, so the demo stays
+    usable while the stock journal keeps the write-off traceable once a plan
+    exists. A partial plan keeps the order ``pending`` with the leftover demand.
+    """
+
+    remaining_kg = max(0.0, order.requested_kg - order.delivered_kg)
+    if remaining_kg <= _KG_EPSILON:
+        order.delivery_status = DeliveryStatus.DELIVERED.value
+        return
+
+    consumed = _plan_consumption(session, order, remaining_kg)
+    if not consumed:
+        order.delivered_kg = order.requested_kg
+        order.delivery_status = DeliveryStatus.DELIVERED.value
+        return
+
+    delivered_kg = _consume_stock(session, order, consumed)
+    order.delivered_kg = min(order.requested_kg, order.delivered_kg + delivered_kg)
+    if order.requested_kg - order.delivered_kg <= _KG_EPSILON:
+        order.delivery_status = DeliveryStatus.DELIVERED.value
+    else:
+        order.delivery_status = DeliveryStatus.PENDING.value
+
+
+def _restore_delivered_stock(session: Session, order: ClientOrder) -> None:
+    """Undo the write-off when an order is switched back to ``pending``."""
+
+    deliveries = session.exec(
+        select(DeliveredOrderStock).where(DeliveredOrderStock.order_id == order.id)
+    ).all()
+    for delivery in deliveries:
+        stock = session.get(WarehouseStock, delivery.stock_id)
+        if stock is not None:
+            stock.available_kg += delivery.shipped_kg
+            session.add(stock)
+        session.delete(delivery)
+    order.delivered_kg = 0.0
 
 
 def _get_or_404[EntityT: SQLModel](
@@ -96,7 +208,15 @@ def patch_client_order(
         order.purchase_price_rub = payload.purchase_price_rub
         updated = True
     if payload.delivery_status is not None:
-        order.delivery_status = payload.delivery_status.value
+        target_status = payload.delivery_status.value
+        if target_status == DeliveryStatus.DELIVERED.value:
+            if target_status != order.delivery_status:
+                _apply_delivered_status(session, order)
+        else:
+            # Restore also for partial deliveries, where the status stayed pending.
+            if order.delivered_kg > 0.0:
+                _restore_delivered_stock(session, order)
+            order.delivery_status = DeliveryStatus.PENDING.value
         updated = True
 
     if not updated:

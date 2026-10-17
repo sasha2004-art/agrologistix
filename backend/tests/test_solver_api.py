@@ -160,17 +160,17 @@ def test_delivered_order_is_not_reassigned(client: TestClient) -> None:
     assert 1 not in shipped_order_ids
 
 
-def test_what_if_is_not_available_yet(client: TestClient) -> None:
+def test_what_if_with_unknown_baseline_returns_404(client: TestClient) -> None:
     response = client.post(
         OPTIMIZE_URL,
         headers=AUTH,
-        json={"mode": "what_if", "baseline_run_id": 1},
+        json={"mode": "what_if", "baseline_run_id": 9999},
     )
 
-    assert response.status_code == 501
+    assert response.status_code == 404
     assert response.json() == {
-        "code": "not_implemented",
-        "detail": "what_if recalculation is not available yet",
+        "code": "not_found",
+        "detail": "Simulation run with id 9999 was not found",
     }
 
 

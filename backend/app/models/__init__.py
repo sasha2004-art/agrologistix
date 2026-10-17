@@ -10,6 +10,7 @@ from app.models.erp_models import (
 )
 from app.models.run_models import (
     WEATHER_OVERRIDE_ID,
+    DeliveredOrderStock,
     RouteCache,
     RouteStop,
     SimulationRun,
@@ -21,6 +22,7 @@ __all__ = [
     "WEATHER_OVERRIDE_ID",
     "Client",
     "ClientOrder",
+    "DeliveredOrderStock",
     "Product",
     "RouteCache",
     "RouteStop",

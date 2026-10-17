@@ -2,8 +2,11 @@
 
 The builder reads warehouses, products, stocks, clients, pending orders and the
 fleet, resolves every coordinate pair through the cached distance matrix and
-returns an immutable :class:`SolverInput`. Delivered orders are passed as
-``frozen_order_ids`` so the engine can distinguish them from unmet demand.
+returns an immutable :class:`SolverInput`. The demand of an order is its
+outstanding weight (``requested_kg - delivered_kg``), so a partially delivered
+order keeps only the leftover demand and the stock write-off is not replanned.
+Orders closed as delivered are passed as ``frozen_order_ids`` so the engine can
+distinguish them from unmet demand.
 """
 
 from sqlmodel import Session, select
@@ -30,6 +33,12 @@ from app.services.solver_contract import (
     SolverWeather,
 )
 from app.services.weather_service import WeatherSnapshot
+
+
+def remaining_demand_kg(order: ClientOrder) -> float:
+    """Outstanding weight of an order after every recorded delivery."""
+
+    return max(0.0, order.requested_kg - order.delivered_kg)
 
 
 async def build_solver_input(
@@ -83,7 +92,7 @@ async def build_solver_input(
             order_id=int(order.id or 0),
             client_id=order.client_id,
             product_id=order.product_id,
-            requested_kg=order.requested_kg,
+            requested_kg=remaining_demand_kg(order),
             price_per_kg=order.purchase_price_rub,
             penalty_per_kg=order.unmet_penalty_rub,
             road_type=RoadType(clients_by_id[order.client_id].road_type),
@@ -94,6 +103,7 @@ async def build_solver_input(
         if order.id is not None
         and order.delivery_status == DeliveryStatus.PENDING
         and order.client_id in clients_by_id
+        and remaining_demand_kg(order) > 0.0
     )
     frozen_order_ids = tuple(
         int(order.id or 0)

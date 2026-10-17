@@ -112,6 +112,7 @@ export const mockErpState: ERPState = {
       requested_kg: 1500,
       purchase_price_rub: 320,
       unmet_penalty_rub: 120,
+      delivered_kg: 0,
       delivery_status: 'pending',
     },
     {
@@ -121,6 +122,7 @@ export const mockErpState: ERPState = {
       requested_kg: 2000,
       purchase_price_rub: 160,
       unmet_penalty_rub: 80,
+      delivered_kg: 0,
       delivery_status: 'pending',
     },
     {
@@ -130,6 +132,7 @@ export const mockErpState: ERPState = {
       requested_kg: 1200,
       purchase_price_rub: 150,
       unmet_penalty_rub: 70,
+      delivered_kg: 0,
       delivery_status: 'pending',
     },
     {
@@ -139,6 +142,7 @@ export const mockErpState: ERPState = {
       requested_kg: 900,
       purchase_price_rub: 110,
       unmet_penalty_rub: 50,
+      delivered_kg: 0,
       delivery_status: 'pending',
     },
     {
@@ -148,6 +152,7 @@ export const mockErpState: ERPState = {
       requested_kg: 800,
       purchase_price_rub: 300,
       unmet_penalty_rub: 150,
+      delivered_kg: 0,
       delivery_status: 'pending',
     },
     {
@@ -157,6 +162,7 @@ export const mockErpState: ERPState = {
       requested_kg: 1100,
       purchase_price_rub: 105,
       unmet_penalty_rub: 45,
+      delivered_kg: 0,
       delivery_status: 'pending',
     },
     {
@@ -166,6 +172,7 @@ export const mockErpState: ERPState = {
       requested_kg: 1800,
       purchase_price_rub: 155,
       unmet_penalty_rub: 75,
+      delivered_kg: 0,
       delivery_status: 'pending',
     },
     {
@@ -175,6 +182,7 @@ export const mockErpState: ERPState = {
       requested_kg: 700,
       purchase_price_rub: 310,
       unmet_penalty_rub: 140,
+      delivered_kg: 0,
       delivery_status: 'pending',
     },
     {
@@ -184,6 +192,7 @@ export const mockErpState: ERPState = {
       requested_kg: 1000,
       purchase_price_rub: 115,
       unmet_penalty_rub: 55,
+      delivered_kg: 0,
       delivery_status: 'pending',
     },
   ],
