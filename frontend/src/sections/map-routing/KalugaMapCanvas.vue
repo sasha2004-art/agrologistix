@@ -139,6 +139,8 @@ onMounted(() => {
 
   // Контролы разведены по углам: ничего не липнет к скруглённым краям карты.
   map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
+  // Разворот карты на весь экран: кнопка встаёт под кнопками масштаба.
+  map.addControl(new mapboxgl.FullscreenControl(), 'top-right')
   map.addControl(new mapboxgl.ScaleControl({ maxWidth: 90, unit: 'metric' }), 'bottom-right')
 
   map.on('load', () => {
