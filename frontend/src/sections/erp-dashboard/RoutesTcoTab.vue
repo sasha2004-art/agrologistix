@@ -95,6 +95,7 @@
         </v-alert>
 
         <template v-if="solver.hasPlan">
+          <PlanSummaryTable />
           <SolverWarningsPanel />
           <RoutePlanTable />
         </template>
@@ -142,6 +143,7 @@
 import { computed, ref } from 'vue'
 import { describeApiError, downloadRouteSheet } from '@/shared/api/httpClient'
 import StatePanel from '@/shared/components/StatePanel.vue'
+import PlanSummaryTable from './PlanSummaryTable.vue'
 import RoutePlanTable from './RoutePlanTable.vue'
 import SolverWarningsPanel from './SolverWarningsPanel.vue'
 import { ORDERS_DELIVER_KEY, useErpStore } from './useErpStore'
