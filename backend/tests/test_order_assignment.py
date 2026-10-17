@@ -20,6 +20,11 @@ def _reset(client: TestClient) -> None:
 
 
 def test_assignment_reports_the_picked_truck_and_route(client: TestClient) -> None:
+    with _database_session(client) as session:
+        order = session.get(ClientOrder, 1)
+    assert order is not None
+    expected_kg = order.requested_kg - order.delivered_kg
+
     response = client.post(ASSIGN_URL.format(order_id=1), headers=AUTH)
 
     assert response.status_code == 200
@@ -27,7 +32,8 @@ def test_assignment_reports_the_picked_truck_and_route(client: TestClient) -> No
     assert payload["order_id"] == 1
     assert payload["truck_id"] > 0
     assert payload["warehouse_id"] > 0
-    assert payload["shipped_kg"] == pytest.approx(800.0, abs=0.01)
+    # Объём в ответе — остаток спроса заявки, а не хардкод из seed-набора.
+    assert payload["shipped_kg"] == pytest.approx(expected_kg, abs=0.01)
     assert payload["distance_km"] > 0.0
     assert payload["duration_min"] > 0.0
     assert 0.5 <= payload["expected_freshness"] <= 1.0
