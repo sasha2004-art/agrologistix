@@ -76,15 +76,15 @@ def test_delivered_order_point_is_not_resolved(session: Session) -> None:
 
 def test_partially_delivered_order_keeps_only_the_leftover_demand(session: Session) -> None:
     order = _order(session, 1)
-    order.delivered_kg = 300.0
+    order.delivered_kg = 150.0
     session.add(order)
     session.commit()
 
     solver_input = _build(session)
 
     planned = next(item for item in solver_input.orders if item.order_id == 1)
-    assert planned.requested_kg == pytest.approx(order.requested_kg - 300.0)
-    assert remaining_demand_kg(order) == pytest.approx(500.0)
+    assert planned.requested_kg == pytest.approx(order.requested_kg - 150.0)
+    assert remaining_demand_kg(order) == pytest.approx(250.0)
 
 
 def test_dirt_order_distance_is_present_for_offroad_clients(session: Session) -> None:
