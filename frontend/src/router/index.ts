@@ -16,16 +16,25 @@ const router = createRouter({
       component: () => import('@/sections/erp-dashboard/DashboardLayout.vue'),
       meta: { requiresAuth: true },
     },
-    { path: '/:pathMatch(.*)*', redirect: '/' },
+    // Любой неизвестный адрес ведёт на форму входа, а не в пустоту.
+    { path: '/:pathMatch(.*)*', redirect: { name: 'login' } },
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
-  if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    return { name: 'login', query: { redirect: to.fullPath } }
+
+  if (to.meta.requiresAuth) {
+    // Дашборд доступен только с ключом, который подтвердил сервер.
+    if (!auth.isAuthenticated) return { name: 'login', query: { redirect: to.fullPath } }
+    if (!(await auth.verifySession())) return { name: 'login', query: { redirect: to.fullPath } }
+    return true
   }
-  if (to.name === 'login' && auth.isAuthenticated) return { name: 'dashboard' }
+
+  if (to.name === 'login' && auth.isAuthenticated && (await auth.verifySession())) {
+    return { name: 'dashboard' }
+  }
+
   return true
 })
 

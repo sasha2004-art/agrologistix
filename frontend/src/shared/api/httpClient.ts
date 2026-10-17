@@ -70,6 +70,13 @@ async function parseErrorBody(response: Response): Promise<Partial<ValidationErr
   }
 }
 
+let unauthorizedHandler: (() => void) | null = null
+
+/** Регистрирует реакцию приложения на истёкший или отозванный ключ доступа. */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { access_pin, ...requestInit } = options
   const headers = new Headers(requestInit.headers)
@@ -80,6 +87,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const response = await fetch(`${API_BASE}${path}`, { ...requestInit, headers })
   if (!response.ok) {
+    // Ключ перестал подходить (отозван/изменён) — просим приложение вернуть вход.
+    // Проверки самого ключа (/auth/*) разбираются со стором авторизации.
+    if (response.status === 401 && !path.startsWith('/auth/')) unauthorizedHandler?.()
     throw new ApiError(response.status, await parseErrorBody(response))
   }
   if (response.status === 204) return undefined as T
@@ -118,6 +128,16 @@ async function requestWithFallback<T>(
     console.warn(`[api] ${path} недоступен, используются резервные данные`, error)
     return { data: clone(fallback()), source: 'mock' }
   }
+}
+
+/**
+ * Проверка сохранённого ключа доступа на сервере.
+ *
+ * Без mock-fallback: смысл вызова в том, чтобы узнать мнение сервера,
+ * а не подтвердить сам себя демо-ответом.
+ */
+export function fetchSession(accessPin: string): Promise<AuthResponse> {
+  return request<AuthResponse>('/auth/session', { access_pin: accessPin })
 }
 
 export async function verifyPin(accessPin: string): Promise<AuthResponse> {
