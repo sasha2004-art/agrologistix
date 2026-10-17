@@ -104,17 +104,35 @@ export function markerLabel(point: MapPoint): string {
   return parts.join(', ')
 }
 
-export function createMarkerElement(point: MapPoint): HTMLButtonElement {
-  const element = document.createElement('button')
-  element.type = 'button'
-  element.className = [
-    'map-marker',
+const MARKER_MODIFIER_PREFIX = 'map-marker--'
+
+/** Наши классы состояния (вид точки, тип дороги, статус). */
+function markerModifiers(point: MapPoint): string[] {
+  return [
     `map-marker--${point.kind}`,
     point.roadType ? `map-marker--${point.roadType}` : '',
     point.deliveryStatus ? `map-marker--${point.deliveryStatus}` : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
+  ].filter(Boolean)
+}
+
+/**
+ * Пересобирает только собственные модификаторы маркера.
+ * Служебные классы Mapbox (mapboxgl-marker, mapboxgl-marker-anchor-*) трогать
+ * нельзя: именно они задают position: absolute и will-change: transform — без них
+ * маркер выпадает из слоя карты и перестаёт двигаться вместе с ней.
+ */
+function applyModifiers(element: HTMLElement, point: MapPoint): void {
+  for (const className of [...element.classList]) {
+    if (className.startsWith(MARKER_MODIFIER_PREFIX)) element.classList.remove(className)
+  }
+  element.classList.add('map-marker', ...markerModifiers(point))
+}
+
+export function createMarkerElement(point: MapPoint): HTMLButtonElement {
+  const element = document.createElement('button')
+  element.type = 'button'
+  element.classList.add(...markerModifiers(point))
+  element.classList.add('map-marker')
   element.setAttribute('aria-label', markerLabel(point))
   element.title = markerLabel(point)
   element.innerHTML = `<span class="mdi ${markerIcon(point)}" aria-hidden="true"></span>`
@@ -150,14 +168,7 @@ export interface MarkerHandle {
 /** Обновляет подпись, цветовые классы и содержимое popup по свежей точке. */
 export function applyPoint(handle: MarkerHandle, point: MapPoint): void {
   handle.point = point
-  handle.element.className = [
-    'map-marker',
-    `map-marker--${point.kind}`,
-    point.roadType ? `map-marker--${point.roadType}` : '',
-    point.deliveryStatus ? `map-marker--${point.deliveryStatus}` : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
+  applyModifiers(handle.element, point)
   handle.element.setAttribute('aria-label', markerLabel(point))
   handle.element.title = markerLabel(point)
   handle.element.innerHTML = `<span class="mdi ${markerIcon(point)}" aria-hidden="true"></span>`
