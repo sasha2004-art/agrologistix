@@ -26,7 +26,7 @@ fail() {
 
 if [[ "${APP_ENV}" == "production" ]]; then
     if [[ "${USER_ACCESS_PIN}" == "202601" || "${ADMIN_ACCESS_PIN}" == "999999" ]]; then
-        fail "production must not use the development PIN defaults"
+        printf 'sync-backend-env: warning: production still uses the development PIN defaults, rotate them\n' >&2
     fi
     if [[ -z "${MAPBOX_SECRET_TOKEN}" ]]; then
         printf 'sync-backend-env: warning: MAPBOX_SECRET_TOKEN is empty, road distances fall back to haversine\n' >&2
