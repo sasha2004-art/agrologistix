@@ -37,6 +37,10 @@
       </li>
       <li class="legend-item">
         <span class="legend-marker legend-marker--pending" aria-hidden="true" />
+        Заказ в плане
+      </li>
+      <li class="legend-item">
+        <span class="legend-marker legend-marker--in_progress" aria-hidden="true" />
         Заказ в работе
       </li>
       <li class="legend-item">
@@ -302,6 +306,12 @@ onBeforeUnmount(teardownMap)
   border-radius: 50%;
   background: #e7dff6;
   border-color: #f59e0b;
+}
+
+.legend-marker--in_progress {
+  border-radius: 50%;
+  background: #e7dff6;
+  border-color: #3b82f6;
 }
 
 .legend-marker--delivered {

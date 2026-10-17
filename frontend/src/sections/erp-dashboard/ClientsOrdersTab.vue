@@ -72,22 +72,31 @@
               </v-chip>
             </td>
             <td>
-              <v-btn
-                size="small"
-                variant="tonal"
-                :color="row.order.delivery_status === 'delivered' ? 'success' : 'warning'"
-                :prepend-icon="
-                  row.order.delivery_status === 'delivered'
-                    ? 'mdi-check-circle-outline'
-                    : 'mdi-clock-outline'
-                "
-                :loading="erp.isPending(`order:${row.order.id}`)"
-                :aria-pressed="row.order.delivery_status === 'delivered'"
-                :aria-label="`Заказ №${row.order.id}: переключить статус доставки`"
-                @click="toggleDelivered(row)"
-              >
-                {{ row.order.delivery_status === 'delivered' ? 'Доставлено' : 'В работе' }}
-              </v-btn>
+              <v-menu location="bottom end">
+                <template #activator="{ props: menuProps }">
+                  <v-btn
+                    v-bind="menuProps"
+                    size="small"
+                    variant="tonal"
+                    :color="statusMeta(row.order.delivery_status).color"
+                    :prepend-icon="statusMeta(row.order.delivery_status).icon"
+                    :loading="erp.isPending(`order:${row.order.id}`)"
+                    :aria-label="`Заказ №${row.order.id}: изменить этап поставки`"
+                  >
+                    {{ statusMeta(row.order.delivery_status).label }}
+                  </v-btn>
+                </template>
+                <v-list density="compact" min-width="190">
+                  <v-list-item
+                    v-for="option in STATUS_OPTIONS"
+                    :key="option.value"
+                    :prepend-icon="option.icon"
+                    :title="option.label"
+                    :active="row.order.delivery_status === option.value"
+                    @click="setStatus(row, option.value)"
+                  />
+                </v-list>
+              </v-menu>
             </td>
           </tr>
         </tbody>
@@ -113,9 +122,20 @@ function savePrice(row: OrderRow, value: number): void {
   void erp.updateOrder(row.order.id, { purchase_price_rub: value })
 }
 
-function toggleDelivered(row: OrderRow): void {
-  const next: DeliveryStatus = row.order.delivery_status === 'delivered' ? 'pending' : 'delivered'
-  void erp.updateOrder(row.order.id, { delivery_status: next })
+/** Три этапа поставки: заявка ждёт плана → груз в пути → доставлено. */
+const STATUS_OPTIONS: { value: DeliveryStatus; label: string; icon: string; color: string }[] = [
+  { value: 'pending', label: 'В плане', icon: 'mdi-calendar-clock', color: 'warning' },
+  { value: 'in_progress', label: 'В работе', icon: 'mdi-truck-fast-outline', color: 'info' },
+  { value: 'delivered', label: 'Доставлено', icon: 'mdi-check-circle-outline', color: 'success' },
+]
+
+function statusMeta(status: DeliveryStatus) {
+  return STATUS_OPTIONS.find((option) => option.value === status) ?? STATUS_OPTIONS[0]
+}
+
+function setStatus(row: OrderRow, status: DeliveryStatus): void {
+  if (row.order.delivery_status === status) return
+  void erp.updateOrder(row.order.id, { delivery_status: status })
 }
 
 /** A partially shipped order keeps the leftover demand after PATCH delivered. */

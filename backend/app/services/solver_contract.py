@@ -14,8 +14,8 @@ Input
 * ``trucks`` — fleet units; ``status`` other than ``active`` is ignored;
 * ``legs`` — distance, base duration and geometry per ordered coordinate pair;
 * ``weather`` — temperature and precipitation used by ``freshness_math``;
-* ``frozen_order_ids`` — orders already marked ``delivered``; they are never
-  reassigned and never counted as unmet demand.
+* ``frozen_order_ids`` — orders already shipped (``in_progress``) or ``delivered``;
+  they are never reassigned and never counted as unmet demand.
 
 Output
 ------

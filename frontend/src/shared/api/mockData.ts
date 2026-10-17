@@ -112,8 +112,9 @@ export const mockErpState: ERPState = {
       requested_kg: 800,
       purchase_price_rub: 320,
       unmet_penalty_rub: 120,
-      delivered_kg: 0,
-      delivery_status: 'pending',
+      // Груз отгружен и в пути: этап «В работе» до подтверждения получения.
+      delivered_kg: 800,
+      delivery_status: 'in_progress',
     },
     {
       id: 2,

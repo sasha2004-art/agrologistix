@@ -108,30 +108,32 @@ def _consume_stock(session: Session, order: ClientOrder, consumed: dict[int, flo
     return total_kg
 
 
-def _apply_delivered_status(session: Session, order: ClientOrder) -> None:
-    """Spend stock for the delivered volume and keep the remaining demand alive.
+def _apply_shipped_status(session: Session, order: ClientOrder, target_status: str) -> None:
+    """Списывает отгруженный объём и переводит заявку на новый этап поставки.
 
-    A plan is required to know *where* the cargo came from. Without any stored
-    plan the order is closed as delivered outside the system, so the demo stays
-    usable while the stock journal keeps the write-off traceable once a plan
-    exists. A partial plan keeps the order ``pending`` with the leftover demand.
+    Используется и для «В работе» (`in_progress`), и для «Доставлено»
+    (`delivered`): в обоих случаях груз уже уехал со склада, и его нельзя
+    распределить повторно. Место отгрузки знает только план, поэтому без
+    сохранённого плана заявка считается отгруженной целиком (демо остаётся
+    работоспособным, а журнал списаний фиксирует вывоз, когда план есть).
+    Частичная отгрузка оставляет остаточный спрос в статусе ``pending``.
     """
 
     remaining_kg = max(0.0, order.requested_kg - order.delivered_kg)
     if remaining_kg <= _KG_EPSILON:
-        order.delivery_status = DeliveryStatus.DELIVERED.value
+        order.delivery_status = target_status
         return
 
     consumed = _plan_consumption(session, order, remaining_kg)
     if not consumed:
         order.delivered_kg = order.requested_kg
-        order.delivery_status = DeliveryStatus.DELIVERED.value
+        order.delivery_status = target_status
         return
 
     delivered_kg = _consume_stock(session, order, consumed)
     order.delivered_kg = min(order.requested_kg, order.delivered_kg + delivered_kg)
     if order.requested_kg - order.delivered_kg <= _KG_EPSILON:
-        order.delivery_status = DeliveryStatus.DELIVERED.value
+        order.delivery_status = target_status
     else:
         order.delivery_status = DeliveryStatus.PENDING.value
 
@@ -209,14 +211,14 @@ def patch_client_order(
         updated = True
     if payload.delivery_status is not None:
         target_status = payload.delivery_status.value
-        if target_status == DeliveryStatus.DELIVERED.value:
-            if target_status != order.delivery_status:
-                _apply_delivered_status(session, order)
-        else:
-            # Restore also for partial deliveries, where the status stayed pending.
+        if target_status == DeliveryStatus.PENDING.value:
+            # Возврат в «В плане» отменяет отгрузку и возвращает сток на склады.
             if order.delivered_kg > 0.0:
                 _restore_delivered_stock(session, order)
             order.delivery_status = DeliveryStatus.PENDING.value
+        else:
+            # «В работе» и «Доставлено» — обе стадии уже отгруженного груза.
+            _apply_shipped_status(session, order, target_status)
         updated = True
 
     if not updated:

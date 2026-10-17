@@ -78,7 +78,7 @@ class ClientOrder(SQLModel, table=True):
         CheckConstraint("purchase_price_rub > 0", name="ck_order_price_positive"),
         CheckConstraint("unmet_penalty_rub >= 0", name="ck_order_penalty_non_negative"),
         CheckConstraint(
-            "delivery_status IN ('pending', 'delivered')",
+            "delivery_status IN ('pending', 'in_progress', 'delivered')",
             name="ck_order_delivery_status",
         ),
     )

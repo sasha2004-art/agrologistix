@@ -43,6 +43,17 @@
       <v-btn variant="tonal" color="primary" prepend-icon="mdi-printer" @click="printSheet">
         Печать / PDF
       </v-btn>
+      <v-btn
+        variant="tonal"
+        color="primary"
+        prepend-icon="mdi-check-all"
+        :loading="erp.isPending(ORDERS_DELIVER_KEY)"
+        :disabled="erp.isPending(ORDERS_DELIVER_KEY) || deliverableOrderIds.length === 0"
+        :title="deliverHint"
+        @click="markPlanDelivered"
+      >
+        Отметить доставленными
+      </v-btn>
       <v-chip
         class="soft-chip"
         size="small"
@@ -133,7 +144,7 @@ import { describeApiError, downloadRouteSheet } from '@/shared/api/httpClient'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import RoutePlanTable from './RoutePlanTable.vue'
 import SolverWarningsPanel from './SolverWarningsPanel.vue'
-import { useErpStore } from './useErpStore'
+import { ORDERS_DELIVER_KEY, useErpStore } from './useErpStore'
 import { useSolverStore } from './useSolverStore'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 import { useNotificationStore } from '@/shared/stores/useNotificationStore'
@@ -156,6 +167,29 @@ const routesInSheetText = computed(() =>
 /** Печать текущего плана: браузер показывает только печатный лист (print.scss). */
 function printSheet(): void {
   window.print()
+}
+
+/** Заказы, которые есть в плане и ещё не закрыты («В плане» или «В работе»). */
+const deliverableOrderIds = computed(() => {
+  const plannedIds = new Set(
+    solver.plannedStops
+      .map((item) => item.stop.order_id)
+      .filter((id): id is number => id !== null && id !== undefined),
+  )
+  return erp.orderRows
+    .filter((row) => row.order.delivery_status !== 'delivered' && plannedIds.has(row.order.id))
+    .map((row) => row.order.id)
+})
+
+const deliverHint = computed(() =>
+  deliverableOrderIds.value.length > 0
+    ? `Отметить доставленными заказов: ${deliverableOrderIds.value.length}`
+    : 'Все заказы плана уже отмечены доставленными',
+)
+
+/** Массовая доставка: по одному PATCH на заказ, сток списывает backend по плану. */
+function markPlanDelivered(): void {
+  void erp.deliverOrders(deliverableOrderIds.value)
 }
 
 async function exportXlsx(): Promise<void> {

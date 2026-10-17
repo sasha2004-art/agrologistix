@@ -7,7 +7,8 @@
 
 export type UserRole = 'dispatcher' | 'admin'
 export type RoadType = 'asphalt' | 'dirt'
-export type DeliveryStatus = 'pending' | 'delivered'
+/** erp_schemas — этапы поставки: «В плане», «В работе», «Доставлено». */
+export type DeliveryStatus = 'pending' | 'in_progress' | 'delivered'
 export type TruckStatus = 'active' | 'broken'
 export type StopStatus = 'planned' | 'delivered'
 export type WeatherMode = 'normal' | 'heatwave_35c' | 'heavy_rain'

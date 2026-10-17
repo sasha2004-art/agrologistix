@@ -67,13 +67,16 @@ export function roadLabel(roadType: RoadType | null): string {
 
 export function statusLabel(status: DeliveryStatus | null): string {
   if (status === 'delivered') return 'Доставлено'
-  if (status === 'pending') return 'В работе'
+  if (status === 'in_progress') return 'В работе'
+  if (status === 'pending') return 'В плане'
   return ''
 }
 
 function clientStatus(orders: ClientOrder[]): DeliveryStatus | null {
   if (orders.length === 0) return null
-  return orders.every((order) => order.delivery_status === 'delivered') ? 'delivered' : 'pending'
+  if (orders.every((order) => order.delivery_status === 'delivered')) return 'delivered'
+  // Частично выполненный заказ — уже в работе, даже если остальные ждут плана.
+  return orders.some((order) => order.delivery_status !== 'pending') ? 'in_progress' : 'pending'
 }
 
 /** Самый поздний по времени в пути стоп: остальные сворачиваются в счётчик. */
