@@ -82,20 +82,20 @@ const pointLegend = [
   z-index: 3;
   display: grid;
   align-content: start;
-  gap: 16px;
-  /* Базовый компактный блок был ~186×122: теперь шире вдвое, высота — 320 px. */
-  width: 372px;
-  height: 320px;
+  gap: 10px;
+  /* 0,75 от прежнего блока 372×320 — компактнее, но всё так же читаемо. */
+  width: 279px;
+  height: 240px;
   max-width: calc(100% - 20px);
   max-height: calc(100% - 20px);
-  padding: 16px 18px;
+  padding: 12px 14px;
   overflow-y: auto;
   border: var(--neu-border);
   border-radius: var(--neu-radius-sm);
   background: rgba(247, 244, 254, 0.94);
   box-shadow: 0 10px 26px rgba(46, 16, 101, 0.22);
   backdrop-filter: blur(6px);
-  font-size: 13px;
+  font-size: 10px;
   color: #4c3f75;
 }
 
@@ -107,33 +107,38 @@ const pointLegend = [
 
 .legend-group-title {
   margin: 0;
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 600;
   color: #2e1065;
 }
 
 .legend-list {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 7px;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* Рейсы идут по одной строке: там длинная подпись с километрами и рублями. */
+.legend-group:last-child .legend-list {
+  grid-template-columns: 1fr;
+}
+
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 9px;
-  line-height: 1.3;
+  gap: 7px;
+  line-height: 1.25;
 }
 
 .legend-marker {
   flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border: 2px solid #fff;
-  border-radius: 50% 50% 50% 4px;
+  border-radius: 50% 50% 50% 3px;
   background: #5b21b6;
   box-shadow: 0 1px 3px rgba(46, 16, 101, 0.35);
 }
@@ -166,9 +171,9 @@ const pointLegend = [
 
 .legend-line {
   flex: 0 0 auto;
-  width: 30px;
-  height: 5px;
-  border-radius: 3px;
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
 }
 
 /* Пунктир как на слое фиксированных рейсов заявок «В работе». */
@@ -188,7 +193,7 @@ const pointLegend = [
 }
 
 .legend-route-text strong {
-  font-size: 13.5px;
+  font-size: 10.5px;
 }
 
 .legend-empty {

@@ -141,6 +141,8 @@ onMounted(() => {
 
   // Контролы разведены по углам: ничего не липнет к скруглённым краям карты.
   map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
+  // Разворот карты на весь экран: кнопка встаёт под кнопками масштаба.
+  map.addControl(new mapboxgl.FullscreenControl(), 'top-right')
   map.addControl(new mapboxgl.ScaleControl({ maxWidth: 90, unit: 'metric' }), 'bottom-right')
 
   map.on('load', () => {
@@ -297,6 +299,20 @@ onBeforeUnmount(teardownMap)
   color: #5b5175;
   background: rgba(242, 236, 251, 0.6);
   pointer-events: none;
+}
+
+/*
+ * Контролы стоят в 10 px от края, а скругление карты — 20 px, поэтому кнопки
+ * попадали на срез угла. Сдвигаем их за пределы радиуса.
+ */
+.map-area :deep(.mapboxgl-ctrl-top-right) {
+  top: 14px;
+  right: 14px;
+}
+
+.map-area :deep(.mapboxgl-ctrl-bottom-right) {
+  bottom: 14px;
+  right: 14px;
 }
 
 /* Масштабная линейка и подпись Mapbox в той же мягкой палитре, что и панели. */
