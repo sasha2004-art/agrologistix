@@ -46,13 +46,13 @@
       <v-btn
         variant="tonal"
         color="primary"
-        prepend-icon="mdi-check-all"
-        :loading="erp.isPending(ORDERS_DELIVER_KEY)"
-        :disabled="erp.isPending(ORDERS_DELIVER_KEY) || deliverableOrderIds.length === 0"
-        :title="deliverHint"
-        @click="markPlanDelivered"
+        prepend-icon="mdi-playlist-plus"
+        :loading="erp.isPending(ORDERS_STATUS_KEY)"
+        :disabled="erp.isPending(ORDERS_STATUS_KEY) || plannedOrderIds.length === 0"
+        :title="planHint"
+        @click="addPlanToWork"
       >
-        Отметить доставленными
+        Добавить в план
       </v-btn>
       <v-chip
         class="soft-chip"
@@ -146,7 +146,7 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import PlanSummaryTable from './PlanSummaryTable.vue'
 import RoutePlanTable from './RoutePlanTable.vue'
 import SolverWarningsPanel from './SolverWarningsPanel.vue'
-import { ORDERS_DELIVER_KEY, useErpStore } from './useErpStore'
+import { ORDERS_STATUS_KEY, useErpStore } from './useErpStore'
 import { useSolverStore } from './useSolverStore'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 import { useNotificationStore } from '@/shared/stores/useNotificationStore'
@@ -171,27 +171,27 @@ function printSheet(): void {
   window.print()
 }
 
-/** Заказы, которые есть в плане и ещё не закрыты («В плане» или «В работе»). */
-const deliverableOrderIds = computed(() => {
+/** Заказы плана, которые ещё ждут работы («В плане»). */
+const plannedOrderIds = computed(() => {
   const plannedIds = new Set(
     solver.plannedStops
       .map((item) => item.stop.order_id)
       .filter((id): id is number => id !== null && id !== undefined),
   )
   return erp.orderRows
-    .filter((row) => row.order.delivery_status !== 'delivered' && plannedIds.has(row.order.id))
+    .filter((row) => row.order.delivery_status === 'pending' && plannedIds.has(row.order.id))
     .map((row) => row.order.id)
 })
 
-const deliverHint = computed(() =>
-  deliverableOrderIds.value.length > 0
-    ? `Отметить доставленными заказов: ${deliverableOrderIds.value.length}`
-    : 'Все заказы плана уже отмечены доставленными',
+const planHint = computed(() =>
+  plannedOrderIds.value.length > 0
+    ? `Взять в работу заказов: ${plannedOrderIds.value.length}`
+    : 'Все заказы плана уже в работе',
 )
 
-/** Массовая доставка: по одному PATCH на заказ, сток списывает backend по плану. */
-function markPlanDelivered(): void {
-  void erp.deliverOrders(deliverableOrderIds.value)
+/** «Добавить в план» — этап «В работе»: один PATCH на заказ, сток списывает backend. */
+function addPlanToWork(): void {
+  void erp.setOrdersStatus(plannedOrderIds.value, 'in_progress')
 }
 
 async function exportXlsx(): Promise<void> {

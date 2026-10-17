@@ -16,6 +16,7 @@ import type {
   DataSource,
   ERPState,
   Loaded,
+  OrderAssignment,
   SolverResponse,
   Truck,
   TruckPatch,
@@ -175,6 +176,17 @@ export function patchStock(
     method: 'PATCH',
     access_pin: accessPin,
     body: JSON.stringify(patch),
+  })
+}
+
+/**
+ * Подбор оптимальной машины и маршрута для заявки («В работе»).
+ * Без mock-fallback: назначение должно отражать реальные остатки и парк.
+ */
+export function assignOrder(orderId: number, accessPin: string): Promise<OrderAssignment> {
+  return request<OrderAssignment>(`/erp/orders/${orderId}/assign`, {
+    method: 'POST',
+    access_pin: accessPin,
   })
 }
 

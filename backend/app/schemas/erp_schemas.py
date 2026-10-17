@@ -52,6 +52,23 @@ class ClientOrderResponse(APIModel):
     delivery_status: DeliveryStatus = DeliveryStatus.PENDING
 
 
+class OrderAssignmentResponse(APIModel):
+    """Оптимальная машина и маршрут для одной заявки (раздел «В работе»)."""
+
+    order_id: int = Field(gt=0)
+    truck_id: int = Field(gt=0)
+    truck_name: str
+    warehouse_id: int = Field(gt=0)
+    warehouse_name: str
+    shipped_kg: float = Field(ge=0.0)
+    distance_km: float = Field(ge=0.0)
+    duration_min: float = Field(ge=0.0)
+    trip_cost_rub: float = Field(ge=0.0)
+    spoilage_loss_rub: float = Field(ge=0.0)
+    total_cost_rub: float = Field(ge=0.0)
+    expected_freshness: float = Field(ge=0.0, le=1.0)
+
+
 class TruckResponse(APIModel):
     id: int
     name: str

@@ -86,12 +86,14 @@ import KalugaMapCanvas from '@/sections/map-routing/KalugaMapCanvas.vue'
 import WeatherControlBar from './WeatherControlBar.vue'
 import RoutesTcoTab from './RoutesTcoTab.vue'
 import WarehousesStockTab from './WarehousesStockTab.vue'
+import { useAssignmentStore } from './useAssignmentStore'
 import { useErpStore } from './useErpStore'
 import { useSolverStore } from './useSolverStore'
 
 const auth = useAuthStore()
 const erp = useErpStore()
 const solver = useSolverStore()
+const assignments = useAssignmentStore()
 const router = useRouter()
 const { mdAndUp } = useDisplay()
 
@@ -176,6 +178,7 @@ function reload(): void {
 
 function logout(): void {
   solver.clear()
+  assignments.clear()
   auth.logout()
   void router.replace('/login')
 }

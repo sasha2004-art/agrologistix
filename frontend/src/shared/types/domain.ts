@@ -90,6 +90,22 @@ export interface Truck {
   status: TruckStatus
 }
 
+/** erp_schemas.OrderAssignmentResponse — оптимальная машина и маршрут для заявки. */
+export interface OrderAssignment {
+  order_id: number
+  truck_id: number
+  truck_name: string
+  warehouse_id: number
+  warehouse_name: string
+  shipped_kg: number
+  distance_km: number
+  duration_min: number
+  trip_cost_rub: number
+  spoilage_loss_rub: number
+  total_cost_rub: number
+  expected_freshness: number
+}
+
 /** erp_schemas.ClientOrderPatch — хотя бы одно поле обязательно */
 export interface ClientOrderPatch {
   purchase_price_rub?: number

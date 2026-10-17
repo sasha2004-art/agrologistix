@@ -25,6 +25,7 @@ import type {
   ClientOrder,
   ClientOrderPatch,
   DataSource,
+  DeliveryStatus,
   ERPState,
   Product,
   TruckPatch,
@@ -72,7 +73,7 @@ export function remainingKg(order: ClientOrder): number {
 }
 
 /** Ключ массовой отметки доставки: по нему UI рисует общий индикатор. */
-export const ORDERS_DELIVER_KEY = 'orders:deliver'
+export const ORDERS_STATUS_KEY = 'orders:status'
 
 export const useErpStore = defineStore('erp', () => {
   const auth = useAuthStore()
@@ -387,7 +388,11 @@ export const useErpStore = defineStore('erp', () => {
    * На ошибке (обычно 409: остаток склада изменился после расчёта) останавливаемся:
    * продолжать списание по устаревшему плану нельзя, тосты сообщат, сколько успело.
    */
-  async function deliverOrders(orderIds: number[]): Promise<boolean> {
+  /** Массовая смена этапа: один PATCH на заказ, сток списывает backend по плану. */
+  async function setOrdersStatus(
+    orderIds: number[],
+    targetStatus: DeliveryStatus,
+  ): Promise<boolean> {
     const accessPin = auth.accessPin
     if (!accessPin) {
       notifications.push('error', 'Требуется вход по коду доступа.')
@@ -396,13 +401,13 @@ export const useErpStore = defineStore('erp', () => {
     const unique = [...new Set(orderIds)]
     if (unique.length === 0) return false
 
-    pendingKeys.value.add(ORDERS_DELIVER_KEY)
+    pendingKeys.value.add(ORDERS_STATUS_KEY)
     let done = 0
     let failure: unknown = null
     try {
       for (const orderId of unique) {
         try {
-          const updated = await patchOrder(orderId, { delivery_status: 'delivered' }, accessPin)
+          const updated = await patchOrder(orderId, { delivery_status: targetStatus }, accessPin)
           if (state.value) state.value.orders = replaceById(state.value.orders, updated)
           done += 1
         } catch (error) {
@@ -411,13 +416,17 @@ export const useErpStore = defineStore('erp', () => {
         }
       }
     } finally {
-      pendingKeys.value.delete(ORDERS_DELIVER_KEY)
+      pendingKeys.value.delete(ORDERS_STATUS_KEY)
     }
 
     if (done > 0) {
       await loadState({ force: true, silent: true })
       solver.markPlanStale()
-      notifications.push('success', `Отмечено доставленными: ${done} из ${unique.length}`)
+      const notice =
+        targetStatus === 'in_progress'
+          ? `Добавлено в план: ${done} из ${unique.length}`
+          : `Отмечено доставленными: ${done} из ${unique.length}`
+      notifications.push('success', notice)
     }
     if (failure) notifications.push('error', describeApiError(failure))
     return done > 0 && failure === null
@@ -484,7 +493,7 @@ export const useErpStore = defineStore('erp', () => {
     updateOrder,
     updateTruck,
     updateStock,
-    deliverOrders,
+    setOrdersStatus,
     clear,
   }
 })
