@@ -319,6 +319,170 @@ def test_reset_demo_clears_delivered_stock_journal(client: TestClient) -> None:
         assert session.exec(select(SimulationRun)).all() == []
 
 
+def test_delivery_uses_the_latest_plan_and_truncates_it_to_the_leftover(
+    client: TestClient,
+) -> None:
+    with _database_session(client) as session:
+        order = session.get(ClientOrder, 1)
+        truck = session.exec(select(Truck).order_by(Truck.id)).first()
+        old_run = SimulationRun()
+        new_run = SimulationRun()
+        session.add(old_run)
+        session.add(new_run)
+        session.commit()
+        session.refresh(old_run)
+        session.refresh(new_run)
+        base_stop = {
+            "order_id": order.id,
+            "truck_id": truck.id,
+            "client_id": order.client_id,
+            "product_id": order.product_id,
+            "sequence_order": 1,
+        }
+        # The old plan ships 1000 kg from the second warehouse.
+        session.add(
+            RouteStop(
+                run_id=int(old_run.id or 0),
+                warehouse_id=2,
+                shipped_kg=1000.0,
+                **base_stop,
+            )
+        )
+        # The latest plan ships 1000 kg from warehouse 1 and 1000 kg from 2;
+        # the order was already partially delivered (500 kg left), so only the
+        # first warehouse entry is written off and the loop stops early.
+        session.add(
+            RouteStop(
+                run_id=int(new_run.id or 0),
+                warehouse_id=1,
+                shipped_kg=1000.0,
+                **base_stop,
+            )
+        )
+        session.add(
+            RouteStop(
+                run_id=int(new_run.id or 0),
+                warehouse_id=2,
+                shipped_kg=1000.0,
+                sequence_order=2,
+                **{key: value for key, value in base_stop.items() if key != "sequence_order"},
+            )
+        )
+        order.delivered_kg = order.requested_kg - 500.0
+        session.add(order)
+        session.commit()
+        requested_kg = order.requested_kg
+        order_id = int(order.id or 0)
+
+    response = client.patch(
+        f"{ORDERS_URL}/{order_id}",
+        headers=AUTH,
+        json={"delivery_status": "delivered"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["delivered_kg"] == pytest.approx(requested_kg)
+
+    with _database_session(client) as session:
+        journal = session.exec(
+            select(DeliveredOrderStock).where(DeliveredOrderStock.order_id == order_id)
+        ).all()
+        stocks = session.exec(
+            select(WarehouseStock).where(WarehouseStock.product_id == order.product_id)
+        ).all()
+
+    by_warehouse = {entry.stock_id: entry.shipped_kg for entry in journal}
+    assert len(by_warehouse) == 1
+    assert sum(by_warehouse.values()) == pytest.approx(500.0)
+    warehouse_one = next(stock for stock in stocks if stock.warehouse_id == 1)
+    assert warehouse_one.available_kg == pytest.approx(4200.0 - 500.0)
+
+
+def test_delivery_ignores_stops_of_another_product(client: TestClient) -> None:
+    with _database_session(client) as session:
+        order = session.get(ClientOrder, 1)
+        truck = session.exec(select(Truck).order_by(Truck.id)).first()
+        run = SimulationRun()
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+        common = {
+            "run_id": int(run.id or 0),
+            "order_id": order.id,
+            "truck_id": truck.id,
+            "warehouse_id": 1,
+            "client_id": order.client_id,
+        }
+        session.add(
+            RouteStop(
+                sequence_order=1,
+                product_id=1 if order.product_id != 1 else 2,
+                shipped_kg=999.0,
+                **common,
+            )
+        )
+        session.add(
+            RouteStop(
+                sequence_order=2,
+                product_id=order.product_id,
+                shipped_kg=order.requested_kg,
+                **common,
+            )
+        )
+        session.commit()
+        order_id = int(order.id or 0)
+        requested_kg = order.requested_kg
+
+    response = client.patch(
+        f"{ORDERS_URL}/{order_id}",
+        headers=AUTH,
+        json={"delivery_status": "delivered"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["delivered_kg"] == pytest.approx(requested_kg)
+    with _database_session(client) as session:
+        journal = session.exec(
+            select(DeliveredOrderStock).where(DeliveredOrderStock.order_id == order_id)
+        ).all()
+    assert sum(entry.shipped_kg for entry in journal) == pytest.approx(requested_kg)
+
+
+def test_repeated_delivery_fixation_does_not_write_off_stock_twice(client: TestClient) -> None:
+    with _database_session(client) as session:
+        order = session.get(ClientOrder, 1)
+        order.delivered_kg = order.requested_kg
+        order.delivery_status = "pending"
+        session.add(order)
+        session.commit()
+        order_id = int(order.id or 0)
+        requested_kg = order.requested_kg
+        stock_before = sum(
+            stock.available_kg
+            for stock in session.exec(
+                select(WarehouseStock).where(WarehouseStock.product_id == order.product_id)
+            ).all()
+        )
+
+    response = client.patch(
+        f"{ORDERS_URL}/{order_id}",
+        headers=AUTH,
+        json={"delivery_status": "delivered"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["delivered_kg"] == pytest.approx(requested_kg)
+    with _database_session(client) as session:
+        assert session.exec(select(DeliveredOrderStock)).all() == []
+        stock_after = sum(
+            stock.available_kg
+            for stock in session.exec(
+                select(WarehouseStock).where(WarehouseStock.product_id == order.product_id)
+            ).all()
+        )
+    assert stock_after == pytest.approx(stock_before)
+
+
 def test_delivery_without_any_plan_is_closed_as_delivered(client: TestClient) -> None:
     response = client.patch(
         f"{ORDERS_URL}/1",

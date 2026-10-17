@@ -239,6 +239,42 @@ def test_matrix_for_seven_points_uses_cache_on_second_run(session: Session) -> N
     assert second_elapsed < 0.1
 
 
+def test_fetch_closes_its_own_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    closed: list[bool] = []
+
+    class _FakeClient:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        async def get(self, *_args: object, **_kwargs: object) -> httpx.Response:
+            request = httpx.Request("GET", "https://api.mapbox.com/directions/v5")
+            return httpx.Response(
+                200,
+                json={
+                    "routes": [
+                        {
+                            "distance": 1000.0,
+                            "duration": 60.0,
+                            "geometry": {"coordinates": []},
+                        }
+                    ]
+                },
+                request=request,
+            )
+
+        async def aclose(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr(dm.httpx, "AsyncClient", _FakeClient)
+
+    leg = asyncio.run(dm.fetch_mapbox_leg(OBININSK, KALUGA, _settings("pk.test")))
+
+    assert closed == [True]
+    assert leg is not None
+    assert leg.distance_km == 1.0
+    assert leg.geometry == []
+
+
 def test_matrix_is_symmetric_for_straight_line_fallback(session: Session) -> None:
     points = [OBININSK, KALUGA, MALOYAROSLAVETS]
 

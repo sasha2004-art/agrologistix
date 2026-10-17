@@ -1,9 +1,17 @@
 """XLSX export tests: workbook structure, what-if delta and error handling."""
 
+from datetime import UTC, datetime
 from io import BytesIO
 
 import pytest
 from app.models.erp_models import Truck
+from app.models.run_models import SimulationRun
+from app.services.xlsx_exporter import (
+    ExportRoute,
+    ExportRun,
+    ExportStop,
+    build_workbook,
+)
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 from sqlmodel import Session, select
@@ -113,6 +121,58 @@ def test_export_of_run_without_routes_still_returns_workbook(client: TestClient)
 
     assert workbook.sheetnames == [SUMMARY_TITLE]
     assert baseline["metrics"]["unmet_kg"] > 0
+
+
+def test_workbook_can_be_built_without_database_entities() -> None:
+    run = SimulationRun(
+        id=42,
+        created_at=datetime(2026, 1, 1, 12, 0, tzinfo=UTC),
+        weather_mode="normal",
+        total_shipped_kg=150.0,
+        total_unmet_kg=0.0,
+    )
+    stop = ExportStop(
+        sequence_order=1,
+        order_id=None,
+        client_name="—",
+        product_name="—",
+        warehouse_name="—",
+        shipped_kg=150.0,
+        leg_distance_km=12.5,
+        eta_minutes=20.0,
+        freshness_pct=88.0,
+        leg_cost_rub=450.0,
+        stop_status="planned",
+    )
+    route = ExportRoute(
+        truck_id=7,
+        truck_name="Машина 7",
+        plate_number="—",
+        warehouse_name="—",
+        capacity_kg=0.0,
+        stops=(stop,),
+    )
+
+    workbook = build_workbook(ExportRun(run=run, routes=(route,)))
+
+    assert workbook.sheetnames[0] == SUMMARY_TITLE
+    assert "Рейс 1" in workbook.sheetnames[1]
+    route_sheet = workbook[workbook.sheetnames[1]]
+    header = next(row for row in route_sheet.iter_rows() if row[0].value == "№")
+    assert [cell.value for cell in header][:2] == ["№", "Заявка"]
+    row = next(row for row in route_sheet.iter_rows() if row[0].value == 1)
+    assert row[1].value == "—"
+    totals = next(row for row in route_sheet.iter_rows() if row[0].value == "Итого")
+    assert totals[4].value == pytest.approx(150.0)
+    assert totals[8].value == pytest.approx(450.0)
+
+
+def test_workbook_of_a_run_without_routes_has_only_the_summary() -> None:
+    run = SimulationRun(id=1, created_at=datetime(2026, 1, 1, tzinfo=UTC))
+
+    workbook = build_workbook(ExportRun(run=run, routes=()))
+
+    assert workbook.sheetnames == [SUMMARY_TITLE]
 
 
 def test_export_rejects_unknown_run_and_missing_pin(client: TestClient) -> None:

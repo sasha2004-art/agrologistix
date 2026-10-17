@@ -10,6 +10,7 @@ from app.services.freshness_math import (
     TripConditions,
     assess_trip,
     expected_freshness,
+    freshness_after_hours,
     precipitation_factor,
     spoilage_loss_rub,
     surface_factor,
@@ -176,6 +177,24 @@ def test_higher_cruise_speed_keeps_cargo_fresher() -> None:
 
     assert travel_time_hours(fast) < travel_time_hours(slow)
     assert expected_freshness(NORMAL_CARGO, fast) > expected_freshness(NORMAL_CARGO, slow)
+
+
+def test_helpers_reject_negative_values() -> None:
+    with pytest.raises(ValueError):
+        precipitation_factor(-0.1)
+    with pytest.raises(ValueError):
+        freshness_after_hours(NORMAL_CARGO, -0.5, 20.0, has_reefer=False)
+    with pytest.raises(ValueError):
+        spoilage_loss_rub(-1.0, 0.9, 200.0)
+    with pytest.raises(ValueError):
+        spoilage_loss_rub(10.0, 0.9, -1.0)
+
+
+def test_zero_spoilage_rate_keeps_the_initial_freshness() -> None:
+    cargo = CargoProfile(spoilage_rate=0.0, initial_freshness=0.75)
+
+    assert expected_freshness(cargo, NORMAL_TRIP) == pytest.approx(0.75, abs=1e-12)
+    assert spoilage_loss_rub(100.0, 0.0, 300.0) == pytest.approx(30_000.0)
 
 
 def test_unreachable_dirt_scenario_requires_offroad_truck() -> None:
