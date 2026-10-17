@@ -199,6 +199,35 @@ export function overrideWeather(mode: WeatherMode, accessPin: string): Promise<W
 }
 
 /**
+ * XLSX-маршрутный лист сохранённого прогона.
+ *
+ * Это файл, а не JSON, поэтому идём мимо общего `request`: он не умеет blob
+ * и не читает `Content-Disposition`. Имя файла берём из ответа сервера.
+ */
+export async function downloadRouteSheet(
+  runId: number,
+  accessPin: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`${API_BASE}/export/run/${runId}/xlsx`, {
+    headers: { 'X-Access-Pin': accessPin, Accept: '*/*' },
+  })
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorBody(response))
+  }
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response.headers.get('Content-Disposition'), runId),
+  }
+}
+
+/** `attachment; filename="agrologistix-run-7.xlsx"` → имя файла с fallback. */
+function filenameFromDisposition(header: string | null, runId: number): string {
+  const match = header?.match(/filename="?([^";]+)"?/i)
+  const name = match?.[1]?.trim()
+  return name && name.length > 0 ? name : `agrologistix-run-${runId}.xlsx`
+}
+
+/**
  * Расчёт плана: без mock-fallback — выдуманный план хуже явной ошибки,
  * потому что на его основе диспетчер принимает решения.
  */

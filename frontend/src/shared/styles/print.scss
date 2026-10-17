@@ -1,0 +1,128 @@
+/*
+ * Печать маршрутного листа и выгрузка в PDF.
+ *
+ * На экране лист не занимает место, при печати остаётся только он: карта,
+ * шапка, панель управления и тосты полностью скрываются.
+ */
+
+.print-root {
+  display: none;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  /* Скрываем весь интерфейс приложения: остаётся только печатный лист. */
+  .v-application__wrap > *:not(.print-root) {
+    display: none !important;
+  }
+
+  .print-root {
+    display: block !important;
+    padding: 0;
+    color: #111;
+    background: #fff;
+  }
+
+  /* Тени неоморфизма на бумаге не читаются и мешают контрасту. */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .print-root .sheet-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    border-bottom: 2px solid #111;
+  }
+
+  .print-root .sheet-title {
+    margin: 0;
+    font-size: 20px;
+  }
+
+  .print-root .sheet-sub,
+  .print-root .sheet-weather p {
+    margin: 2px 0;
+    font-size: 11px;
+  }
+
+  .print-root .sheet-weather {
+    text-align: right;
+  }
+
+  .print-root .sheet-route {
+    margin-bottom: 10mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-root .sheet-route-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 6px;
+    font-size: 14px;
+  }
+
+  .print-root .sheet-route-meta {
+    font-size: 11px;
+    font-weight: 400;
+  }
+
+  /* Восемь колонок должны уместиться в A4 (186 мм с полями): мелкий кегль и узкие отступы. */
+  .print-root .sheet-table {
+    font-size: 10px;
+  }
+
+  .print-root .sheet-table th,
+  .print-root .sheet-table td {
+    padding: 3px 5px;
+  }
+
+  .print-root .sheet-address {
+    font-size: 9px;
+  }
+
+  .print-root .sheet-table th {
+    background: #eee;
+  }
+
+  /* Заголовок таблицы повторяется на следующей странице, строка не разрывается. */
+  .print-root .sheet-table thead {
+    display: table-header-group;
+  }
+
+  .print-root .sheet-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-root .sheet-signs {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+    font-size: 11px;
+  }
+
+  .print-root .sheet-warnings {
+    margin: 0 0 6px;
+    padding-left: 16px;
+    font-size: 11px;
+  }
+
+  .print-root .sheet-foot {
+    margin-top: 6px;
+    font-size: 10px;
+    color: #555;
+  }
+}
