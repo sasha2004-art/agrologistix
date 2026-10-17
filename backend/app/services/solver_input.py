@@ -180,4 +180,5 @@ async def build_solver_input(
             if warehouse.id is not None
         ),
         frozen_order_ids=frozen_order_ids,
+        client_split_penalty_rub=settings.solver_client_split_penalty_rub,
     )

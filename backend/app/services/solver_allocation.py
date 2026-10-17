@@ -8,18 +8,22 @@ Decision variables
 ------------------
 * ``x[k, o]`` — kilograms delivered by truck ``k`` for order ``o`` (continuous);
 * ``u[o]`` — unmet kilograms of order ``o`` (continuous slack);
-* ``y[k]`` — 1 when truck ``k`` is used at all (binary, pays ``fixed_trip_cost``).
+* ``y[k]`` — 1 when truck ``k`` is used at all (binary, pays ``fixed_trip_cost``);
+* ``z[k, c]`` — 1 when truck ``k`` serves client ``c`` (binary); with strict
+  grouping ``sum_k z[k, c] = 1``, so one shop is never visited by two trucks
+  unless capacity forces a soft split priced by ``client_split_penalty``.
 
 Constraints
 -----------
 * coverage: ``sum_k x[k, o] + u[o] = requested_kg[o]``;
 * capacity: ``sum_o x[k, o] <= capacity_kg[k] * y[k]``;
 * warehouse stock: ``sum_{o: p} x[k, o] <= stock[base(k), p] * y[k]``;
-* dirt: ``x[k, o]`` is fixed to zero when ``truck_can_serve_order`` is false.
+* dirt: ``x[k, o]`` is fixed to zero when ``truck_can_serve_order`` is false;
+* client grouping: ``x[k, o] <= requested_kg[o] * z[k, c(o)]``.
 
 Objective: spoilage loss + proportional trip cost + unmet penalties + fixed trip
-costs. When HiGHS fails or hits the time limit, a greedy priority fallback is
-used so the engine never raises.
+costs + client split penalties. When HiGHS fails or hits the time limit, a greedy
+priority fallback is used so the engine never raises.
 """
 
 import logging
@@ -63,6 +67,15 @@ class AllocationResult:
     unmet: dict[int, float]
     method: str
     unreachable_order_ids: frozenset[int]
+
+
+@dataclass(frozen=True, slots=True)
+class _MilpResult:
+    """One MILP solution with its objective value in TCO units."""
+
+    allocation: dict[tuple[int, int], float]
+    unmet: dict[int, float]
+    objective: float
 
 
 def _products_by_id(products: tuple[SolverProduct, ...]) -> dict[int, SolverProduct]:
@@ -117,13 +130,24 @@ def _milp_allocate(
     origins: dict[int, tuple[float, float]],
     index: LegIndex,
     time_limit_sec: float,
-) -> tuple[dict[tuple[int, int], float], dict[int, float]] | None:
+    *,
+    strict_grouping: bool,
+    split_penalty_rub: float,
+) -> _MilpResult | None:
     truck_count = len(trucks)
     order_count = len(orders)
     if truck_count == 0:
         return None
 
+    clients = sorted({order.client_id for order in orders})
+    client_count = len(clients)
+    client_position = {client_id: position for position, client_id in enumerate(clients)}
+
+    # x[truck, order] | u[order] | y[truck] | z[truck, client] | s[client]
     variable_count = truck_count * order_count + order_count + truck_count
+    z_offset = variable_count
+    split_offset = z_offset + truck_count * client_count
+    variable_count = split_offset + client_count
 
     def x_index(truck_position: int, order_position: int) -> int:
         return truck_position * order_count + order_position
@@ -133,6 +157,12 @@ def _milp_allocate(
 
     def y_index(truck_position: int) -> int:
         return truck_count * order_count + order_count + truck_position
+
+    def z_index(truck_position: int, client_pos: int) -> int:
+        return z_offset + truck_position * client_count + client_pos
+
+    def s_index(client_pos: int) -> int:
+        return split_offset + client_pos
 
     cost = np.zeros(variable_count)
     lower = np.zeros(variable_count)
@@ -162,6 +192,20 @@ def _milp_allocate(
     for order_position, order in enumerate(orders):
         cost[u_index(order_position)] = order.penalty_per_kg
         upper[u_index(order_position)] = order.requested_kg
+
+    for truck_position in range(truck_count):
+        for client_pos in range(client_count):
+            upper[z_index(truck_position, client_pos)] = 1.0
+            integrality[z_index(truck_position, client_pos)] = 1
+
+    for client_pos in range(client_count):
+        if strict_grouping:
+            # Split slack is unused and pinned to zero: every shop is served by
+            # exactly one truck.
+            upper[s_index(client_pos)] = 0.0
+        else:
+            cost[s_index(client_pos)] = split_penalty_rub
+            upper[s_index(client_pos)] = float(truck_count)
 
     rows: list[np.ndarray] = []
     row_lower: list[float] = []
@@ -198,6 +242,28 @@ def _milp_allocate(
             row_lower.append(-np.inf)
             row_upper.append(0.0)
 
+    # A truck only carries an order when it is allowed to serve that client.
+    for order_position, order in enumerate(orders):
+        client_pos = client_position[order.client_id]
+        for truck_position in range(truck_count):
+            row = np.zeros(variable_count)
+            row[x_index(truck_position, order_position)] = 1.0
+            row[z_index(truck_position, client_pos)] = -order.requested_kg
+            rows.append(row)
+            row_lower.append(-np.inf)
+            row_upper.append(0.0)
+
+    for client_pos in range(client_count):
+        row = np.zeros(variable_count)
+        for truck_position in range(truck_count):
+            row[z_index(truck_position, client_pos)] = 1.0
+        row[s_index(client_pos)] = -1.0
+        rows.append(row)
+        # Strict grouping keeps exactly one truck per client, while the soft
+        # mode pays ``split_penalty_rub`` for every extra visiting truck.
+        row_lower.append(1.0 if strict_grouping else -np.inf)
+        row_upper.append(1.0)
+
     result = milp(
         c=cost,
         constraints=[LinearConstraint(np.vstack(rows), row_lower, row_upper)],
@@ -217,7 +283,27 @@ def _milp_allocate(
                 allocation[(truck.truck_id, order.order_id)] = kilograms
     for order_position, order in enumerate(orders):
         unmet[order.order_id] = float(result.x[u_index(order_position)])
-    return allocation, unmet
+    objective = float(result.fun) if result.fun is not None else float("inf")
+    return _MilpResult(allocation=allocation, unmet=unmet, objective=objective)
+
+
+def _grouped_order_priority(orders: list[SolverOrder]) -> list[SolverOrder]:
+    """Greedy order: full client groups first, most valuable client first."""
+
+    value_by_client: dict[int, float] = {}
+    for order in orders:
+        value_by_client[order.client_id] = value_by_client.get(order.client_id, 0.0) + (
+            order.penalty_per_kg * order.requested_kg
+        )
+    return sorted(
+        orders,
+        key=lambda order: (
+            -value_by_client[order.client_id],
+            order.client_id,
+            -order.penalty_per_kg * order.requested_kg,
+            order.order_id,
+        ),
+    )
 
 
 def _greedy_allocate(
@@ -231,12 +317,9 @@ def _greedy_allocate(
     stock_left = {key: stock.available_kg for key, stock in stocks.items()}
     allocation: dict[tuple[int, int], float] = {}
     unmet: dict[int, float] = {}
+    client_on_truck: set[tuple[int, int]] = set()
 
-    priority = sorted(
-        orders,
-        key=lambda order: order.penalty_per_kg * order.requested_kg,
-        reverse=True,
-    )
+    priority = _grouped_order_priority(orders)
     for order in priority:
         remaining = order.requested_kg
         origin = (order.latitude, order.longitude)
@@ -245,7 +328,14 @@ def _greedy_allocate(
             for truck in trucks
             if truck_can_serve_order(truck, order) and capacity_left[truck.truck_id] > EPSILON
         ]
-        candidates.sort(key=lambda truck: index.distance_km(origins[truck.warehouse_id], origin))
+        # Prefer the truck that already carries this client, then the nearest
+        # warehouse: this keeps one shop on one trip whenever capacity allows.
+        candidates.sort(
+            key=lambda truck: (
+                (truck.truck_id, order.client_id) not in client_on_truck,
+                index.distance_km(origins[truck.warehouse_id], origin),
+            )
+        )
         for truck in candidates:
             if remaining <= EPSILON:
                 break
@@ -256,6 +346,7 @@ def _greedy_allocate(
             allocation[(truck.truck_id, order.order_id)] = (
                 allocation.get((truck.truck_id, order.order_id), 0.0) + take
             )
+            client_on_truck.add((truck.truck_id, order.client_id))
             capacity_left[truck.truck_id] -= take
             stock_left[(truck.warehouse_id, order.product_id)] = available_stock - take
             remaining -= take
@@ -269,6 +360,7 @@ def allocate_loads(
     trucks: list[SolverTruck],
     index: LegIndex,
     time_limit_sec: float,
+    split_penalty_rub: float = 0.0,
 ) -> AllocationResult:
     """Distribute pending orders over active trucks, marking leftovers as unmet."""
 
@@ -288,29 +380,48 @@ def allocate_loads(
     )
 
     method = "milp"
-    milp_result = None
+    best: _MilpResult | None = None
+    best_key: tuple[float, int, float] | None = None
     if usable_trucks:
-        try:
-            milp_result = _milp_allocate(
-                solver_input,
-                orders,
-                usable_trucks,
-                products,
-                stocks,
-                origins,
-                index,
-                time_limit_sec,
+        # Keep the orders of one client on one truck whenever that plan ships
+        # the same volume. A soft split is only taken when it moves extra
+        # kilograms (the split price stays in the objective), so «one shop —
+        # one trip» wins on ties while unmet demand still beats fragmentation.
+        per_attempt_limit = max(time_limit_sec / 2.0, 0.01)
+        for strict_grouping in (True, False):
+            candidate = None
+            try:
+                candidate = _milp_allocate(
+                    solver_input,
+                    orders,
+                    usable_trucks,
+                    products,
+                    stocks,
+                    origins,
+                    index,
+                    per_attempt_limit,
+                    strict_grouping=strict_grouping,
+                    split_penalty_rub=split_penalty_rub,
+                )
+            except (ValueError, RuntimeError, ArithmeticError) as error:
+                # HiGHS may raise on degenerate data; the greedy fallback keeps
+                # the endpoint responding with a feasible plan instead of a 500.
+                logger.warning("MILP allocation failed, using greedy fallback: %s", error)
+            if candidate is None:
+                continue
+            key = (
+                round(sum(candidate.unmet.values()), WEIGHT_PRECISION),
+                0 if strict_grouping else 1,
+                candidate.objective,
             )
-        except (ValueError, RuntimeError, ArithmeticError) as error:
-            # HiGHS may raise on degenerate data; the greedy fallback keeps the
-            # endpoint responding with a feasible plan instead of a 500.
-            logger.warning("MILP allocation failed, using greedy fallback: %s", error)
-            milp_result = None
-    if milp_result is None:
+            if best_key is None or key < best_key:
+                best, best_key = candidate, key
+                method = "milp" if strict_grouping else "milp+split"
+    if best is None:
         method = "greedy"
         allocation, unmet = _greedy_allocate(orders, usable_trucks, stocks, origins, index)
     else:
-        allocation, unmet = milp_result
+        allocation, unmet = best.allocation, best.unmet
 
     orders_by_id = {order.order_id: order for order in orders}
     truck_loads: list[TruckLoad] = []

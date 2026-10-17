@@ -45,6 +45,9 @@ const EMPTY_METRICS: Metrics = {
   avg_freshness_pct: 0,
   shipped_kg: 0,
   unmet_kg: 0,
+  total_trips: 0,
+  avg_load_factor_pct: 0,
+  split_clients: 0,
 }
 
 interface Card {

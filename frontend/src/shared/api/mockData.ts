@@ -259,6 +259,9 @@ export const mockMetrics: Metrics = {
   avg_freshness_pct: 94.8,
   shipped_kg: 8600,
   unmet_kg: 0,
+  total_trips: 2,
+  avg_load_factor_pct: 58.4,
+  split_clients: 0,
 }
 
 export const mockSolverResponse: SolverResponse = {

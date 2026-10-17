@@ -118,6 +118,8 @@ class SolverInput:
     weather: SolverWeather
     warehouses: tuple[SolverWarehouse, ...] = field(default_factory=tuple)
     frozen_order_ids: tuple[int, ...] = field(default_factory=tuple)
+    # Price of splitting one client over several trucks (soft grouping mode).
+    client_split_penalty_rub: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +162,11 @@ class PlannedMetrics:
     avg_freshness_pct: float
     shipped_kg: float
     unmet_kg: float
+    # Route consolidation telemetry: how many trips the plan uses, how full the
+    # trucks are and how many clients are served by more than one trip.
+    total_trips: int = 0
+    avg_load_factor_pct: float = 0.0
+    split_clients: int = 0
 
 
 @dataclass(frozen=True, slots=True)

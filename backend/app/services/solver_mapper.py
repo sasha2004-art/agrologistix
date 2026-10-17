@@ -27,6 +27,9 @@ class BaselineMetrics:
     avg_freshness_pct: float
     shipped_kg: float
     unmet_kg: float
+    total_trips: int = 0
+    avg_load_factor_pct: float = 0.0
+    split_clients: int = 0
 
 
 def _metric_delta(before: float, after: float) -> MetricDelta:
@@ -59,6 +62,9 @@ def build_comparison(before: BaselineMetrics, outcome: SolverOutcome) -> Compari
         avg_freshness_pct=_metric_delta(before.avg_freshness_pct, after.avg_freshness_pct),
         shipped_kg=_metric_delta(before.shipped_kg, after.shipped_kg),
         unmet_kg=_metric_delta(before.unmet_kg, after.unmet_kg),
+        total_trips=_metric_delta(before.total_trips, after.total_trips),
+        avg_load_factor_pct=_metric_delta(before.avg_load_factor_pct, after.avg_load_factor_pct),
+        split_clients=_metric_delta(before.split_clients, after.split_clients),
     )
 
 
@@ -109,6 +115,9 @@ def to_solver_response(
         avg_freshness_pct=outcome.metrics.avg_freshness_pct,
         shipped_kg=outcome.metrics.shipped_kg,
         unmet_kg=outcome.metrics.unmet_kg,
+        total_trips=outcome.metrics.total_trips,
+        avg_load_factor_pct=outcome.metrics.avg_load_factor_pct,
+        split_clients=outcome.metrics.split_clients,
     )
 
     warnings = [
