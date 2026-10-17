@@ -129,7 +129,7 @@ ORDER_SEED: tuple[tuple[str, str, float, float, float], ...] = (
 
 TRUCK_SEED: tuple[dict[str, object], ...] = (
     {
-        "name": "Volvo FH16 Реф",
+        "name": "Volvo FH16",
         "plate_number": "А001АА40",
         "warehouse": "Хаб Обнинск",
         "capacity_kg": 20000.0,
@@ -140,7 +140,7 @@ TRUCK_SEED: tuple[dict[str, object], ...] = (
         "can_use_dirt": False,
     },
     {
-        "name": "ГАЗон NEXT Реф",
+        "name": "ГАЗон NEXT",
         "plate_number": "В202ВВ40",
         "warehouse": "Хаб Обнинск",
         "capacity_kg": 6000.0,

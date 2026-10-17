@@ -94,7 +94,6 @@
         </v-alert>
 
         <template v-if="solver.hasPlan">
-          <TcoMetricsPanel />
           <SolverWarningsPanel />
           <RoutePlanTable />
         </template>
@@ -144,7 +143,6 @@ import { describeApiError, downloadRouteSheet } from '@/shared/api/httpClient'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import RoutePlanTable from './RoutePlanTable.vue'
 import SolverWarningsPanel from './SolverWarningsPanel.vue'
-import TcoMetricsPanel from './TcoMetricsPanel.vue'
 import { useErpStore } from './useErpStore'
 import { useSolverStore } from './useSolverStore'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'

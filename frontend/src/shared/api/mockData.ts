@@ -200,7 +200,7 @@ export const mockErpState: ERPState = {
   trucks: [
     {
       id: 1,
-      name: 'Volvo FH16 Реф',
+      name: 'Volvo FH16',
       plate_number: 'А001АА40',
       warehouse_id: 1,
       capacity_kg: 20000,
@@ -213,7 +213,7 @@ export const mockErpState: ERPState = {
     },
     {
       id: 2,
-      name: 'ГАЗон NEXT Реф',
+      name: 'ГАЗон NEXT',
       plate_number: 'В202ВВ40',
       warehouse_id: 1,
       capacity_kg: 6000,

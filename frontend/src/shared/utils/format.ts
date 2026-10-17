@@ -11,10 +11,6 @@ const rubFormatter = new Intl.NumberFormat('ru-RU', {
   maximumFractionDigits: 0,
 })
 
-export function formatNumber(value: number): string {
-  return numberFormatter.format(value)
-}
-
 export function formatDecimal(value: number): string {
   return decimalFormatter.format(value)
 }
@@ -29,10 +25,6 @@ export function formatKg(value: number): string {
 
 export function formatKm(value: number): string {
   return `${decimalFormatter.format(value)} км`
-}
-
-export function formatSpeed(value: number): string {
-  return `${numberFormatter.format(value)} км/ч`
 }
 
 /** Доля 0..1 → проценты для отображения (например, свежесть). */

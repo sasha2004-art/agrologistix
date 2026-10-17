@@ -17,36 +17,12 @@
       empty-icon="mdi-truck-remove-outline"
       @retry="reload"
     >
-      <div class="summary-row">
-        <div class="summary-card neu-inset">
-          <span class="summary-label">В строю</span>
-          <span class="summary-value mono">{{ erp.activeTrucks.length }}</span>
-          <span class="summary-hint">{{ formatKg(erp.activeCapacityKg) }} вместимости</span>
-        </div>
-        <div class="summary-card neu-inset">
-          <span class="summary-label">Сломано</span>
-          <span class="summary-value mono">{{ erp.brokenTrucks.length }}</span>
-          <span class="summary-hint">в расчёт не берутся</span>
-        </div>
-        <div class="summary-card neu-inset">
-          <span class="summary-label">Рефрижераторы</span>
-          <span class="summary-value mono">{{ erp.reeferTrucks.length }}</span>
-          <span class="summary-hint">с охлаждением</span>
-        </div>
-        <div class="summary-card neu-inset">
-          <span class="summary-label">По грунтовке</span>
-          <span class="summary-value mono">{{ erp.dirtCapableTrucks.length }}</span>
-          <span class="summary-hint">могут проехать по грунту</span>
-        </div>
-      </div>
-
       <v-table density="comfortable" class="erp-table">
         <thead>
           <tr>
             <th scope="col">Машина</th>
             <th scope="col">База</th>
             <th scope="col" class="text-right">Вместимость</th>
-            <th scope="col" class="text-right">Скорость</th>
             <th scope="col" class="text-right">Цена за км</th>
             <th scope="col" class="text-right">Выезд</th>
             <th scope="col">Оснащение</th>
@@ -65,7 +41,6 @@
             </td>
             <td>{{ erp.warehouseById.get(truck.warehouse_id)?.name ?? '—' }}</td>
             <td class="text-right mono">{{ formatKg(truck.capacity_kg) }}</td>
-            <td class="text-right mono">{{ formatSpeed(truck.cruise_speed_kmh) }}</td>
             <td class="text-right mono">{{ formatRub(truck.cost_per_km_rub) }}</td>
             <td class="text-right mono">{{ formatRub(truck.fixed_trip_cost_rub) }}</td>
             <td>
@@ -112,7 +87,7 @@
 <script setup lang="ts">
 import StatePanel from '@/shared/components/StatePanel.vue'
 import { useErpStore } from './useErpStore'
-import { formatKg, formatRub, formatSpeed } from '@/shared/utils/format'
+import { formatKg, formatRub } from '@/shared/utils/format'
 import type { Truck, TruckStatus } from '@/shared/types/domain'
 
 const erp = useErpStore()
@@ -155,33 +130,6 @@ function toggleTruck(truck: Truck): void {
 .tab-title {
   margin: 0;
   font-size: 18px;
-}
-
-.summary-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.summary-card {
-  display: grid;
-  gap: 2px;
-  padding: 12px 14px;
-}
-
-.summary-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.summary-value {
-  font-size: 18px;
-}
-
-.summary-hint {
-  font-size: 12px;
-  color: #5b5175;
 }
 
 .erp-table {
