@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # Route consolidation (docs/planning/09-route-consolidation.md): keep the
     # orders of one client on a single truck unless capacity forces a split.
     solver_client_split_penalty_rub: float = Field(default=5000.0, ge=0.0)
+    # Realistic trip limits enforced by the solver and the post-check.
+    solver_max_stops_per_trip: int = Field(default=5, ge=1, le=50)
+    solver_max_trip_hours: float = Field(default=9.0, gt=0.0)
+    solver_min_stop_freshness: float = Field(default=0.70, gt=0.0, le=1.0)
     weather_latitude: float = Field(default=55.11, ge=-90.0, le=90.0)
     weather_longitude: float = Field(default=36.61, ge=-180.0, le=180.0)
     weather_cache_ttl_sec: int = Field(default=900, gt=0)
