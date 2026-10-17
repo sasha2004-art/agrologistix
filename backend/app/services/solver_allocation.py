@@ -22,6 +22,7 @@ costs. When HiGHS fails or hits the time limit, a greedy priority fallback is
 used so the engine never raises.
 """
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -46,6 +47,8 @@ from app.services.solver_routing import LegIndex
 
 EPSILON = 1e-6
 WEIGHT_PRECISION = 3
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,13 +106,6 @@ def unit_cost_rub(
     spoilage_per_kg = (1.0 - freshness) * order.price_per_kg
     trip_share = truck.cost_per_km_rub * distance_km / max(order.requested_kg, 1.0)
     return spoilage_per_kg + trip_share
-
-
-def _truck_origin(
-    truck: SolverTruck,
-    warehouses: dict[int, tuple[float, float]],
-) -> tuple[float, float] | None:
-    return warehouses.get(truck.warehouse_id)
 
 
 def _milp_allocate(
@@ -294,16 +290,22 @@ def allocate_loads(
     method = "milp"
     milp_result = None
     if usable_trucks:
-        milp_result = _milp_allocate(
-            solver_input,
-            orders,
-            usable_trucks,
-            products,
-            stocks,
-            origins,
-            index,
-            time_limit_sec,
-        )
+        try:
+            milp_result = _milp_allocate(
+                solver_input,
+                orders,
+                usable_trucks,
+                products,
+                stocks,
+                origins,
+                index,
+                time_limit_sec,
+            )
+        except (ValueError, RuntimeError, ArithmeticError) as error:
+            # HiGHS may raise on degenerate data; the greedy fallback keeps the
+            # endpoint responding with a feasible plan instead of a 500.
+            logger.warning("MILP allocation failed, using greedy fallback: %s", error)
+            milp_result = None
     if milp_result is None:
         method = "greedy"
         allocation, unmet = _greedy_allocate(orders, usable_trucks, stocks, origins, index)

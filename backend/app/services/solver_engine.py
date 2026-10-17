@@ -145,9 +145,7 @@ def _collect_warnings(
         )
 
     for order_id in sorted(allocation.unreachable_order_ids):
-        order = orders_by_id.get(order_id)
-        if order is None:
-            continue
+        order = orders_by_id[order_id]
         warnings.append(
             PlannedWarning(
                 code="dirt_unreachable",

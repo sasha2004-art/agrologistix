@@ -51,20 +51,37 @@ async def build_solver_input(
     warehouses = session.exec(
         select(Warehouse).where(Warehouse.is_active.is_(True)).order_by(Warehouse.id)
     ).all()
+    active_warehouse_ids = [int(warehouse.id or 0) for warehouse in warehouses]
     products = session.exec(select(Product).order_by(Product.id)).all()
-    stocks = session.exec(select(WarehouseStock).order_by(WarehouseStock.id)).all()
+    # Stock of a deactivated warehouse is not part of the plan and must not be
+    # counted by the solver or by the stock-shortage warning.
+    stocks = session.exec(
+        select(WarehouseStock)
+        .where(WarehouseStock.warehouse_id.in_(active_warehouse_ids))
+        .order_by(WarehouseStock.id)
+    ).all()
     clients = session.exec(select(Client).order_by(Client.id)).all()
     orders = session.exec(select(ClientOrder).order_by(ClientOrder.id)).all()
     trucks = session.exec(select(Truck).order_by(Truck.id)).all()
 
     clients_by_id = {client.id: client for client in clients}
+    # Only points that can appear in the plan are resolved through the distance
+    # matrix: delivered orders and fully shipped ones are never routed, so
+    # their coordinates must not spend Mapbox requests.
+    planned_orders = [
+        order
+        for order in orders
+        if order.delivery_status == DeliveryStatus.PENDING
+        and order.client_id in clients_by_id
+        and remaining_demand_kg(order) > 0.0
+    ]
     points = [
         (warehouse.lat, warehouse.lon) for warehouse in warehouses if warehouse.id is not None
     ]
     points.extend(
         (clients_by_id[order.client_id].lat, clients_by_id[order.client_id].lon)
-        for order in orders
-        if order.id is not None and order.client_id in clients_by_id
+        for order in planned_orders
+        if order.id is not None
     )
 
     unique_points = list(dict.fromkeys(points))
@@ -99,11 +116,8 @@ async def build_solver_input(
             latitude=clients_by_id[order.client_id].lat,
             longitude=clients_by_id[order.client_id].lon,
         )
-        for order in orders
+        for order in planned_orders
         if order.id is not None
-        and order.delivery_status == DeliveryStatus.PENDING
-        and order.client_id in clients_by_id
-        and remaining_demand_kg(order) > 0.0
     )
     frozen_order_ids = tuple(
         int(order.id or 0)
