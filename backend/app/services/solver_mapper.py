@@ -44,13 +44,16 @@ def to_solver_response(outcome: SolverOutcome, run_id: int) -> SolverResponse:
         for route in outcome.routes
     ]
 
+    # ``total_unmet_penalty_rub`` намеренно не попадает в публичный DTO:
+    # это внутренний вес недовоза в MILP, а не штраф для пользователя.
     metrics = Metrics(
         total_tco_rub=outcome.metrics.total_tco_rub,
         total_trip_cost_rub=outcome.metrics.total_trip_cost_rub,
         total_spoilage_loss_rub=outcome.metrics.total_spoilage_loss_rub,
-        total_unmet_penalty_rub=outcome.metrics.total_unmet_penalty_rub,
         expected_net_profit_rub=outcome.metrics.expected_net_profit_rub,
         avg_freshness_pct=outcome.metrics.avg_freshness_pct,
+        spoilage_pct=outcome.metrics.spoilage_pct,
+        unmet_pct=outcome.metrics.unmet_pct,
         shipped_kg=outcome.metrics.shipped_kg,
         unmet_kg=outcome.metrics.unmet_kg,
         total_trips=outcome.metrics.total_trips,

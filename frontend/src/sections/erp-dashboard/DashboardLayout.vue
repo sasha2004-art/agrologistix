@@ -31,7 +31,6 @@
     <div class="drawer-body">
       <header class="drawer-head">
         <h1 class="drawer-title">Планирование поставок</h1>
-        <p class="drawer-subtitle">Данные обновлены: {{ loadedAtText }}</p>
       </header>
 
       <v-tabs v-model="tab" density="comfortable" show-arrows class="dash-tabs">
@@ -77,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
@@ -89,7 +88,6 @@ import RoutesTcoTab from './RoutesTcoTab.vue'
 import WarehousesStockTab from './WarehousesStockTab.vue'
 import { useErpStore } from './useErpStore'
 import { useSolverStore } from './useSolverStore'
-import { formatDateTime } from '@/shared/utils/format'
 
 const auth = useAuthStore()
 const erp = useErpStore()
@@ -106,10 +104,6 @@ const drawer = ref(mdAndUp.value)
 const tab = ref('erp')
 const isResizing = ref(false)
 const drawerWidth = ref(readStoredWidth())
-
-const loadedAtText = computed(() =>
-  erp.loadedAt ? formatDateTime(erp.loadedAt) : 'ещё не загружено',
-)
 
 function readStoredWidth(): number {
   try {
@@ -245,12 +239,6 @@ function logout(): void {
 .drawer-title {
   margin: 0;
   font-size: 18px;
-}
-
-.drawer-subtitle {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #5b5175;
 }
 
 .dash-tabs {

@@ -3,9 +3,6 @@
     <header class="tab-header">
       <div>
         <h2 class="tab-title">Машины</h2>
-        <p class="tab-subtitle">
-          Рефрижератор, проходимость и состояние. Сломанные машины в расчёт не берутся.
-        </p>
       </div>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-truck-outline">
         {{ erp.activeTrucks.length }} в строю
@@ -109,7 +106,6 @@
         </tbody>
       </v-table>
 
-      <p class="tab-footnote">Сломанная машина не участвует в расчёте поставок.</p>
     </StatePanel>
   </div>
 </template>
@@ -160,12 +156,6 @@ function toggleTruck(truck: Truck): void {
 .tab-title {
   margin: 0;
   font-size: 18px;
-}
-
-.tab-subtitle {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #5b5175;
 }
 
 .summary-row {
@@ -239,11 +229,5 @@ function toggleTruck(truck: Truck): void {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.tab-footnote {
-  margin: 12px 0 0;
-  font-size: 12px;
-  color: #5b5175;
 }
 </style>

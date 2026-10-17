@@ -151,8 +151,13 @@ def test_all_trucks_broken_is_still_feasible() -> None:
     assert outcome.routes == ()
     assert outcome.metrics.shipped_kg == 0.0
     assert outcome.metrics.unmet_kg == pytest.approx(1200.0, abs=0.01)
-    assert outcome.metrics.total_tco_rub == pytest.approx(1200.0 * 100.0, abs=0.01)
+    # Публичный TCO пуст: рейсов нет — нет доставки и потерь урожая.
+    assert outcome.metrics.total_tco_rub == 0.0
+    # Вес недовоза остаётся внутренней телеметрией MILP.
+    assert outcome.metrics.total_unmet_penalty_rub == pytest.approx(1200.0 * 100.0, abs=0.01)
     assert outcome.metrics.avg_freshness_pct == 0.0
+    assert outcome.metrics.unmet_pct == pytest.approx(100.0, abs=0.01)
+    assert outcome.metrics.spoilage_pct == 0.0
     codes = {warning.code for warning in outcome.warnings}
     assert {"no_active_trucks", "unmet_demand"} <= codes
 
@@ -182,14 +187,12 @@ def test_metrics_are_internally_consistent() -> None:
     outcome = run_solver(solver_input)
     metrics = outcome.metrics
 
-    expected_tco = (
-        metrics.total_trip_cost_rub
-        + metrics.total_spoilage_loss_rub
-        + metrics.total_unmet_penalty_rub
-    )
+    expected_tco = metrics.total_trip_cost_rub + metrics.total_spoilage_loss_rub
     assert metrics.total_tco_rub == pytest.approx(expected_tco, abs=0.05)
     assert metrics.shipped_kg + metrics.unmet_kg == pytest.approx(2500.0, abs=0.02)
     assert 0.0 <= metrics.avg_freshness_pct <= 100.0
+    assert metrics.spoilage_pct == pytest.approx(100.0 - metrics.avg_freshness_pct, abs=0.05)
+    assert metrics.unmet_pct == pytest.approx(metrics.unmet_kg / 2500.0 * 100.0, abs=0.05)
     assert "heat_without_reefer" in {warning.code for warning in outcome.warnings}
 
 

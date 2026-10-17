@@ -251,12 +251,13 @@ export const mockWeather: WeatherResponse = {
 }
 
 export const mockMetrics: Metrics = {
-  total_tco_rub: 148600,
+  total_tco_rub: 115000,
   total_trip_cost_rub: 96400,
   total_spoilage_loss_rub: 18600,
-  total_unmet_penalty_rub: 33600,
-  expected_net_profit_rub: 412000,
+  expected_net_profit_rub: 445600,
   avg_freshness_pct: 94.8,
+  spoilage_pct: 5.2,
+  unmet_pct: 0,
   shipped_kg: 8600,
   unmet_kg: 0,
   total_trips: 2,
