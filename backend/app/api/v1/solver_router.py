@@ -68,9 +68,10 @@ def _persist_run(
         total_unmet_kg=outcome.metrics.unmet_kg,
     )
     session.add(run)
-    session.commit()
-    session.refresh(run)
-
+    # ``flush`` assigns the primary key without committing, so the run and all
+    # of its stops land in one transaction: a crash cannot leave a plan without
+    # route stops (and the what-if baseline stays consistent).
+    session.flush()
     run_id = int(run.id or 0)
     for route in outcome.routes:
         for stop in route.stops:

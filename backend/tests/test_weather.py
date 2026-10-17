@@ -190,3 +190,41 @@ def test_reset_demo_resets_weather_preset(
     assert reset.status_code == 200
     assert current.json()["mode"] == "normal"
     assert current.json()["temperature_c"] == 17.5
+
+
+def test_read_weather_mode_creates_the_default_row(session: Session) -> None:
+    assert session.get(WeatherOverrideState, 1) is None
+
+    mode = read_weather_mode(session)
+
+    state = session.get(WeatherOverrideState, 1)
+    assert mode is WeatherMode.NORMAL
+    assert state is not None
+    assert state.mode == "normal"
+
+
+def test_write_weather_mode_inserts_a_missing_row(session: Session) -> None:
+    write_weather_mode(session, WeatherMode.HEATWAVE_35C)
+
+    state = session.get(WeatherOverrideState, 1)
+    assert state is not None
+    assert state.mode == "heatwave_35c"
+
+
+def test_expired_cache_refetches_live_weather(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _stub_open_meteo(monkeypatch, LIVE_SNAPSHOT)
+    clock = {"now": 1_000.0}
+    monkeypatch.setattr(weather_service.time, "monotonic", lambda: clock["now"])
+
+    first = client.get("/api/v1/weather/current", headers=AUTH)
+    cached = client.get("/api/v1/weather/current", headers=AUTH)
+    clock["now"] += 901.0  # TTL is 900 s
+    refreshed = client.get("/api/v1/weather/current", headers=AUTH)
+
+    assert len(calls) == 2
+    assert first.json()["temperature_c"] == 17.5
+    assert cached.json()["temperature_c"] == 17.5
+    assert refreshed.json()["temperature_c"] == 17.5

@@ -63,6 +63,11 @@ export interface RiskAlert {
   message: string
 }
 
+/** Outstanding weight of an order: what is still undelivered after every PATCH. */
+export function remainingKg(order: ClientOrder): number {
+  return Math.max(0, order.requested_kg - order.delivered_kg)
+}
+
 export const useErpStore = defineStore('erp', () => {
   const auth = useAuthStore()
   const notifications = useNotificationStore()
@@ -143,11 +148,11 @@ export const useErpStore = defineStore('erp', () => {
   )
 
   const pendingVolumeKg = computed(() =>
-    pendingOrders.value.reduce((sum, row) => sum + row.order.requested_kg, 0),
+    pendingOrders.value.reduce((sum, row) => sum + remainingKg(row.order), 0),
   )
   const pendingRevenueRub = computed(() =>
     pendingOrders.value.reduce(
-      (sum, row) => sum + row.order.requested_kg * row.order.purchase_price_rub,
+      (sum, row) => sum + remainingKg(row.order) * row.order.purchase_price_rub,
       0,
     ),
   )
@@ -201,12 +206,13 @@ export const useErpStore = defineStore('erp', () => {
       )
     }
     for (const row of pendingOrders.value) {
+      const outstanding = remainingKg(row.order)
       const available = stockByProduct.get(row.order.product_id) ?? 0
-      if (available < row.order.requested_kg) {
+      if (outstanding > 0 && available < outstanding) {
         alerts.push({
           id: `stock-shortage-${row.order.id}`,
           severity: 'warning',
-          message: `${row.product.name}: остаток ${Math.round(available)} кг меньше заявки №${row.order.id} (${Math.round(row.order.requested_kg)} кг).`,
+          message: `${row.product.name}: остаток ${Math.round(available)} кг меньше заявки №${row.order.id} (${Math.round(outstanding)} кг).`,
         })
       }
     }

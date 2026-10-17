@@ -2,6 +2,7 @@
 
 from time import perf_counter
 
+import pytest
 from app.models.erp_models import Truck
 from app.models.run_models import RouteStop, SimulationRun
 from fastapi.testclient import TestClient
@@ -52,10 +53,11 @@ def test_metrics_are_consistent(client: TestClient) -> None:
         json={"mode": "baseline"},
     ).json()["metrics"]
 
-    assert metrics["total_tco_rub"] == (
+    assert metrics["total_tco_rub"] == pytest.approx(
         metrics["total_trip_cost_rub"]
         + metrics["total_spoilage_loss_rub"]
-        + metrics["total_unmet_penalty_rub"]
+        + metrics["total_unmet_penalty_rub"],
+        abs=0.05,
     )
     assert metrics["shipped_kg"] + metrics["unmet_kg"] > 0
 

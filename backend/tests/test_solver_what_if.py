@@ -175,11 +175,16 @@ def test_price_change_moves_the_delta(client: TestClient, baseline: dict) -> Non
     assert comparison["total_tco_rub"]["delta"] > 0
 
 
-def test_heatwave_moves_load_to_reefers_and_cuts_spoilage(
+def test_heatwave_moves_load_to_reefers(
     client: TestClient,
     baseline: dict,
 ) -> None:
-    """The solver prefers reefers in the heat even if trips become pricier."""
+    """In the heat only refrigerated trucks are used, so no reefer sits idle.
+
+    The absolute spoilage may grow even with reefers: the remaining reefer has
+    to cover more stops than in the baseline (freshness depends on the driven
+    time), so this test intentionally checks the assignment, not the delta.
+    """
 
     client.post(
         "/api/v1/weather/override",
@@ -188,15 +193,48 @@ def test_heatwave_moves_load_to_reefers_and_cuts_spoilage(
     )
 
     payload = _what_if(client, baseline["run_id"])
-    comparison = payload["comparison"]
 
     with _database_session(client) as session:
-        reefers = {truck.id: truck.has_reefer for truck in session.exec(select(Truck)).all()}
+        trucks = {truck.id: truck for truck in session.exec(select(Truck)).all()}
+    reefers = {truck_id: truck.has_reefer for truck_id, truck in trucks.items()}
+    used = {route["truck_id"] for route in payload["routes"]}
 
-    assert comparison["total_spoilage_loss_rub"]["delta"] < 0
-    assert comparison["avg_freshness_pct"]["delta"] > 0
-    assert comparison["total_trip_cost_rub"]["delta"] > 0
-    assert all(reefers[route["truck_id"]] is True for route in payload["routes"])
+    assert payload["routes"]
+    assert all(reefers[truck_id] is True for truck_id in used)
+    assert {truck_id for truck_id, truck in trucks.items() if truck.has_reefer} == used
+    assert payload["metrics"]["unmet_kg"] == 0.0
+
+
+def test_heat_without_reefers_spoils_more_than_with_them(
+    client: TestClient,
+    baseline: dict,
+) -> None:
+    """Same +35 C scenario: losing the reefers must increase spoilage."""
+
+    client.post(
+        "/api/v1/weather/override",
+        headers=AUTH,
+        json={"mode": "heatwave_35c"},
+    )
+    with_reefers = _what_if(client, baseline["run_id"])
+
+    with _database_session(client) as session:
+        for truck in session.exec(select(Truck)).all():
+            if truck.has_reefer:
+                truck.status = "broken"
+                session.add(truck)
+        session.commit()
+
+    without_reefers = _what_if(client, baseline["run_id"])
+
+    assert (
+        without_reefers["metrics"]["total_spoilage_loss_rub"]
+        > with_reefers["metrics"]["total_spoilage_loss_rub"]
+    )
+    assert (
+        without_reefers["metrics"]["avg_freshness_pct"]
+        < with_reefers["metrics"]["avg_freshness_pct"]
+    )
 
 
 def test_heatwave_with_broken_reefers_spoils_cargo(

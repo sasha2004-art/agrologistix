@@ -61,13 +61,17 @@ PRODUCT_SEED: tuple[dict[str, object], ...] = (
     },
 )
 
-STOCK_SEED: tuple[tuple[str, str, float], ...] = (
-    ("Хаб Обнинск-Северный", "strawberry", 4200.0),
-    ("Хаб Обнинск-Северный", "tomato", 8600.0),
-    ("Хаб Обнинск-Северный", "cucumber", 5400.0),
-    ("Склад Детчино-Агро", "strawberry", 2600.0),
-    ("Склад Детчино-Агро", "tomato", 5200.0),
-    ("Склад Детчино-Агро", "cucumber", 3800.0),
+# Warehouse stock batches: (warehouse, product, available_kg, initial_freshness).
+# Freshness mirrors a realistic cold chain: the Obninsk hub ships recently
+# harvested lots (0.90-0.97), while the Detchino site keeps older batches, so
+# strawberries and cucumbers there are noticeably closer to spoiling.
+STOCK_SEED: tuple[tuple[str, str, float, float], ...] = (
+    ("Хаб Обнинск-Северный", "strawberry", 4200.0, 0.97),
+    ("Хаб Обнинск-Северный", "tomato", 8600.0, 0.93),
+    ("Хаб Обнинск-Северный", "cucumber", 5400.0, 0.90),
+    ("Склад Детчино-Агро", "strawberry", 2600.0, 0.82),
+    ("Склад Детчино-Агро", "tomato", 5200.0, 0.95),
+    ("Склад Детчино-Агро", "cucumber", 3800.0, 0.78),
 )
 
 CLIENT_SEED: tuple[dict[str, object], ...] = (
@@ -194,13 +198,13 @@ def _insert_reference_data(session: Session) -> None:
     session.add_all(list(products.values()))
     session.flush()
 
-    for warehouse_name, product_code, available_kg in STOCK_SEED:
+    for warehouse_name, product_code, available_kg, initial_freshness in STOCK_SEED:
         session.add(
             WarehouseStock(
                 warehouse_id=int(warehouses[warehouse_name].id or 0),
                 product_id=int(products[product_code].id or 0),
                 available_kg=available_kg,
-                initial_freshness=1.0,
+                initial_freshness=initial_freshness,
             )
         )
 
