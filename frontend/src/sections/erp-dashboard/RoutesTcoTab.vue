@@ -144,6 +144,7 @@ import { computed, ref } from 'vue'
 import { describeApiError, downloadRouteSheet } from '@/shared/api/httpClient'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import PlanSummaryTable from './PlanSummaryTable.vue'
+import { useAssignmentStore } from './useAssignmentStore'
 import RoutePlanTable from './RoutePlanTable.vue'
 import SolverWarningsPanel from './SolverWarningsPanel.vue'
 import { ORDERS_STATUS_KEY, useErpStore } from './useErpStore'
@@ -154,6 +155,7 @@ import { triggerDownload } from '@/shared/utils/download'
 
 const erp = useErpStore()
 const solver = useSolverStore()
+const assignment = useAssignmentStore()
 const auth = useAuthStore()
 const notifications = useNotificationStore()
 const exporting = ref(false)
@@ -189,9 +191,15 @@ const planHint = computed(() =>
     : 'Все заказы плана уже в работе',
 )
 
-/** Кнопка «В работу»: один PATCH на заказ, сток списывает backend. */
-function addPlanToWork(): void {
-  void erp.setOrdersStatus(plannedOrderIds.value, 'in_progress')
+/**
+ * «В работу»: сначала фиксируем подобранный маршрут каждого заказа плана
+ * (после этого линии видны на карте), затем переводим заявки в работу.
+ */
+async function addPlanToWork(): Promise<void> {
+  const orderIds = plannedOrderIds.value
+  if (orderIds.length === 0) return
+  await assignment.assignMany(orderIds)
+  void erp.setOrdersStatus(orderIds, 'in_progress')
 }
 
 async function exportXlsx(): Promise<void> {

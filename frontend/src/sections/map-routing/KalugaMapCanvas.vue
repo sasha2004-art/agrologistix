@@ -103,6 +103,8 @@ const fallbackReason = computed(() => {
 
 let map: mapboxgl.Map | null = null
 let markers: MarkerManager | null = null
+/** Уже показанные фиксации: по ним понимаем, какая появилась только что. */
+let knownFixedIds = new Set<number>()
 
 function teardownMap(): void {
   markers?.destroy()
@@ -151,6 +153,8 @@ onMounted(() => {
     markers.sync(points.value)
     drawRoutes()
     drawFixedRoutes()
+    // Начальные фиксации (гидратация из ERP) не двигают карту.
+    knownFixedIds = new Set(Object.keys(assignments.assignments).map(Number))
   })
 
   map.on('error', (event) => {
@@ -203,6 +207,14 @@ function drawFixedRoutes(): void {
   setFixedRouteGeometry(map, fixedAssignments.value)
 }
 
+/** Карта подлетает к маршруту, который только что зафиксировали. */
+function focusFixedRoute(geometry: { lat: number; lon: number }[]): void {
+  if (!map || geometry.length < 2) return
+  const bounds = new mapboxgl.LngLatBounds()
+  for (const point of geometry) bounds.extend([point.lon, point.lat])
+  map.fitBounds(bounds, { padding: 90, duration: 700, maxZoom: 10 })
+}
+
 watch(
   () => props.routes,
   () => {
@@ -213,8 +225,15 @@ watch(
 
 watch(
   () => assignments.assignments,
-  () => {
-    if (mapReady.value) drawFixedRoutes()
+  (next) => {
+    if (!mapReady.value) return
+    drawFixedRoutes()
+    const ids = new Set(Object.keys(next).map(Number))
+    const added = [...ids].filter((id) => !knownFixedIds.has(id))
+    knownFixedIds = ids
+    // Зумим только к одиночной новой фиксации, а не к массовой смене статуса.
+    const focused = added.length === 1 ? next[added[0] as number] : undefined
+    if (focused) focusFixedRoute(focused.geometry)
   },
   { deep: true },
 )
