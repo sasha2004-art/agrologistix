@@ -61,8 +61,8 @@ export function createMarkerElement(point: MapPoint): HTMLButtonElement {
   element.classList.add(...markerModifiers(point))
   element.classList.add('map-marker')
   element.setAttribute('aria-label', markerLabel(point))
-  // Собственная подсказка при наведении заменяет нативный title,
-  // иначе браузер показывал бы вторую, всплывающую с задержкой.
+  // Нативный title убран: карточка открывается по клику, а браузерная подсказка
+  // всплывала бы с задержкой и дублировала aria-label.
   element.removeAttribute('title')
   element.innerHTML = `<span class="mdi ${markerIcon(point)}" aria-hidden="true"></span>`
   return element
