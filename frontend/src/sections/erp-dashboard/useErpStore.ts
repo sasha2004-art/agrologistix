@@ -19,6 +19,7 @@ import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 import { useNotificationStore } from '@/shared/stores/useNotificationStore'
 import { formatKg, formatPercent } from '@/shared/utils/format'
 import { freshnessLevel } from '@/shared/utils/freshness'
+import { useAssignmentStore } from './useAssignmentStore'
 import { useSolverStore } from './useSolverStore'
 import type {
   Client,
@@ -33,7 +34,6 @@ import type {
   WarehouseStock,
   WarehouseStockPatch,
 } from '@/shared/types/domain'
-
 export type ErpLoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type RiskSeverity = 'info' | 'warning' | 'error'
 
@@ -271,6 +271,7 @@ export const useErpStore = defineStore('erp', () => {
       state.value = result.data
       source.value = result.source
       loadedAt.value = new Date()
+      useAssignmentStore().hydrate(result.data.fixed_assignments ?? [])
       status.value = 'ready'
     } catch (error) {
       const message = describeApiError(error)

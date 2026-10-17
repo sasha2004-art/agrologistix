@@ -79,6 +79,41 @@ class DeliveredOrderStock(SQLModel, table=True):
     shipped_kg: float = Field(ge=0.0)
 
 
+class FixedAssignment(SQLModel, table=True):
+    """Зафиксированный маршрут одной заявки, взятой «В работе».
+
+    Подбор машины и склада сохраняется, поэтому маршрут восстанавливается
+    после перезагрузки, рисуется на карте и учитывается в следующих расчётах
+    как готовый рейс: заявка не перераспределяется, а машина не берётся
+    повторно.
+    """
+
+    __tablename__ = "fixed_assignment"
+    __table_args__ = (
+        CheckConstraint("shipped_kg > 0", name="ck_fixed_assignment_shipped_positive"),
+        CheckConstraint("distance_km >= 0", name="ck_fixed_assignment_distance_non_negative"),
+        CheckConstraint(
+            "expected_freshness >= 0 AND expected_freshness <= 1",
+            name="ck_fixed_assignment_freshness_range",
+        ),
+        CheckConstraint("trip_cost_rub >= 0", name="ck_fixed_assignment_cost_non_negative"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    order_id: int = Field(foreign_key="client_order.id", unique=True, index=True)
+    truck_id: int = Field(foreign_key="truck.id", index=True)
+    warehouse_id: int = Field(foreign_key="warehouse.id", index=True)
+    client_id: int = Field(foreign_key="client.id", index=True)
+    product_id: int = Field(foreign_key="product.id", index=True)
+    shipped_kg: float = Field(gt=0.0)
+    distance_km: float = Field(ge=0.0)
+    duration_min: float = Field(default=0.0, ge=0.0)
+    expected_freshness: float = Field(default=1.0, ge=0.0, le=1.0)
+    trip_cost_rub: float = Field(default=0.0, ge=0.0)
+    geojson_geometry: str | None = Field(default=None)
+    created_at: datetime = Field(default_factory=utc_now, index=True)
+
+
 class RouteCache(SQLModel, table=True):
     """Cached Mapbox road route or offline estimate for an ordered pair."""
 

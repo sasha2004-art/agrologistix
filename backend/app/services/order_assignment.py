@@ -7,7 +7,8 @@
 «доставка + потери» — та же математика, что в полном расчёте поставок.
 """
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, field
 
 from sqlmodel import Session, select
 
@@ -20,6 +21,7 @@ from app.models.erp_models import (
     Warehouse,
     WarehouseStock,
 )
+from app.models.run_models import FixedAssignment
 from app.schemas.enums import RoadType, TruckStatus
 from app.services.distance_matrix import Coordinate, get_route_leg
 from app.services.freshness_math import (
@@ -50,6 +52,8 @@ class OrderAssignment:
     spoilage_loss_rub: float
     total_cost_rub: float
     expected_freshness: float
+    # Полилиния (lat, lon) для слоя фиксированных маршрутов на карте.
+    geometry: tuple[tuple[float, float], ...] = field(default_factory=tuple)
 
 
 async def assign_order(
@@ -135,6 +139,7 @@ async def assign_order(
             spoilage_loss_rub=round(spoilage_rub, 2),
             total_cost_rub=round(trip_cost_rub + spoilage_rub, 2),
             expected_freshness=round(freshness, 6),
+            geometry=tuple(leg.geometry),
         )
         if best is None or (candidate.total_cost_rub, candidate.truck_id) < (
             best.total_cost_rub,
@@ -143,3 +148,63 @@ async def assign_order(
             best = candidate
 
     return best
+
+
+def save_fixed_assignment(
+    session: Session, assignment: OrderAssignment, order: ClientOrder
+) -> FixedAssignment:
+    """Сохранить (или обновить) фиксацию маршрута для заявки."""
+
+    fixed = session.exec(
+        select(FixedAssignment).where(FixedAssignment.order_id == assignment.order_id)
+    ).first()
+    geometry_json = json.dumps([[lat, lon] for lat, lon in assignment.geometry])
+    if fixed is None:
+        fixed = FixedAssignment(
+            order_id=assignment.order_id,
+            truck_id=assignment.truck_id,
+            warehouse_id=assignment.warehouse_id,
+            client_id=order.client_id,
+            product_id=order.product_id,
+            shipped_kg=assignment.shipped_kg,
+        )
+    fixed.truck_id = assignment.truck_id
+    fixed.warehouse_id = assignment.warehouse_id
+    fixed.client_id = order.client_id
+    fixed.product_id = order.product_id
+    fixed.shipped_kg = assignment.shipped_kg
+    fixed.distance_km = assignment.distance_km
+    fixed.duration_min = assignment.duration_min
+    fixed.expected_freshness = assignment.expected_freshness
+    fixed.trip_cost_rub = assignment.trip_cost_rub
+    fixed.geojson_geometry = geometry_json
+    session.add(fixed)
+    session.commit()
+    session.refresh(fixed)
+    return fixed
+
+
+def clear_fixed_assignment(session: Session, order_id: int) -> None:
+    """Убрать фиксацию: заявка вернулась «В плане» или закрыта."""
+
+    fixed = session.exec(
+        select(FixedAssignment).where(FixedAssignment.order_id == order_id)
+    ).first()
+    if fixed is not None:
+        session.delete(fixed)
+        session.commit()
+
+
+def load_fixed_assignments(session: Session) -> list[FixedAssignment]:
+    return list(session.exec(select(FixedAssignment).order_by(FixedAssignment.id)).all())
+
+
+def assignment_geometry(fixed: FixedAssignment) -> list[tuple[float, float]]:
+    """Полилиния фиксации; пустой список при повреждённом JSON."""
+
+    if not fixed.geojson_geometry:
+        return []
+    try:
+        return [(float(lat), float(lon)) for lat, lon in json.loads(fixed.geojson_geometry)]
+    except (TypeError, ValueError):
+        return []

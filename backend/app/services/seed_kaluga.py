@@ -15,6 +15,7 @@ from app.models.erp_models import (
 )
 from app.models.run_models import (
     DeliveredOrderStock,
+    FixedAssignment,
     RouteCache,
     RouteStop,
     SimulationRun,
@@ -261,6 +262,7 @@ def reset_demo_database(session: Session) -> SeedSummary:
     for model in (
         RouteStop,
         SimulationRun,
+        FixedAssignment,
         RouteCache,
         WeatherOverrideState,
         DeliveredOrderStock,

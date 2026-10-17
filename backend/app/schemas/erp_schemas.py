@@ -4,6 +4,7 @@ from pydantic import Field
 
 from app.schemas.base import APIModel
 from app.schemas.enums import DeliveryStatus, RoadType, TruckStatus
+from app.schemas.solver_schemas import RoutePoint
 
 
 class WarehouseResponse(APIModel):
@@ -67,6 +68,26 @@ class OrderAssignmentResponse(APIModel):
     spoilage_loss_rub: float = Field(ge=0.0)
     total_cost_rub: float = Field(ge=0.0)
     expected_freshness: float = Field(ge=0.0, le=1.0)
+    # Полилиния маршрута для слоя фиксированных рейсов на карте.
+    geometry: list[RoutePoint] = Field(default_factory=list)
+
+
+class FixedAssignmentResponse(APIModel):
+    """Сохранённый (зафиксированный) маршрут заявки, взятой «В работе»."""
+
+    order_id: int = Field(gt=0)
+    truck_id: int = Field(gt=0)
+    truck_name: str
+    warehouse_id: int = Field(gt=0)
+    warehouse_name: str
+    client_id: int = Field(gt=0)
+    product_id: int = Field(gt=0)
+    shipped_kg: float = Field(gt=0.0)
+    distance_km: float = Field(ge=0.0)
+    duration_min: float = Field(ge=0.0)
+    expected_freshness: float = Field(ge=0.0, le=1.0)
+    trip_cost_rub: float = Field(ge=0.0)
+    geometry: list[RoutePoint] = Field(default_factory=list)
 
 
 class TruckResponse(APIModel):
@@ -91,6 +112,7 @@ class ERPStateResponse(APIModel):
     clients: list[ClientResponse] = Field(default_factory=list)
     orders: list[ClientOrderResponse] = Field(default_factory=list)
     trucks: list[TruckResponse] = Field(default_factory=list)
+    fixed_assignments: list[FixedAssignmentResponse] = Field(default_factory=list)
 
 
 class DemoResetResponse(APIModel):

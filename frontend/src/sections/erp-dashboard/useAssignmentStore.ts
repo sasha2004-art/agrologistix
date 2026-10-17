@@ -9,13 +9,13 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { assignOrder, describeApiError } from '@/shared/api/httpClient'
-import type { OrderAssignment } from '@/shared/types/domain'
+import type { AssignmentInfo, FixedAssignment } from '@/shared/types/domain'
 import { formatFreshness, formatKm, formatMinutes } from '@/shared/utils/format'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 import { useNotificationStore } from '@/shared/stores/useNotificationStore'
 
 /** Компактная строка назначения: машина, склад, плечо, время и сохранность. */
-export function assignmentSummary(assignment: OrderAssignment): string {
+export function assignmentSummary(assignment: AssignmentInfo): string {
   return [
     assignment.truck_name,
     assignment.warehouse_name,
@@ -29,11 +29,19 @@ export const useAssignmentStore = defineStore('assignment', () => {
   const auth = useAuthStore()
   const notifications = useNotificationStore()
 
-  const assignments = ref<Record<number, OrderAssignment>>({})
+  const assignments = ref<Record<number, AssignmentInfo>>({})
   const pending = ref<Set<number>>(new Set())
 
-  function forOrder(orderId: number): OrderAssignment | undefined {
+  function forOrder(orderId: number): AssignmentInfo | undefined {
     return assignments.value[orderId]
+  }
+
+  /**
+   * Синхронизация с сервером: `GET /erp/state` возвращает сохранённые фиксации,
+   * поэтому карта и подсказки восстанавливаются после перезагрузки.
+   */
+  function hydrate(items: FixedAssignment[]): void {
+    assignments.value = Object.fromEntries(items.map((item) => [item.order_id, item]))
   }
 
   function isPending(orderId: number): boolean {
@@ -41,7 +49,7 @@ export const useAssignmentStore = defineStore('assignment', () => {
   }
 
   /** Оптимальный вариант для заявки; `null` — подбор не удался. */
-  async function assign(orderId: number): Promise<OrderAssignment | null> {
+  async function assign(orderId: number): Promise<AssignmentInfo | null> {
     const pin = auth.accessPin
     if (!pin || pending.value.has(orderId)) return assignments.value[orderId] ?? null
 
@@ -64,5 +72,5 @@ export const useAssignmentStore = defineStore('assignment', () => {
     pending.value = new Set()
   }
 
-  return { assignments, pending, forOrder, isPending, assign, clear }
+  return { assignments, pending, forOrder, hydrate, isPending, assign, clear }
 })
