@@ -180,14 +180,16 @@ function printSheet(): void {
   window.print()
 }
 
-/** Заказы, которые есть в плане и ещё не отмечены доставленными. */
+/** Заказы, которые есть в плане и ещё не закрыты («В плане» или «В работе»). */
 const deliverableOrderIds = computed(() => {
   const plannedIds = new Set(
     solver.plannedStops
       .map((item) => item.stop.order_id)
       .filter((id): id is number => id !== null && id !== undefined),
   )
-  return erp.pendingOrders.map((row) => row.order.id).filter((id) => plannedIds.has(id))
+  return erp.orderRows
+    .filter((row) => row.order.delivery_status !== 'delivered' && plannedIds.has(row.order.id))
+    .map((row) => row.order.id)
 })
 
 const deliverHint = computed(() =>
