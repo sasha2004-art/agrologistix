@@ -196,6 +196,30 @@ def test_metrics_are_internally_consistent() -> None:
     assert "heat_without_reefer" in {warning.code for warning in outcome.warnings}
 
 
+def test_insulation_keeps_cargo_fresher_in_the_heat() -> None:
+    """Утеплённый кузов без рефа в жару портит груз меньше обычного тента."""
+
+    weather = SolverWeather(temperature_c=30.0, precipitation_mm=0.0, mode="heatwave_35c")
+    orders = [_order(1, kg=1000.0), _order(2, client_id=2, kg=1000.0, point=BALABANOVO)]
+
+    def plan(insulated: bool):
+        return run_solver(
+            _make_input(
+                orders=orders,
+                trucks=[_truck(1, reefer=False, insulated=insulated)],
+                weather=weather,
+            )
+        )
+
+    plain = plan(insulated=False)
+    insulated = plan(insulated=True)
+
+    assert insulated.metrics.shipped_kg == pytest.approx(plain.metrics.shipped_kg, abs=0.01)
+    assert insulated.metrics.avg_freshness_pct > plain.metrics.avg_freshness_pct
+    assert insulated.metrics.total_spoilage_loss_rub < plain.metrics.total_spoilage_loss_rub
+    assert "heat_without_reefer" in {warning.code for warning in insulated.warnings}
+
+
 def test_empty_demand_returns_empty_plan() -> None:
     solver_input = _make_input(orders=[], trucks=[_truck(1)])
 

@@ -43,6 +43,7 @@ def test_seed_contains_dirt_road_and_reefer_variety(session: Session) -> None:
     assert any(truck.has_reefer and not truck.can_use_dirt for truck in trucks)
     assert any(truck.has_reefer and truck.can_use_dirt for truck in trucks)
     assert any(not truck.has_reefer and truck.can_use_dirt for truck in trucks)
+    assert any(truck.has_insulation and not truck.has_reefer for truck in trucks)
     assert sum(1 for truck in trucks if truck.can_use_dirt) == 2
 
 

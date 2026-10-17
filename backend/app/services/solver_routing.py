@@ -194,6 +194,7 @@ def build_route(context: RouteBuildContext) -> PlannedRoute:
             travelled_hours,
             context.weather.temperature_c,
             truck.has_reefer,
+            truck.has_insulation,
         )
 
         segment_cost = segment_km * truck.cost_per_km_rub

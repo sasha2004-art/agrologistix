@@ -15,7 +15,7 @@ export interface WarningMeta {
 const WARNING_META: Record<string, WarningMeta> = {
   broken_trucks_excluded: {
     icon: 'mdi-car-wrench',
-    title: 'Сломанные машины не в расчёте',
+    title: 'Машины не в работе',
   },
   no_active_trucks: {
     icon: 'mdi-truck-remove-outline',

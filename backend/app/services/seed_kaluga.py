@@ -137,6 +137,7 @@ TRUCK_SEED: tuple[dict[str, object], ...] = (
         "cost_per_km_rub": 58.0,
         "fixed_trip_cost_rub": 8500.0,
         "has_reefer": True,
+        "has_insulation": False,
         "can_use_dirt": False,
     },
     {
@@ -148,6 +149,7 @@ TRUCK_SEED: tuple[dict[str, object], ...] = (
         "cost_per_km_rub": 32.0,
         "fixed_trip_cost_rub": 3800.0,
         "has_reefer": True,
+        "has_insulation": False,
         "can_use_dirt": True,
     },
     {
@@ -159,6 +161,9 @@ TRUCK_SEED: tuple[dict[str, object], ...] = (
         "cost_per_km_rub": 40.0,
         "fixed_trip_cost_rub": 4600.0,
         "has_reefer": False,
+        # Изотермический кузов без холодильной установки: в жару порча
+        # начинается на +6 °C позже, чем у обычного тента.
+        "has_insulation": True,
         "can_use_dirt": True,
     },
 )

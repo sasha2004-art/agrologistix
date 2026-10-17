@@ -24,6 +24,11 @@ where
 
 The result is always clamped to ``[0, 1]``; money loss follows the PRD term
 ``shipped_kg * (1 - freshness) * price_per_kg``.
+
+Insulated (isotermic) bodies without a reefer get a higher heat threshold: the
+``+6 C`` bonus is the extra inertia of an insulated box, which keeps the cargo
+below the degradation point longer. A reefer still wins, because it holds the
+factor at ``1.0`` regardless of the outside temperature.
 """
 
 from dataclasses import dataclass
@@ -38,6 +43,8 @@ PRECIPITATION_MAX_FACTOR = 0.3
 PRECIPITATION_REFERENCE_MM = 10.0
 # Heat threshold from the PRD; below or with a reefer degradation stays at lambda_p.
 HEAT_THRESHOLD_C = 22.0
+# Insulated body (no reefer) shifts the threshold: "утепление" buys +6 C.
+INSULATION_BONUS_C = 6.0
 # Q10-like exponential coefficient for heat degradation without a reefer.
 HEAT_DECAY_COEFFICIENT = 0.08
 
@@ -69,6 +76,7 @@ class TripConditions:
     precipitation_mm: float = 0.0
     temperature_c: float = 20.0
     has_reefer: bool = False
+    has_insulation: bool = False
 
     def __post_init__(self) -> None:
         if self.distance_km < 0.0:
@@ -110,12 +118,28 @@ def precipitation_factor(precipitation_mm: float) -> float:
     return 1.0 + PRECIPITATION_MAX_FACTOR * ratio
 
 
-def temperature_factor(temperature_c: float, has_reefer: bool) -> float:
-    """Heat degradation multiplier: ``1.0`` up to +22 C or with a reefer."""
+def heat_limit_c(has_reefer: bool, has_insulation: bool = False) -> float | None:
+    """Outside temperature above which heat degradation starts.
 
-    if has_reefer or temperature_c <= HEAT_THRESHOLD_C:
+    ``None`` means there is no limit: a reefer holds the cargo cold, and an
+    insulated body adds ``INSULATION_BONUS_C`` degrees to the plain ``+22 C``
+    threshold.
+    """
+
+    if has_reefer:
+        return None
+    return HEAT_THRESHOLD_C + (INSULATION_BONUS_C if has_insulation else 0.0)
+
+
+def temperature_factor(
+    temperature_c: float, has_reefer: bool, has_insulation: bool = False
+) -> float:
+    """Heat degradation multiplier: ``1.0`` below the limit or with a reefer."""
+
+    limit = heat_limit_c(has_reefer, has_insulation)
+    if limit is None or temperature_c <= limit:
         return 1.0
-    return exp(HEAT_DECAY_COEFFICIENT * (temperature_c - HEAT_THRESHOLD_C))
+    return exp(HEAT_DECAY_COEFFICIENT * (temperature_c - limit))
 
 
 def travel_time_hours(trip: TripConditions) -> float:
@@ -132,12 +156,17 @@ def freshness_after_hours(
     travel_hours: float,
     temperature_c: float,
     has_reefer: bool,
+    has_insulation: bool = False,
 ) -> float:
     """PRD decay applied to an already known travel time (used per route leg)."""
 
     if travel_hours < 0.0:
         raise ValueError("travel_hours must be non-negative")
-    decay = exp(-cargo.spoilage_rate * travel_hours * temperature_factor(temperature_c, has_reefer))
+    decay = exp(
+        -cargo.spoilage_rate
+        * travel_hours
+        * temperature_factor(temperature_c, has_reefer, has_insulation)
+    )
     return clamp01(cargo.initial_freshness * decay)
 
 
@@ -149,6 +178,7 @@ def expected_freshness(cargo: CargoProfile, trip: TripConditions) -> float:
         travel_time_hours(trip),
         trip.temperature_c,
         trip.has_reefer,
+        trip.has_insulation,
     )
 
 
@@ -168,7 +198,9 @@ def assess_trip(cargo: CargoProfile, trip: TripConditions, shipped_kg: float) ->
     freshness = expected_freshness(cargo, trip)
     return TripAssessment(
         travel_hours=travel_time_hours(trip),
-        temperature_factor=temperature_factor(trip.temperature_c, trip.has_reefer),
+        temperature_factor=temperature_factor(
+            trip.temperature_c, trip.has_reefer, trip.has_insulation
+        ),
         expected_freshness=freshness,
         spoilage_loss_rub=spoilage_loss_rub(shipped_kg, freshness, cargo.price_per_kg),
     )
