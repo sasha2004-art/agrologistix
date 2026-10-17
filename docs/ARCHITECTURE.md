@@ -139,7 +139,8 @@ Swap-файл 2 GB настраивается на хосте (см. `docs/LAUNC
 | `USER_ACCESS_PIN` | `202601` | PIN диспетчера (ровно 6 цифр) |
 | `ADMIN_ACCESS_PIN` | `999999` | PIN администратора (ровно 6 цифр, отличается от пользовательского) |
 | `SQLITE_DB_PATH` | `./data/app.db` | Путь к файлу SQLite |
-| `EXTERNAL_API_TIMEOUT_SEC` | `1.5` | Таймаут Open-Meteo и Mapbox, общий дедлайн матрицы |
+| `EXTERNAL_API_TIMEOUT_SEC` | `1.5` | Таймаут запросов погоды (Open-Meteo) |
+| `MAPBOX_TIMEOUT_SEC` | `8.0` | Таймаут Mapbox Directions и дедлайн матрицы дорог: матрица строится по одному запросу на пару точек, и на общем таймауте 1.5 с расчёт уходил в haversine-fallback (прямые линии) |
 | `SOLVER_TIME_LIMIT_SEC` | `1.0` | Лимит HiGHS; половина уходит на каждую из двух MILP-попыток |
 | `SOLVER_CLIENT_SPLIT_PENALTY_RUB` | `5000` | Внутренний вес дробления клиента между рейсами (мягкий режим) |
 | `SOLVER_MAX_STOPS_PER_TRIP` | `5` | Максимум остановок в рейсе |
@@ -437,7 +438,8 @@ TCO** (маршруты перестраиваются, метрики пере�
 
 * Основной источник — Mapbox Directions
   (`geometries=geojson`, `overview=full`), конкурентные запросы через семафор 8
-  и общий дедлайн `asyncio.timeout(EXTERNAL_API_TIMEOUT_SEC)`.
+  и общий дедлайн `asyncio.timeout(MAPBOX_TIMEOUT_SEC)` (по умолчанию 8 с;
+  погода использует короткий `EXTERNAL_API_TIMEOUT_SEC` отдельно).
 * Кэш — таблица `route_cache` с ключом `pair_key` (координаты, округлённые до
   5 знаков ≈ 1.1 м). Записи со `source = 'mapbox'` используются как есть.
 * **Fallback:** расстояние по гаверсинусу с радиусом Земли `R = 6371.0088 км`,
