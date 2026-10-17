@@ -17,7 +17,7 @@
       empty-icon="mdi-truck-remove-outline"
       @retry="reload"
     >
-      <v-table density="comfortable" class="erp-table">
+      <v-table density="comfortable" class="excel-table">
         <thead>
           <tr>
             <th scope="col">Машина</th>
@@ -132,33 +132,8 @@ function toggleTruck(truck: Truck): void {
   font-size: 18px;
 }
 
-.erp-table {
-  max-width: 100%;
-  border: var(--neu-border);
-  border-radius: var(--neu-radius-sm);
-  background: var(--neu-bg);
-}
-
-/* Компактные ячейки: при узкой левой панели влезает больше колонок. */
-.erp-table :deep(th),
-.erp-table :deep(td) {
-  padding-inline: 10px;
-}
-
-.erp-table :deep(thead th) {
-  position: sticky;
-  top: 0;
-  background: #e7dff6;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.erp-table :deep(tbody tr:nth-child(even)) {
-  background: rgba(231, 223, 246, 0.45);
-}
-
 /* Таблица шире панели — даём горизонтальный скролл вместо сжатия колонок. */
-.erp-table :deep(.v-table__wrapper > table) {
+.excel-table :deep(.v-table__wrapper > table) {
   min-width: 860px;
 }
 

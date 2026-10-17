@@ -17,7 +17,7 @@
         <v-chip class="soft-chip" size="x-small">{{ route.stops.length }} остановок</v-chip>
       </header>
 
-      <v-table density="compact" class="erp-table">
+      <v-table density="compact" class="excel-table">
         <thead>
           <tr>
             <th scope="col" class="text-right">#</th>
@@ -118,6 +118,11 @@ function isDirt(clientId: number): boolean {
   gap: 6px;
   padding: 12px;
   overflow-x: auto;
+}
+
+/* Таблица рейса не сжимается: колонки держатся в один ряд, скролл — по карточке. */
+.excel-table :deep(.v-table__wrapper > table) {
+  min-width: 820px;
 }
 
 .route-head {
