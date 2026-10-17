@@ -154,7 +154,7 @@ STAND_ACCOUNT_SEED: tuple[dict[str, str], ...] = (
 
 # PINs that must be rotated before a public deployment.
 DEVELOPMENT_PINS = frozenset(
-    {"202601", "999999"} | {str(item["pin"]) for item in STAND_ACCOUNT_SEED}
+    {"202601", "999999", "135790", "246810"} | {str(item["pin"]) for item in STAND_ACCOUNT_SEED}
 )
 
 
