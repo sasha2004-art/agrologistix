@@ -33,6 +33,8 @@ class SimulationRun(SQLModel, table=True):
     total_unmet_penalty_rub: float = Field(default=0.0, ge=0.0)
     expected_net_profit_rub: float = Field(default=0.0)
     avg_freshness_pct: float = Field(default=100.0, ge=0.0, le=100.0)
+    total_shipped_kg: float = Field(default=0.0, ge=0.0)
+    total_unmet_kg: float = Field(default=0.0, ge=0.0)
 
 
 class RouteStop(SQLModel, table=True):
