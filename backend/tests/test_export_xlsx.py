@@ -25,6 +25,9 @@ SUMMARY_TITLE = "Сводка"
 ROUTES_TITLE = "Рейсы"
 ANALYSIS_TITLE = "Аналитика"
 NOTES_TITLE = "Замечания"
+ORDERS_TITLE = "Заказы"
+TRUCKS_TITLE = "Машины"
+STOCKS_TITLE = "Склады и остатки"
 
 
 def _route_sheet_names(workbook) -> list[str]:
@@ -60,10 +63,12 @@ def test_export_contains_summary_and_one_sheet_per_route(client: TestClient) -> 
 
     assert workbook.sheetnames[0] == SUMMARY_TITLE
     assert workbook.sheetnames[1:4] == [ROUTES_TITLE, ANALYSIS_TITLE, NOTES_TITLE]
+    # Текущее состояние ERP добавляет таблицы сайта: заказы, машины, склады.
+    assert workbook.sheetnames[4:7] == [ORDERS_TITLE, TRUCKS_TITLE, STOCKS_TITLE]
     assert len(_route_sheet_names(workbook)) == len(routes)
-    assert len(workbook.sheetnames) == len(routes) + 4
-    # На сводке — диаграмма «стоимость доставки и потери урожая».
-    assert len(workbook[SUMMARY_TITLE]._charts) == 1
+    assert len(workbook.sheetnames) == len(routes) + 7
+    # Диаграмм в файле больше нет — только таблицы.
+    assert workbook[SUMMARY_TITLE]._charts == []
 
     summary = workbook[SUMMARY_TITLE]
     assert f"№{baseline['run_id']}" in str(summary["A1"].value)
@@ -112,9 +117,45 @@ def test_export_of_run_without_routes_still_returns_workbook(client: TestClient)
 
     workbook = load_workbook(BytesIO(_export(client, baseline["run_id"])))
 
-    assert workbook.sheetnames == [SUMMARY_TITLE, ROUTES_TITLE, ANALYSIS_TITLE, NOTES_TITLE]
+    assert workbook.sheetnames == [
+        SUMMARY_TITLE,
+        ROUTES_TITLE,
+        ANALYSIS_TITLE,
+        NOTES_TITLE,
+        ORDERS_TITLE,
+        TRUCKS_TITLE,
+        STOCKS_TITLE,
+    ]
     assert _route_sheet_names(workbook) == []
     assert baseline["metrics"]["unmet_kg"] > 0
+
+
+def test_erp_sheets_repeat_the_site_tables(client: TestClient) -> None:
+    baseline = _baseline(client)
+    workbook = load_workbook(BytesIO(_export(client, baseline["run_id"])))
+
+    orders = workbook[ORDERS_TITLE]
+    order_header = next(row for row in orders.iter_rows() if row[0].value == "№")
+    order_rows = [row for row in orders.iter_rows(min_row=order_header[0].row + 1) if row[0].value]
+    assert len(order_rows) == 9
+    assert [cell.value for cell in order_header][:5] == [
+        "№",
+        "Покупатель",
+        "Адрес",
+        "Культура",
+        "Заказано, кг",
+    ]
+
+    trucks = workbook[TRUCKS_TITLE]
+    truck_header = next(row for row in trucks.iter_rows() if row[0].value == "Машина")
+    truck_rows = [row for row in trucks.iter_rows(min_row=truck_header[0].row + 1) if row[0].value]
+    assert len(truck_rows) == 3
+
+    stocks = workbook[STOCKS_TITLE]
+    stock_header = next(row for row in stocks.iter_rows() if row[0].value == "Склад")
+    stock_rows = [row for row in stocks.iter_rows(min_row=stock_header[0].row + 1) if row[0].value]
+    # Два склада + строка «Итого».
+    assert len(stock_rows) == 3
 
 
 def test_summary_exposes_loss_and_unmet_shares(client: TestClient) -> None:
@@ -170,7 +211,7 @@ def test_workbook_can_be_built_without_database_entities() -> None:
     header = next(row for row in route_sheet.iter_rows() if row[0].value == "№")
     assert [cell.value for cell in header][:2] == ["№", "Заказ"]
     row = next(row for row in route_sheet.iter_rows() if row[0].value == 1)
-    assert row[1].value == "—"
+    assert row[1].value == "-"
     totals = next(row for row in route_sheet.iter_rows() if row[0].value == "Итого")
     assert totals[4].value == pytest.approx(150.0)
     assert totals[8].value == pytest.approx(450.0)

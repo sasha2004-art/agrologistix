@@ -20,50 +20,9 @@
         <v-progress-circular indeterminate size="22" width="2" color="primary" />
         <span>Загружаем карту…</span>
       </div>
+      <!-- Легенда — постоянный оверлей поверх карты. -->
+      <MapLegend :schedule="solver.routeLegend" :has-fixed-routes="hasFixedRoutes" />
     </div>
-
-    <ul v-if="showMap" class="map-legend">
-      <li class="legend-item">
-        <span class="legend-marker legend-marker--warehouse" aria-hidden="true" />
-        Склад
-      </li>
-      <li class="legend-item">
-        <span class="legend-marker legend-marker--asphalt" aria-hidden="true" />
-        Покупатель — асфальт
-      </li>
-      <li class="legend-item">
-        <span class="legend-marker legend-marker--dirt" aria-hidden="true" />
-        Покупатель — грунтовка
-      </li>
-      <li class="legend-item">
-        <span class="legend-marker legend-marker--pending" aria-hidden="true" />
-        Заказ в плане
-      </li>
-      <li class="legend-item">
-        <span class="legend-marker legend-marker--in_progress" aria-hidden="true" />
-        Заказ в работе
-      </li>
-      <li class="legend-item">
-        <span class="legend-marker legend-marker--delivered" aria-hidden="true" />
-        Доставлено
-      </li>
-      <li v-if="hasFixedRoutes" class="legend-item">
-        <span class="legend-line legend-line--fixed" aria-hidden="true" />
-        Фиксированный рейс заявки «В работе»
-      </li>
-    </ul>
-
-    <ul
-      v-if="solver.routes.length > 0"
-      class="map-legend map-legend--routes"
-      aria-label="Рейсы плана"
-    >
-      <li v-for="route in solver.routeLegend" :key="route.truckId" class="legend-item">
-        <span class="legend-line" :style="{ background: route.color }" aria-hidden="true" />
-        {{ route.truckName }}: {{ route.stops }} остановок, {{ formatKm(route.distanceKm) }},
-        {{ formatRub(route.costRub) }}
-      </li>
-    </ul>
   </section>
 </template>
 
@@ -72,6 +31,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import MapFallbackPanel from './MapFallbackPanel.vue'
+import MapLegend from './MapLegend.vue'
 import {
   DEFAULT_ZOOM,
   OBNINSK_CENTER,
@@ -89,7 +49,6 @@ import { useErpStore } from '@/sections/erp-dashboard/useErpStore'
 import { useSolverStore } from '@/sections/erp-dashboard/useSolverStore'
 import type { ClientPlanInfo } from './useMapboxMarkers'
 import { routeColor } from '@/shared/utils/routeColors'
-import { formatKm, formatRub } from '@/shared/utils/format'
 import type { Route } from '@/shared/types/domain'
 
 const props = withDefaults(defineProps<{ routes?: Route[] }>(), { routes: () => [] })
@@ -168,6 +127,7 @@ onMounted(() => {
       style: 'mapbox://styles/mapbox/light-v11',
       center: OBNINSK_CENTER,
       zoom: DEFAULT_ZOOM,
+      // Подпись Mapbox обязательна по лицензии, компактный вид не мешает карте.
       attributionControl: false,
     })
   } catch (error) {
@@ -177,11 +137,14 @@ onMounted(() => {
     return
   }
 
+  // Контролы разведены по углам: ничего не липнет к скруглённым краям карты.
   map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
+  map.addControl(new mapboxgl.ScaleControl({ maxWidth: 90, unit: 'metric' }), 'bottom-right')
 
   map.on('load', () => {
     if (!map) return
     mapReady.value = true
+    applySerenityPalette(map)
     ensureRouteLayers(map)
     ensureFixedRouteLayers(map)
     markers = createMarkerManager(map)
@@ -207,6 +170,26 @@ watch(
   },
   { deep: true },
 )
+
+/**
+ * Мягкая палитра проекта: вода и фон в тонах «Serenity» вместо холодного серого.
+ * Слои стиля могут отличаться, поэтому каждый цвет применяется отдельно и безопасно.
+ */
+function applySerenityPalette(target: mapboxgl.Map): void {
+  const palette = [
+    { layer: 'background', property: 'background-color' as const, color: '#f6f2fd' },
+    { layer: 'water', property: 'fill-color' as const, color: '#dcd0f4' },
+    { layer: 'waterway', property: 'line-color' as const, color: '#c9b6ee' },
+  ]
+  for (const { layer, property, color } of palette) {
+    if (!target.getLayer(layer)) continue
+    try {
+      target.setPaintProperty(layer, property, color)
+    } catch {
+      /* слой есть, но свойство другое — оставляем стиль как есть */
+    }
+  }
+}
 
 /** Рисует полилинии рейсов цветами палитры, совпадающими с таблицей плана. */
 function drawRoutes(): void {
@@ -275,7 +258,8 @@ onBeforeUnmount(teardownMap)
   flex: 1 1 auto;
   min-height: 220px;
   border: var(--neu-border);
-  border-radius: var(--neu-radius-sm);
+  border-radius: var(--neu-radius);
+  box-shadow: var(--neu-lift-sm);
   overflow: hidden;
 }
 
@@ -296,75 +280,13 @@ onBeforeUnmount(teardownMap)
   pointer-events: none;
 }
 
-.map-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 12px;
-  color: #5b5175;
-}
-
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.legend-marker {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #fff;
-  border-radius: 50% 50% 50% 3px;
-  background: #5b21b6;
-  box-shadow: 0 1px 3px rgba(46, 16, 101, 0.35);
-}
-
-.legend-marker--asphalt {
-  background: #047857;
-}
-
-.legend-marker--dirt {
-  background: #b45309;
-}
-
-.legend-marker--pending {
-  border-radius: 50%;
-  background: #e7dff6;
-  border-color: #f59e0b;
-}
-
-.legend-marker--in_progress {
-  border-radius: 50%;
-  background: #e7dff6;
-  border-color: #3b82f6;
-}
-
-.legend-marker--delivered {
-  border-radius: 50%;
-  background: #e7dff6;
-  border-color: #34d399;
-}
-
-/* Легенда рейсов: цвет линии совпадает с полилинией на карте и таблицей плана. */
-.map-legend--routes {
-  padding-top: 8px;
-  border-top: 1px dashed rgba(91, 81, 117, 0.3);
-}
-
-.legend-line {
-  flex: 0 0 auto;
-  width: 22px;
-  height: 4px;
-  border-radius: 2px;
-}
-
-/* Пунктир как на слое фиксированных рейсов. */
-.legend-line--fixed {
-  height: 0;
-  border-top: 3px dashed #0f766e;
-  border-radius: 0;
+/* Масштабная линейка и подпись Mapbox в той же мягкой палитре, что и панели. */
+.map-area :deep(.mapboxgl-ctrl-scale) {
+  border: var(--neu-border) !important;
+  border-top: none !important;
+  border-radius: 0 0 8px 8px;
+  background: rgba(247, 244, 254, 0.92) !important;
+  color: #4c3f75 !important;
+  font-size: 10px;
 }
 </style>

@@ -47,7 +47,7 @@ def export_run(
             detail=f"Расчёт №{run_id} не найден",
         )
 
-    payload = export_run_xlsx(report)
+    payload = export_run_xlsx(report, session)
     return StreamingResponse(
         BytesIO(payload),
         media_type=XLSX_MEDIA_TYPE,
