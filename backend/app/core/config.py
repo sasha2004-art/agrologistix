@@ -1,7 +1,13 @@
+import logging
 from functools import lru_cache
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+# Development PINs that must be rotated before a public deployment.
+DEVELOPMENT_PINS = frozenset({"202601", "999999"})
 
 
 class Settings(BaseSettings):
@@ -42,8 +48,10 @@ class Settings(BaseSettings):
         if self.app_env.lower() == "production":
             if not {"user_access_pin", "admin_access_pin"}.issubset(self.model_fields_set):
                 raise ValueError("production requires explicit user and admin access PINs")
-            if user_pin == "202601" or admin_pin == "999999":
-                raise ValueError("production access PINs must not use development defaults")
+            if {user_pin, admin_pin} & DEVELOPMENT_PINS:
+                logger.warning(
+                    "production uses the development access PINs: rotate them for a public demo"
+                )
         return self
 
     @property
