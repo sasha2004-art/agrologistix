@@ -49,7 +49,11 @@
       </li>
     </ul>
 
-    <ul v-if="solver.hasPlan" class="map-legend map-legend--routes" aria-label="Рейсы плана">
+    <ul
+      v-if="solver.routes.length > 0"
+      class="map-legend map-legend--routes"
+      aria-label="Рейсы плана"
+    >
       <li v-for="route in solver.routeLegend" :key="route.truckId" class="legend-item">
         <span class="legend-line" :style="{ background: route.color }" aria-hidden="true" />
         {{ route.truckName }}: {{ route.stops }} стоп(ов), {{ formatKm(route.distanceKm) }},

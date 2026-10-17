@@ -7,9 +7,26 @@
           Расчёт на сервере: рейсы по машинам, полилинии на карте, метрики TCO и предупреждения.
         </p>
       </div>
-      <v-chip v-if="solver.hasPlan" class="soft-chip" size="small" prepend-icon="mdi-clock-outline">
-        {{ calculatedAtText }}
-      </v-chip>
+      <div class="header-chips">
+        <v-chip
+          v-if="solver.hasBaseline"
+          class="soft-chip"
+          size="small"
+          prepend-icon="mdi-clock-outline"
+        >
+          {{ calculatedAtText }}
+        </v-chip>
+        <v-chip
+          v-if="solver.hasScenario"
+          class="soft-chip"
+          size="small"
+          variant="text"
+          :color="solver.tcoDeltaWorse ? 'error' : 'success'"
+          prepend-icon="mdi-compare-horizontal"
+        >
+          {{ solver.tcoDeltaLabel }}
+        </v-chip>
+      </div>
     </header>
 
     <div class="run-row">
@@ -17,17 +34,36 @@
         color="primary"
         class="btn-gradient"
         prepend-icon="mdi-routes"
-        :loading="solver.isLoading"
+        :loading="solver.isLoading && solver.isRunning === 'baseline'"
         :disabled="solver.isLoading || !erp.isReady"
         @click="runPlan"
       >
-        {{ solver.hasPlan ? 'Пересчитать план' : 'Рассчитать поставки' }}
+        {{ solver.hasBaseline ? 'Пересчитать базу' : 'Рассчитать поставки' }}
+      </v-btn>
+      <v-btn
+        v-if="solver.hasBaseline"
+        variant="tonal"
+        color="primary"
+        prepend-icon="mdi-source-branch"
+        :loading="solver.isLoading && solver.isRunning === 'what_if'"
+        :disabled="solver.isLoading"
+        @click="solver.runScenario()"
+      >
+        Сценарий «что, если»
+      </v-btn>
+      <v-btn
+        v-if="solver.hasScenario"
+        variant="text"
+        prepend-icon="mdi-compare-horizontal"
+        @click="comparisonOpen = true"
+      >
+        Было / Стало
       </v-btn>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-server-outline">
         POST /solver/optimize
       </v-chip>
       <v-btn
-        v-if="solver.hasPlan"
+        v-if="solver.hasBaseline"
         variant="text"
         size="small"
         prepend-icon="mdi-close-circle-outline"
@@ -36,6 +72,29 @@
         Сбросить план
       </v-btn>
     </div>
+
+    <v-alert
+      v-if="solver.hasBaseline && solver.scenarioStale"
+      type="info"
+      variant="tonal"
+      density="comfortable"
+      class="stale-note"
+    >
+      ERP изменился —
+      {{ solver.isLoading ? 'сценарий пересчитывается…' : 'сценарий пересчитается автоматически.' }}
+    </v-alert>
+
+    <v-btn-toggle
+      v-if="solver.hasScenario"
+      :model-value="solver.view"
+      mandatory
+      density="comfortable"
+      class="view-toggle"
+      @update:model-value="onViewChange"
+    >
+      <v-btn value="baseline" prepend-icon="mdi-map-marker-path">Базовый план</v-btn>
+      <v-btn value="scenario" prepend-icon="mdi-source-branch">Сценарий</v-btn>
+    </v-btn-toggle>
 
     <StatePanel
       :status="erp.panelStatus"
@@ -57,7 +116,7 @@
           </v-btn>
         </v-alert>
 
-        <template v-if="solver.hasPlan">
+        <template v-if="solver.hasBaseline">
           <TcoMetricsPanel />
           <SolverWarningsPanel />
           <RoutePlanTable />
@@ -99,12 +158,15 @@
         </section>
       </div>
     </StatePanel>
+
+    <ComparisonDialog v-model="comparisonOpen" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
+import ComparisonDialog from './ComparisonDialog.vue'
 import RoutePlanTable from './RoutePlanTable.vue'
 import SolverWarningsPanel from './SolverWarningsPanel.vue'
 import TcoMetricsPanel from './TcoMetricsPanel.vue'
@@ -114,6 +176,7 @@ import { formatDateTime } from '@/shared/utils/format'
 
 const erp = useErpStore()
 const solver = useSolverStore()
+const comparisonOpen = ref(false)
 
 const calculatedAtText = computed(() =>
   solver.calculatedAt ? `Рассчитано ${formatDateTime(solver.calculatedAt)}` : 'План получен',
@@ -121,6 +184,10 @@ const calculatedAtText = computed(() =>
 
 function runPlan(): void {
   void solver.optimizeBaseline()
+}
+
+function onViewChange(next: unknown): void {
+  if (next === 'baseline' || next === 'scenario') solver.setView(next)
 }
 
 function reload(): void {
@@ -157,6 +224,21 @@ function reload(): void {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.header-chips {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.stale-note {
+  font-size: 13px;
+}
+
+.view-toggle {
+  align-self: flex-start;
 }
 
 /* Внутри StatePanel слот не имеет собственных отступов — задаём их сами. */
