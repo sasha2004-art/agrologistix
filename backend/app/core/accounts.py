@@ -273,5 +273,5 @@ __all__ = [
     "database_path_for",
     "ensure_unique_accounts",
     "parse_accounts",
-    "validate_accounts"
+    "validate_accounts",
 ]
