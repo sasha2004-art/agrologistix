@@ -1,4 +1,4 @@
-from app.models.erp_models import ClientOrder, Product, Truck, Warehouse, WarehouseStock
+from app.models.erp_models import Client, ClientOrder, Product, Truck, Warehouse, WarehouseStock
 from app.services.seed_kaluga import reset_demo_database, seed_database
 from sqlmodel import Session, select
 
@@ -6,8 +6,8 @@ EXPECTED_COUNTS = {
     "warehouses": 2,
     "products": 3,
     "stocks": 6,
-    "clients": 5,
-    "orders": 9,
+    "clients": 8,
+    "orders": 5,
     "trucks": 3,
 }
 
@@ -33,6 +33,13 @@ def test_seed_is_idempotent(session: Session) -> None:
     assert second.warehouses == first.warehouses
     assert second.orders == first.orders
     assert len(session.exec(select(Warehouse)).all()) == EXPECTED_COUNTS["warehouses"]
+
+
+def test_seed_has_more_map_points_than_orders(session: Session) -> None:
+    seed_database(session)
+    assert len(session.exec(select(Client)).all()) == EXPECTED_COUNTS["clients"]
+    assert len(session.exec(select(ClientOrder)).all()) == EXPECTED_COUNTS["orders"]
+    assert EXPECTED_COUNTS["clients"] > EXPECTED_COUNTS["orders"]
 
 
 def test_seed_contains_dirt_road_and_reefer_variety(session: Session) -> None:

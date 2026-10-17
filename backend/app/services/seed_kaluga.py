@@ -112,20 +112,37 @@ CLIENT_SEED: tuple[dict[str, object], ...] = (
         "road_type": RoadType.DIRT.value,
         "address": "г. Таруса, ул. Окская, 3",
     },
+    {
+        "name": "Ферма Заречье",
+        "lat": 54.9500,
+        "lon": 36.4000,
+        "road_type": RoadType.ASPHALT.value,
+        "address": "Калужская обл., д. Заречье",
+    },
+    {
+        "name": "Ресторан Калуга",
+        "lat": 54.5500,
+        "lon": 36.3200,
+        "road_type": RoadType.ASPHALT.value,
+        "address": "г. Калуга, ул. Театральная, 12",
+    },
+    {
+        "name": "Садовая база",
+        "lat": 55.2600,
+        "lon": 36.7000,
+        "road_type": RoadType.DIRT.value,
+        "address": "Боровский р-н, д. Ворсино",
+    },
 )
 
-# Demand matches a daily delivery per point: a retail chain and a market buy
-# tonnes, a farm cooperative and an eco base buy hundreds of kilograms.
-ORDER_SEED: tuple[tuple[str, str, float, float, float], ...] = (
-    ("ВкусВилл", "strawberry", 400.0, 160.0, 60.0),
-    ("ВкусВилл", "tomato", 1200.0, 80.0, 40.0),
-    ("Агро-Рынок", "tomato", 600.0, 75.0, 35.0),
-    ("Агро-Рынок", "cucumber", 350.0, 55.0, 25.0),
-    ("Кооператив Боровск", "strawberry", 150.0, 150.0, 75.0),
-    ("Кооператив Боровск", "cucumber", 250.0, 52.5, 22.5),
-    ("Пятёрочка", "tomato", 750.0, 77.5, 37.5),
-    ("Пятёрочка", "strawberry", 175.0, 155.0, 70.0),
-    ("Эко-база", "cucumber", 300.0, 57.5, 27.5),
+# Five orders cover five clients; the other clients remain visible on the map
+# without adding demand or external routing requests to the calculation.
+ORDER_SEED: tuple[tuple[int, str, str, float, float, float], ...] = (
+    (1, "ВкусВилл", "strawberry", 400.0, 160.0, 60.0),
+    (2, "Агро-Рынок", "tomato", 600.0, 75.0, 35.0),
+    (5, "Кооператив Боровск", "strawberry", 150.0, 150.0, 75.0),
+    (6, "Кооператив Боровск", "cucumber", 250.0, 52.5, 22.5),
+    (9, "Эко-база", "cucumber", 300.0, 57.5, 27.5),
 )
 
 TRUCK_SEED: tuple[dict[str, object], ...] = (
@@ -221,9 +238,10 @@ def _insert_reference_data(session: Session) -> None:
     session.add_all(list(clients.values()))
     session.flush()
 
-    for client_name, product_code, requested_kg, price, penalty in ORDER_SEED:
+    for order_id, client_name, product_code, requested_kg, price, penalty in ORDER_SEED:
         session.add(
             ClientOrder(
+                id=order_id,
                 client_id=int(clients[client_name].id or 0),
                 product_id=int(products[product_code].id or 0),
                 requested_kg=requested_kg,

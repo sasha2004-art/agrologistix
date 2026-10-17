@@ -20,8 +20,8 @@ def test_erp_state_returns_full_demo_dataset(client: TestClient) -> None:
     assert len(payload["warehouses"]) == 2
     assert len(payload["products"]) == 3
     assert len(payload["stocks"]) == 6
-    assert len(payload["clients"]) == 5
-    assert len(payload["orders"]) == 9
+    assert len(payload["clients"]) == 8
+    assert len(payload["orders"]) == 5
     assert len(payload["trucks"]) == 3
     assert {client["road_type"] for client in payload["clients"]} == {"asphalt", "dirt"}
     assert payload["products"][0]["code"] == "strawberry"
@@ -60,8 +60,8 @@ def test_reset_demo_rebuilds_admin_dataset(client: TestClient) -> None:
         "warehouses": 2,
         "products": 3,
         "stocks": 6,
-        "clients": 5,
-        "orders": 9,
+        "clients": 8,
+        "orders": 5,
         "trucks": 3,
         "seeded": True,
     }
