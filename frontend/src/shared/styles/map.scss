@@ -80,8 +80,8 @@
   z-index: 5;
 }
 
-/* Подсказка при наведении больше не используется: карточка открывается только
-   по нажатию на маркер. */
+/* Нативный title не используется: карточка объекта выпадает при наведении
+   на маркер, а нажатие её закрепляет. */
 
 .map-popup strong {
   display: block;
@@ -104,7 +104,7 @@
   vertical-align: middle;
 }
 
-/* Заявки покупателя: кнопка на каждый заказ, подробности — по нажатию. */
+/* Заявки покупателя: выпадающий список — строка раскрывается при наведении. */
 .map-popup__orders {
   margin-top: 6px;
 }
@@ -115,19 +115,20 @@
 }
 
 .map-popup__order {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
+/* Строка списка, а не кнопка: без рамки и заливки, состояние — подсветкой. */
 .map-popup__order-btn {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  padding: 6px 8px;
-  border: 1px solid rgba(91, 81, 117, 0.25);
+  padding: 5px 8px;
+  border: none;
   border-radius: 8px;
-  background: #f7f4fe;
+  background: transparent;
   color: #2e1065;
   font: inherit;
   font-size: 12px;
@@ -135,7 +136,7 @@
   cursor: pointer;
 }
 
-.map-popup__order-btn:hover {
+.map-popup__order:hover .map-popup__order-btn {
   background: #ede7fb;
 }
 
@@ -149,23 +150,27 @@
   transition: transform 0.15s ease;
 }
 
+/* Шеврон разворачивается вместе с выпадающим списком. */
+.map-popup__order:hover .map-popup__order-chevron,
 .map-popup__order-btn--open .map-popup__order-chevron {
   transform: rotate(180deg);
 }
 
 .map-popup__order-details {
-  display: grid;
+  display: none;
   gap: 3px;
-  margin-top: 4px;
+  margin-top: 2px;
   padding: 6px 8px;
   border-left: 2px solid rgba(109, 40, 217, 0.35);
   font-size: 11px;
   color: #5b5175;
 }
 
-/* `hidden` должен побеждать display: grid — атрибут не справляется с flex/grid. */
-.map-popup__order-details[hidden] {
-  display: none;
+/* Список выпадает при наведении на строку заявки; нажатие закрепляет его
+   классом --open, чтобы подробности не исчезали при уходе курсора. */
+.map-popup__order:hover .map-popup__order-details,
+.map-popup__order-details--open {
+  display: grid;
 }
 
 .map-popup__detail {
