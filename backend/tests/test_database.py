@@ -74,6 +74,32 @@ def test_migration_adds_delivered_kg_to_client_order(tmp_path: Path) -> None:
     assert delivered_kg == 0.0
 
 
+def test_migration_adds_route_provider_and_refresh_metadata(tmp_path: Path) -> None:
+    settings = Settings(sqlite_db_path=str(tmp_path / "legacy-routes.db"))
+    engine = create_database_engine(settings)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE route_cache ("
+            "pair_key VARCHAR(128) PRIMARY KEY, distance_km FLOAT, "
+            "base_duration_min FLOAT, geojson_geometry TEXT)"
+        )
+        connection.exec_driver_sql("INSERT INTO route_cache VALUES ('pair', 10.0, 12.0, '[]')")
+
+    apply_schema_migrations(engine)
+    migrated = _columns(engine, "route_cache")
+    apply_schema_migrations(engine)
+
+    with engine.connect() as connection:
+        source, checked_at = connection.exec_driver_sql(
+            "SELECT source, mapbox_checked_at FROM route_cache WHERE pair_key = 'pair'"
+        ).one()
+
+    engine.dispose()
+    assert {"source", "mapbox_checked_at"} <= migrated
+    assert source == "fallback"
+    assert checked_at is None
+
+
 def test_migration_ignores_missing_tables(tmp_path: Path) -> None:
     settings = Settings(sqlite_db_path=str(tmp_path / "empty.db"))
     engine = create_database_engine(settings)

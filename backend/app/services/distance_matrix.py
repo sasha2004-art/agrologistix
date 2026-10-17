@@ -19,6 +19,7 @@ to match the solver ``RoutePoint`` DTO.
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass
 from math import asin, cos, radians, sin, sqrt
 
@@ -43,6 +44,10 @@ STRAIGHT_LINE_SEGMENTS = 8
 CACHE_PRECISION = 5
 # Geometry rounding for JSON payloads: six decimals are about 0.11 meters.
 GEOMETRY_PRECISION = 6
+MAPBOX_SOURCE = "mapbox"
+FALLBACK_SOURCE = "fallback"
+# Don't retry a failed external lookup on every dashboard recalculation.
+MAPBOX_RETRY_INTERVAL_SEC = 900.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +170,8 @@ async def fetch_mapbox_leg(
             (round(float(lat), GEOMETRY_PRECISION), round(float(lon), GEOMETRY_PRECISION))
             for lon, lat in route["geometry"]["coordinates"]
         ]
+        if len(geometry) < 2:
+            raise ValueError("Mapbox Directions returned no usable road geometry")
         return RouteLeg(
             distance_km=round(route_distance_km, 3),
             base_duration_min=round(route_duration_min, 3),
@@ -193,6 +200,40 @@ def _cached_leg(entry: RouteCache, origin: Coordinate, destination: Coordinate) 
     )
 
 
+def _should_refresh_fallback(entry: RouteCache, has_mapbox_token: bool, now: float) -> bool:
+    """Upgrade old fallback geometry once Mapbox is enabled; throttle failures."""
+
+    if not has_mapbox_token or entry.source == MAPBOX_SOURCE:
+        return False
+    return (
+        entry.mapbox_checked_at is None
+        or now - entry.mapbox_checked_at >= MAPBOX_RETRY_INTERVAL_SEC
+    )
+
+
+def _persist_leg(
+    session: Session,
+    pair_key: str,
+    leg: RouteLeg,
+    source: str,
+    mapbox_checked_at: float | None,
+    cached: RouteCache | None = None,
+) -> None:
+    """Insert or update one cached route and its provider metadata."""
+
+    entry = cached or RouteCache(
+        pair_key=pair_key,
+        distance_km=leg.distance_km,
+        base_duration_min=leg.base_duration_min,
+    )
+    entry.distance_km = leg.distance_km
+    entry.base_duration_min = leg.base_duration_min
+    entry.geojson_geometry = json.dumps(leg.geometry)
+    entry.source = source
+    entry.mapbox_checked_at = mapbox_checked_at
+    session.add(entry)
+
+
 async def get_route_leg(
     session: Session,
     origin: Coordinate,
@@ -200,25 +241,22 @@ async def get_route_leg(
     settings: Settings,
     client: httpx.AsyncClient | None = None,
 ) -> RouteLeg:
-    """Return a cached leg, otherwise resolve it via Mapbox or the fallback."""
+    """Return a road leg, refreshing old fallback entries when Mapbox is enabled."""
 
     pair_key = coordinate_key(origin, destination)
     cached = session.get(RouteCache, pair_key)
-    if cached is not None:
+    token_available = bool(_mapbox_token(settings))
+    now = time.time()
+    if cached is not None and not _should_refresh_fallback(cached, token_available, now):
         return _cached_leg(cached, origin, destination)
 
     leg = await fetch_mapbox_leg(origin, destination, settings, client)
+    source = MAPBOX_SOURCE if leg is not None else FALLBACK_SOURCE
+    checked_at = now if token_available else None
     if leg is None:
         leg = fallback_leg(origin, destination)
 
-    session.add(
-        RouteCache(
-            pair_key=pair_key,
-            distance_km=leg.distance_km,
-            base_duration_min=leg.base_duration_min,
-            geojson_geometry=json.dumps(leg.geometry),
-        )
-    )
+    _persist_leg(session, pair_key, leg, source, checked_at, cached)
     session.commit()
     return leg
 
@@ -239,10 +277,14 @@ async def build_distance_matrix(
     }
     resolved: dict[str, RouteLeg] = {}
     missing: dict[str, tuple[Coordinate, Coordinate]] = {}
+    cached_entries: dict[str, RouteCache | None] = {}
+    token_available = bool(_mapbox_token(settings))
+    now = time.time()
     for key, (origin, destination) in pairs.items():
         cached = session.get(RouteCache, key)
-        if cached is None:
+        if cached is None or _should_refresh_fallback(cached, token_available, now):
             missing[key] = (origin, destination)
+            cached_entries[key] = cached
         else:
             resolved[key] = _cached_leg(cached, origin, destination)
 
@@ -250,6 +292,7 @@ async def build_distance_matrix(
     active_client = client
     if owns_client and _mapbox_token(settings):
         active_client = httpx.AsyncClient(timeout=settings.external_api_timeout_sec)
+    mapbox_successes: set[str] = set()
     try:
         semaphore = asyncio.Semaphore(8)
 
@@ -260,26 +303,32 @@ async def build_distance_matrix(
                 leg = await fetch_mapbox_leg(origin, destination, settings, active_client)
             return key, leg
 
-        if missing and _mapbox_token(settings):
+        attempt_started_at = now
+        if missing and token_available:
             try:
                 async with asyncio.timeout(settings.external_api_timeout_sec):
                     fetched = await asyncio.gather(
                         *(fetch_pair(key, *pair) for key, pair in missing.items())
                     )
-                resolved.update({key: leg for key, leg in fetched if leg is not None})
+                for key, leg in fetched:
+                    if leg is not None:
+                        resolved[key] = leg
+                        mapbox_successes.add(key)
             except TimeoutError:
                 logger.warning("Mapbox matrix deadline exceeded, using fallback legs")
 
         for key, (origin, destination) in missing.items():
             leg = resolved.get(key) or fallback_leg(origin, destination)
             resolved[key] = leg
-            session.add(
-                RouteCache(
-                    pair_key=key,
-                    distance_km=leg.distance_km,
-                    base_duration_min=leg.base_duration_min,
-                    geojson_geometry=json.dumps(leg.geometry),
-                )
+            source = MAPBOX_SOURCE if key in mapbox_successes else FALLBACK_SOURCE
+            checked_at = attempt_started_at if token_available else None
+            _persist_leg(
+                session,
+                key,
+                leg,
+                source,
+                checked_at,
+                cached_entries.get(key),
             )
         if missing:
             session.commit()

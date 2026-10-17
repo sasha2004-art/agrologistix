@@ -3,10 +3,15 @@
 Проверка backend-функциональности вручную через `curl`. Все ожидаемые значения
 получены на seed-данных из `POST /api/v1/system/reset-demo`.
 
-> **Важно про расстояния.** Контрольные числа ниже сняты без
-> `MAPBOX_SECRET_TOKEN` — в этом режиме расстояния считаются по haversine×1.3.
-> Если в `.env` задан ключ Mapbox, дистанции, ETA, свежесть и TCO будут
-> отличаться (холодный расчёт дольше на время запросов Directions).
+> **Важно про расстояния.** Контрольные числа ниже сняты с заданным
+> `MAPBOX_SECRET_TOKEN`: расстояния, ETA, свежесть и TCO считаются по реальным
+> дорогам Mapbox, а в `RouteResponse.geometry` приходит дорожная линия (сотни
+> точек), которую и рисует карта.
+>
+> Без токена (или при недоступном Mapbox) включается офлайн-оценка
+> haversine×1.3 с прямой ломаной — цифры ниже будут другими. Записи
+> `route_cache` со `source = 'fallback'` автоматически перезапрашиваются при
+> первом расчете с токеном, `reset-demo` для этого не нужен.
 
 ## 0. Подготовка
 
@@ -334,14 +339,25 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 Ожидаемые метрики:
 
 ```json
-{"total_tco_rub":255643.40,"total_trip_cost_rub":31781.20,"total_spoilage_loss_rub":223862.20,
- "total_unmet_penalty_rub":0.0,"expected_net_profit_rub":1789856.60,"avg_freshness_pct":89.19,
+{"total_tco_rub":246114.53,"total_trip_cost_rub":28852.49,"total_spoilage_loss_rub":217262.04,
+ "total_unmet_penalty_rub":0.0,"expected_net_profit_rub":1799385.47,"avg_freshness_pct":89.60,
  "shipped_kg":11000.0,"unmet_kg":0.0}
 ```
 
 Маршруты: 3 — еврофура (`truck_id=1`, 3 стопа, 4 000 кг), ГАЗон
-(`truck_id=2`, 4 стопа, 3 800 кг) и КАМАЗ (`truck_id=3`, 2 стопа, 3 200 кг).
+(`truck_id=2`, 5 стопов, 5 000 кг) и КАМАЗ (`truck_id=3`, 1 стоп, 2 000 кг).
 `warnings`: пусто. Все 11 000 кг доставлены.
+
+Геометрия рейсов — реальные дороги: длина `routes[].geometry` в этом сценарии
+≈ 1217 / 1651 / 671 точек соответственно (у офлайн-fallback было бы ровно 9–17).
+Проверить источник кэша можно так:
+
+```bash
+sqlite3 /opt/agrologistix/data/app.db \
+  "select source, count(*) from route_cache group by source;"
+```
+
+Ожидается `mapbox|<число плеч>`; строки `fallback` появляются только когда API недоступен.
 
 Проверки математики в этом ответе:
 
@@ -366,8 +382,8 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 * `shipped_kg = 6000.0`, `unmet_kg = 5000.0`;
 * единственный маршрут `truck_id=2`, 5 стопов, ровно 6 000 кг (≤ `capacity_kg`);
 * `total_unmet_penalty_rub = 297500.0` — сумма штрафов за 5 000 кг недовоза;
-* `total_tco_rub = 496919.76`, `total_spoilage_loss_rub = 191472.05`,
-  `avg_freshness_pct = 87.15`;
+* `total_tco_rub = 490283.54`, `total_spoilage_loss_rub = 185153.91`,
+  `avg_freshness_pct = 87.52`;
 * `warnings`: `broken_trucks_excluded`, `unmet_demand`.
 
 ### S3. Грунтовка недоступна (осталась только еврофура без допуска)
@@ -383,7 +399,9 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 Ожидается:
 
 * `shipped_kg = 8100.0`, `unmet_kg = 2900.0` (грунтовые заявки 5, 6, 9);
-* `routes`: только `truck_id=1`; **еврофура не назначена ни на одну dirt-точку**;
+* `total_tco_rub = 418254.54`, `total_spoilage_loss_rub = 179106.48`,
+  `total_unmet_penalty_rub = 224500.0`, `avg_freshness_pct = 89.06`;
+* `routes`: только `truck_id=1` (6 стопов); **еврофура не назначена ни на одну dirt-точку**;
 * `warnings`: `broken_trucks_excluded`, `unmet_demand` и **три** `dirt_unreachable`
   с парами `client_id/order_id`: `(3,5)`, `(3,6)`, `(5,9)`.
 
@@ -412,8 +430,8 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heatwav
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize
 ```
 
-Ожидается: `shipped_kg = 11000.0`, `unmet_kg = 0.0`, `avg_freshness_pct = 89.41`,
-`total_spoilage_loss_rub = 212423.08`, `total_tco_rub = 235465.18`,
+Ожидается: `shipped_kg = 11000.0`, `unmet_kg = 0.0`, `avg_freshness_pct = 89.44`,
+`total_spoilage_loss_rub = 212004.55`, `total_tco_rub = 234734.68`,
 маршруты — только рефрижераторы: `truck_id=1` (4 стопа, 5 000 кг) и
 `truck_id=2` (6 стопов, 6 000 кг). `warnings`: пусто.
 Мобиль без рефа (КАМАЗ) в жару не используется — порча дороже экономии.
@@ -430,14 +448,14 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 
 Ожидается:
 
-* `shipped_kg = 10000.0`, `unmet_kg = 1000.0`, `avg_freshness_pct = 69.06`;
-* `total_spoilage_loss_rub = 656307.70`, `total_tco_rub = 745524.22`,
-  `total_unmet_penalty_rub = 75000.0`;
+* `shipped_kg = 10000.0`, `unmet_kg = 1000.0`, `avg_freshness_pct = 74.41`;
+* `total_spoilage_loss_rub = 512251.45`, `total_tco_rub = 612869.37`,
+  `total_unmet_penalty_rub = 87000.0`;
 * один маршрут на КАМАЗе (`truck_id=3`), 9 стопов;
 * `warnings`: `broken_trucks_excluded`, `unmet_demand`, `heat_without_reefer`.
 
-Сравните с S5: порча выросла в 3.1 раза (212 423 → 656 308), свежесть
-упала с 89.41 % до 69.06 % — так система «выбирает математически
+Сравните с S5: порча выросла в 2.4 раза (212 005 → 512 251), свежесть
+упала с 89.44 % до 74.41 % — так система «выбирает математически
 наименьший убыток».
 
 ### S7. Множитель осадков (проверка t_actual)
@@ -458,15 +476,15 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 
 | заявка | точка | `heavy_rain` (12 мм) | `heatwave_35c` (0 мм) | отношение |
 |---|---|---|---|---|
-| 5 | Боровск, dirt | 41.34 | 31.80 | **1.30** |
-| 7 | Балабаново, asphalt | 15.93 | 12.25 | **1.30** |
-| 1 | Калуга, asphalt | 169.65 | 130.50 | **1.30** |
+| 5 | Боровск, dirt | 42.46 | 32.66 | **1.30** |
+| 7 | Балабаново, asphalt | 18.19 | 13.99 | **1.30** |
+| 1 | Калуга, asphalt | 156.85 | 120.66 | **1.30** |
 
 Отношение точно соответствует формуле `k_rain = 1 + 0.3 · min(1; мм / 10) = 1.3`
 при 12 мм. Дополнительно в этом сценарии (`heatwave_35c`, только ГАЗон-реф):
-`shipped_kg = 6000.0`, `unmet_kg = 5000.0`, `total_tco_rub = 468899.72`,
-`avg_freshness_pct = 88.84` (против 87.15 под ливнем — без замедления груз
-портится меньше); порча в ливень 191 472 ₽ против 163 452 ₽ в жару.
+`shipped_kg = 6000.0`, `unmet_kg = 5000.0`, `total_tco_rub = 463453.14`,
+`avg_freshness_pct = 89.15` (против 87.52 под ливнем — без замедления груз
+портится меньше); порча в ливень 185 154 ₽ против 158 324 ₽ в жару.
 
 Множитель грунтовки `k_surface = 1.35` проверяется unit-тестами
 (`backend/tests/test_freshness_math.py`) и косвенно: ETA грунтовой точки
@@ -639,11 +657,11 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what
 
 | Метрика | Было | Стало | Δ | Δ% |
 |---|---|---|---|---|
-| `total_tco_rub` | 255643.40 | 411266.00 | +155 622.60 | +60.87 |
-| `total_trip_cost_rub` | 31781.20 | 24975.37 | −6 805.83 | −21.41 |
-| `total_spoilage_loss_rub` | 223862.20 | 386290.63 | +162 428.43 | +72.56 |
-| `expected_net_profit_rub` | 1789856.60 | 1834234.00 | +44 377.40 | +2.48 |
-| `avg_freshness_pct` | 89.19 | 83.94 | −5.25 | −5.89 |
+| `total_tco_rub` | 246114.53 | 329361.80 | +83 247.27 | +33.82 |
+| `total_trip_cost_rub` | 28852.49 | 23800.95 | −5 051.54 | −17.51 |
+| `total_spoilage_loss_rub` | 217262.04 | 305560.85 | +88 298.81 | +40.64 |
+| `expected_net_profit_rub` | 1799385.47 | 1916138.20 | +116 752.73 | +6.49 |
+| `avg_freshness_pct` | 89.60 | 84.45 | −5.15 | −5.75 |
 | `shipped_kg` | 11000.00 | 9500.00 | −1 500.00 | −13.64 |
 | `total_unmet_penalty_rub` | 0.00 | 0.00 | 0.00 | `null` |
 | `unmet_kg` | 0.00 | 0.00 | 0.00 | `null` |
