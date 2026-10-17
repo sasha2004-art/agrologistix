@@ -77,7 +77,7 @@
   </v-navigation-drawer>
 
   <v-main class="dash-main">
-    <KalugaMapCanvas />
+    <KalugaMapCanvas :routes="solver.routes" />
   </v-main>
 </template>
 
@@ -93,10 +93,12 @@ import WeatherControlBar from './WeatherControlBar.vue'
 import RoutesTcoTab from './RoutesTcoTab.vue'
 import WarehousesStockTab from './WarehousesStockTab.vue'
 import { useErpStore } from './useErpStore'
+import { useSolverStore } from './useSolverStore'
 import { formatDateTime } from '@/shared/utils/format'
 
 const auth = useAuthStore()
 const erp = useErpStore()
+const solver = useSolverStore()
 const router = useRouter()
 const { mdAndUp } = useDisplay()
 
@@ -184,6 +186,7 @@ function reload(): void {
 }
 
 function logout(): void {
+  solver.clear()
   auth.logout()
   void router.replace('/login')
 }

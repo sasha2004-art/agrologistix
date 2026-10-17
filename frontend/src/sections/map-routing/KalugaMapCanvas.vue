@@ -48,6 +48,14 @@
         Доставлено
       </li>
     </ul>
+
+    <ul v-if="solver.hasPlan" class="map-legend map-legend--routes" aria-label="Рейсы плана">
+      <li v-for="route in solver.routeLegend" :key="route.truckId" class="legend-item">
+        <span class="legend-line" :style="{ background: route.color }" aria-hidden="true" />
+        {{ route.truckName }}: {{ route.stops }} стоп(ов), {{ formatKm(route.distanceKm) }},
+        {{ formatRub(route.costRub) }}
+      </li>
+    </ul>
   </section>
 </template>
 
@@ -69,18 +77,43 @@ import {
   type MarkerManager,
 } from './useMapboxMarkers'
 import { useErpStore } from '@/sections/erp-dashboard/useErpStore'
+import { useSolverStore } from '@/sections/erp-dashboard/useSolverStore'
+import type { ClientPlanInfo } from './useMapboxMarkers'
+import { routeColor } from '@/shared/utils/routeColors'
+import { formatKm, formatRub } from '@/shared/utils/format'
 import type { Route } from '@/shared/types/domain'
 
 const props = withDefaults(defineProps<{ routes?: Route[] }>(), { routes: () => [] })
 
 const erp = useErpStore()
+const solver = useSolverStore()
 const container = ref<HTMLDivElement | null>(null)
 const mapReady = ref(false)
 const mapFailed = ref(false)
 const failureText = ref<string | null>(null)
 
 const accessToken = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN ?? '').trim()
-const points = computed<MapPoint[]>(() => buildMapPoints(erp.warehouses, erp.clients, erp.orders))
+
+/** Данные плана по заявке: попап клиента показывает ETA, свежесть и вес. */
+const planByOrder = computed(() => {
+  const map = new Map<number, ClientPlanInfo>()
+  for (const item of solver.plannedStops) {
+    if (item.stop.order_id == null) continue
+    map.set(item.stop.order_id, {
+      orderId: item.stop.order_id,
+      truckName: item.truckName,
+      color: item.color,
+      etaMinutes: item.stop.eta_minutes,
+      expectedFreshness: item.stop.expected_freshness,
+      shippedKg: item.stop.shipped_kg,
+    })
+  }
+  return map
+})
+
+const points = computed<MapPoint[]>(() =>
+  buildMapPoints(erp.warehouses, erp.clients, erp.orders, planByOrder.value),
+)
 const showMap = computed(() => accessToken.length > 0 && !mapFailed.value)
 const fallbackReason = computed(() => {
   if (!accessToken)
@@ -133,7 +166,7 @@ onMounted(() => {
       onHover: handleMarkerHover,
     })
     markers.sync(points.value)
-    setRouteGeometry(map, props.routes ?? [])
+    drawRoutes()
   })
 
   map.on('error', (event) => {
@@ -163,11 +196,18 @@ watch(
   { deep: true },
 )
 
+/** Рисует полилинии рейсов цветами палитры, совпадающими с таблицей плана. */
+function drawRoutes(): void {
+  if (!map) return
+  setRouteGeometry(map, props.routes ?? [], (_truckId, index) => routeColor(index))
+}
+
 watch(
   () => props.routes,
-  (next) => {
-    if (mapReady.value && map) setRouteGeometry(map, next ?? [])
+  () => {
+    if (mapReady.value) drawRoutes()
   },
+  { deep: true },
 )
 
 onBeforeUnmount(teardownMap)
@@ -280,5 +320,18 @@ onBeforeUnmount(teardownMap)
   border-radius: 50%;
   background: #e7dff6;
   border-color: #34d399;
+}
+
+/* Легенда рейсов: цвет линии совпадает с полилинией на карте и таблицей плана. */
+.map-legend--routes {
+  padding-top: 8px;
+  border-top: 1px dashed rgba(91, 81, 117, 0.3);
+}
+
+.legend-line {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
 }
 </style>

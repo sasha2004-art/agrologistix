@@ -6,6 +6,7 @@
  */
 
 import mapboxgl from 'mapbox-gl'
+import { formatFreshness, formatMinutes } from '@/shared/utils/format'
 import type {
   Client,
   ClientOrder,
@@ -29,6 +30,20 @@ export interface MapPoint {
   deliveryStatus: DeliveryStatus | null
   orderCount: number
   requestedKg: number
+  /** Самый поздний стоп рассчитанного плана для этой точки (если план уже есть). */
+  plan: ClientPlanInfo | null
+  /** Сколько заявок клиента попало в план (может быть больше одного стопа). */
+  planStopsCount: number
+}
+
+/** Данные плана для точки клиента: попап показывает ETA, свежесть и вес. */
+export interface ClientPlanInfo {
+  orderId: number | null
+  truckName: string
+  color: string
+  etaMinutes: number
+  expectedFreshness: number
+  shippedKg: number
 }
 
 export function roadLabel(roadType: RoadType | null): string {
@@ -53,6 +68,7 @@ export function buildMapPoints(
   warehouses: Warehouse[],
   clients: Client[],
   orders: ClientOrder[],
+  planByOrder: Map<number, ClientPlanInfo> = new Map(),
 ): MapPoint[] {
   const points: MapPoint[] = warehouses.map((warehouse) => ({
     id: `warehouse-${warehouse.id}`,
@@ -64,10 +80,15 @@ export function buildMapPoints(
     deliveryStatus: null,
     orderCount: 0,
     requestedKg: 0,
+    plan: null,
+    planStopsCount: 0,
   }))
 
   for (const client of clients) {
     const own = orders.filter((order) => order.client_id === client.id)
+    const planned = own
+      .map((order) => planByOrder.get(order.id))
+      .filter((info): info is ClientPlanInfo => Boolean(info))
     points.push({
       id: `client-${client.id}`,
       kind: 'client',
@@ -78,6 +99,10 @@ export function buildMapPoints(
       deliveryStatus: clientStatus(own),
       orderCount: own.length,
       requestedKg: own.reduce((sum, order) => sum + order.requested_kg, 0),
+      // Если у клиента несколько заявок в плане, показываем самую «позднюю» по ETA,
+      // а остальные сворачиваем в счётчик, чтобы попап не распухал.
+      plan: planned.sort((a, b) => b.etaMinutes - a.etaMinutes)[0] ?? null,
+      planStopsCount: planned.length,
     })
   }
 
@@ -154,6 +179,18 @@ export function popupHtml(point: MapPoint): string {
     rows.push(
       `<div class="map-popup__row">Заявок: ${point.orderCount} · ${Math.round(point.requestedKg)} кг</div>`,
     )
+  if (point.plan) {
+    const extra = point.planStopsCount > 1 ? ` (+${point.planStopsCount - 1} стоп(ов))` : ''
+    rows.push(
+      `<div class="map-popup__row map-popup__plan">` +
+        `<span class="map-popup__swatch" style="background:${escapeHtml(point.plan.color)}"></span>` +
+        `Рейс: <strong>${escapeHtml(point.plan.truckName)}</strong>${extra} · ETA ${formatMinutes(
+          point.plan.etaMinutes,
+        )} · ` +
+        `свежесть ${formatFreshness(point.plan.expectedFreshness)} · ${Math.round(point.plan.shippedKg)} кг` +
+        `</div>`,
+    )
+  }
 
   return `<div class="map-popup"><strong>${escapeHtml(point.name)}</strong>${rows.join('')}</div>`
 }
@@ -272,27 +309,40 @@ export function ensureRouteLayers(map: mapboxgl.Map): void {
       source: ROUTE_SOURCE_ID,
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
-        'line-color': '#6d28d9',
-        'line-width': 3,
-        'line-opacity': 0.75,
+        // Цвет рейса приходит свойством GeoJSON-фичи: у каждой машины свой оттенок.
+        'line-color': ['get', 'color'],
+        'line-width': ['case', ['get', 'highlight'], 5, 3.5],
+        'line-opacity': 0.8,
       },
     })
   }
 }
 
-/** Геометрия из SolverResponse: на Day 7–8 сюда придут реальные рейсы. */
-export function setRouteGeometry(map: mapboxgl.Map, routes: Route[]): void {
+/** Геометрия рейсов из `SolverResponse`: одна линия на машину, цвет — из палитры UI. */
+export function setRouteGeometry(
+  map: mapboxgl.Map,
+  routes: Route[],
+  colorOf: (truckId: number, index: number) => string = () => '#6d28d9',
+  highlightTruckId: number | null = null,
+): void {
   const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
   if (!source) return
   source.setData({
     type: 'FeatureCollection',
-    features: routes.map((route, index) => ({
-      type: 'Feature',
-      properties: { truck_id: route.truck_id, order: index },
-      geometry: {
-        type: 'LineString',
-        coordinates: route.geometry.map((point) => [point.lon, point.lat] as [number, number]),
-      },
-    })),
+    features: routes
+      .filter((route) => route.geometry.length > 1)
+      .map((route, index) => ({
+        type: 'Feature' as const,
+        properties: {
+          truck_id: route.truck_id,
+          truck_name: route.truck_name,
+          color: colorOf(route.truck_id, index),
+          highlight: highlightTruckId === route.truck_id,
+        },
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: route.geometry.map((point) => [point.lon, point.lat] as [number, number]),
+        },
+      })),
   })
 }

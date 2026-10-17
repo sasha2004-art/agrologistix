@@ -45,6 +45,15 @@ export function formatPercent(value: number): string {
   return `${decimalFormatter.format(value)} %`
 }
 
+/** Длительность в минутах → «45 мин» или «2 ч 05 мин». */
+export function formatMinutes(value: number): string {
+  const total = Math.max(0, Math.round(value))
+  if (total < 60) return `${total} мин`
+  const hours = Math.floor(total / 60)
+  const minutes = total % 60
+  return minutes === 0 ? `${hours} ч` : `${hours} ч ${String(minutes).padStart(2, '0')} мин`
+}
+
 export function formatDateTime(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value)
   return new Intl.DateTimeFormat('ru-RU', {

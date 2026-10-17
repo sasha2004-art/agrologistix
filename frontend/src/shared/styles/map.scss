@@ -88,6 +88,21 @@
   color: #5b5175;
 }
 
+/* Строка с данными плана: цветной маркер рейса + ETA, свежесть и вес. */
+.map-popup__plan {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.map-popup__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
 .mapboxgl-ctrl-group {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(46, 16, 101, 0.2);

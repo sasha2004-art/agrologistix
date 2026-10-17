@@ -1,0 +1,142 @@
+<template>
+  <section class="plan" aria-label="Рейсы рассчитанного плана">
+    <h3 class="plan-title">Рейсы плана</h3>
+
+    <article v-for="route in solver.routes" :key="route.truck_id" class="route-card neu-inset">
+      <header class="route-head">
+        <span
+          class="route-swatch"
+          :style="{ background: colorOf(route.truck_id) }"
+          aria-hidden="true"
+        />
+        <span class="route-name">{{ route.truck_name }}</span>
+        <span class="route-meta mono">
+          {{ formatKm(route.total_distance_km) }} · {{ formatMinutes(route.total_duration_min) }} ·
+          {{ formatRub(route.total_cost_rub) }}
+        </span>
+        <v-chip class="soft-chip" size="x-small">{{ route.stops.length }} стоп(ов)</v-chip>
+      </header>
+
+      <v-table density="compact" class="erp-table">
+        <thead>
+          <tr>
+            <th scope="col" class="text-right">#</th>
+            <th scope="col">Клиент</th>
+            <th scope="col">Продукт</th>
+            <th scope="col" class="text-right">Вес</th>
+            <th scope="col" class="text-right">Дорога</th>
+            <th scope="col" class="text-right">ETA</th>
+            <th scope="col" class="text-right">Свежесть</th>
+            <th scope="col" class="text-right">Плечо</th>
+            <th scope="col">Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="stop in route.stops"
+            :key="`${route.truck_id}-${stop.order_id ?? stop.client_id}`"
+            :class="`row-${freshnessLevel(stop.expected_freshness)}`"
+          >
+            <td class="text-right mono">{{ stop.sequence_order }}</td>
+            <td>{{ clientName(stop.client_id) }}</td>
+            <td>{{ productName(stop.product_id) }}</td>
+            <td class="text-right mono">{{ formatKg(stop.shipped_kg) }}</td>
+            <td class="text-right mono">{{ formatKm(stop.distance_km) }}</td>
+            <td class="text-right mono">{{ formatMinutes(stop.eta_minutes) }}</td>
+            <td class="text-right mono">{{ formatFreshness(stop.expected_freshness) }}</td>
+            <td class="text-right mono">{{ formatRub(stop.trip_leg_cost_rub) }}</td>
+            <td>
+              <v-chip
+                class="soft-chip"
+                size="x-small"
+                :color="stop.stop_status === 'delivered' ? 'success' : 'primary'"
+                variant="text"
+              >
+                {{ stop.stop_status === 'delivered' ? 'Доставлено' : 'В плане' }}
+              </v-chip>
+            </td>
+          </tr>
+        </tbody>
+      </v-table>
+    </article>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { useSolverStore } from './useSolverStore'
+import { useErpStore } from './useErpStore'
+import {
+  formatFreshness,
+  formatKg,
+  formatKm,
+  formatMinutes,
+  formatRub,
+} from '@/shared/utils/format'
+import { freshnessLevel } from '@/shared/utils/freshness'
+
+const solver = useSolverStore()
+const erp = useErpStore()
+
+function colorOf(truckId: number): string {
+  return solver.routeColorByTruck.get(truckId) ?? '#6d28d9'
+}
+
+function clientName(clientId: number): string {
+  return erp.clientById.get(clientId)?.name ?? `Клиент №${clientId}`
+}
+
+function productName(productId: number): string {
+  return erp.productById.get(productId)?.name ?? `Продукт №${productId}`
+}
+</script>
+
+<style scoped lang="scss">
+.plan {
+  display: grid;
+  gap: 12px;
+}
+
+.plan-title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.route-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.route-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.route-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.route-name {
+  font-weight: 600;
+}
+
+.route-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: #5b5175;
+}
+
+/* Подсветка строк по свежести: цвет не единственный носитель — в ячейке есть значение. */
+.row-warning {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.row-error {
+  background: rgba(190, 18, 60, 0.12);
+}
+</style>
