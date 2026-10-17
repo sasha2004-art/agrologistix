@@ -35,20 +35,20 @@
 
       <v-tabs v-model="tab" density="comfortable" show-arrows class="dash-tabs">
         <v-tab value="erp">Заказы</v-tab>
-        <v-tab value="fleet">Машины</v-tab>
+        <v-tab value="fleet">Машины и склады</v-tab>
         <v-tab value="routes">Расчёт</v-tab>
       </v-tabs>
 
       <v-window v-model="tab" class="dash-window">
         <v-window-item value="erp">
-          <div class="tab-scroll">
-            <WarehousesStockTab />
-            <v-divider class="my-4" />
-            <ClientsOrdersTab />
-          </div>
+          <div class="tab-scroll"><ClientsOrdersTab /></div>
         </v-window-item>
         <v-window-item value="fleet">
-          <div class="tab-scroll"><FleetTrucksTab /></div>
+          <div class="tab-scroll">
+            <FleetTrucksTab />
+            <v-divider class="my-4" />
+            <WarehousesStockTab />
+          </div>
         </v-window-item>
         <v-window-item value="routes">
           <div class="tab-scroll"><RoutesTcoTab /></div>
