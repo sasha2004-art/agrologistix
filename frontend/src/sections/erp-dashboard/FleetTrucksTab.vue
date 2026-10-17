@@ -105,7 +105,6 @@
           </tr>
         </tbody>
       </v-table>
-
     </StatePanel>
   </div>
 </template>
