@@ -59,6 +59,55 @@ def test_verify_pin_rejects_invalid_headers(
     assert response.headers["www-authenticate"] == "X-Access-Pin"
 
 
+def test_failed_pin_attempts_are_throttled(client: TestClient) -> None:
+    """A six-digit PIN must not be brute-forced through unlimited guesses."""
+
+    last = None
+    for _ in range(12):
+        last = client.post(
+            "/api/v1/auth/verify-pin",
+            headers={"X-Access-Pin": "000000"},
+        )
+        if last.status_code == 429:
+            break
+
+    assert last is not None
+    assert last.status_code == 429
+    assert last.json()["code"] == "too_many_requests"
+    assert int(last.headers["retry-after"]) > 0
+
+    # The block covers a valid PIN too: the source is throttled, not just the code.
+    blocked = client.post(
+        "/api/v1/auth/verify-pin",
+        headers={"X-Access-Pin": "123456"},
+    )
+    assert blocked.status_code == 429
+
+
+def test_successful_pin_resets_the_failure_counter(client: TestClient) -> None:
+    for _ in range(5):
+        client.post("/api/v1/auth/verify-pin", headers={"X-Access-Pin": "000000"})
+
+    assert (
+        client.post(
+            "/api/v1/auth/verify-pin",
+            headers={"X-Access-Pin": "123456"},
+        ).status_code
+        == 200
+    )
+
+    # After a successful login the window starts over, so further guesses answer 401,
+    # not an immediate block.
+    for _ in range(5):
+        assert (
+            client.post(
+                "/api/v1/auth/verify-pin",
+                headers={"X-Access-Pin": "000000"},
+            ).status_code
+            == 401
+        )
+
+
 def test_session_requires_pin_and_returns_context(client: TestClient) -> None:
     missing_pin = client.get("/api/v1/auth/session")
     authenticated = client.get(

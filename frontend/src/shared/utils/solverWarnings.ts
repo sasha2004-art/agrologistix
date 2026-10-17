@@ -21,6 +21,14 @@ const WARNING_META: Record<string, WarningMeta> = {
     icon: 'mdi-truck-remove-outline',
     title: 'Нет машин в строю',
   },
+  no_free_trucks: {
+    icon: 'mdi-truck-cargo-container',
+    title: 'Все машины заняты',
+  },
+  fixed_truck_unavailable: {
+    icon: 'mdi-truck-alert-outline',
+    title: 'Машина рейса не в работе',
+  },
   unmet_demand: {
     icon: 'mdi-package-variant-closed-remove',
     title: 'Недопоставка',

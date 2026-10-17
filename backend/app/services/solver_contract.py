@@ -169,6 +169,9 @@ class PlannedStop:
     expected_freshness: float
     trip_leg_cost_rub: float
     stop_status: str = StopStatus.PLANNED.value
+    # Order price at planning time: the XLSX export of an old run must not mix
+    # the stored plan with a price changed afterwards.
+    price_per_kg: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)

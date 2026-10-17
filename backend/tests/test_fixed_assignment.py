@@ -1,7 +1,7 @@
 """Зафиксированный маршрут заявки «В работе»: хранение, списание и расчёт."""
 
 import pytest
-from app.models.erp_models import ClientOrder, WarehouseStock
+from app.models.erp_models import ClientOrder, Truck, WarehouseStock
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
@@ -129,6 +129,94 @@ def test_plan_includes_the_fixed_route_and_keeps_the_truck_busy(client: TestClie
     ]
     assert all(stop["order_id"] != 1 for stop in other_stops)
     assert plan["metrics"]["shipped_kg"] >= ordered_kg - 0.01
+
+
+def test_assignment_reserves_stock_of_pending_fixations(client: TestClient) -> None:
+    """A pending fixation keeps its kilograms out of the next assignment."""
+
+    with _database_session(client) as session:
+        for stock in session.exec(
+            select(WarehouseStock).where(WarehouseStock.product_id == 1)
+        ).all():
+            # 400 kg for order 1 plus 150 kg for order 5 do not fit into 500 kg.
+            stock.available_kg = 500.0 if stock.warehouse_id == 1 else 0.0
+            session.add(stock)
+        session.commit()
+
+    assert client.post(ASSIGN_URL.format(order_id=1), headers=AUTH).status_code == 200
+
+    second = client.post(ASSIGN_URL.format(order_id=5), headers=AUTH)
+
+    assert second.status_code == 409
+    assert second.json()["code"] == "conflict"
+
+
+def test_several_fixations_of_one_truck_form_a_single_trip(client: TestClient) -> None:
+    """The fleet rule «one trip per truck» holds after a mass assignment."""
+
+    order_ids = list(range(1, 10))
+    for order_id in order_ids:
+        assert client.post(ASSIGN_URL.format(order_id=order_id), headers=AUTH).status_code == 200
+    for order_id in order_ids:
+        _set_status(client, order_id, "in_progress")
+
+    plan = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
+
+    truck_ids = [route["truck_id"] for route in plan["routes"]]
+    assert len(truck_ids) == len(set(truck_ids))
+    assert "split_clients" in plan["metrics"]
+    for route in plan["routes"]:
+        assert len(route["stops"]) <= 5
+    with _database_session(client) as session:
+        capacities = {truck.id: truck.capacity_kg for truck in session.exec(select(Truck)).all()}
+    for route in plan["routes"]:
+        loaded = sum(stop["shipped_kg"] for stop in route["stops"])
+        assert loaded <= capacities[route["truck_id"]] + 1e-6
+    delivered = plan["metrics"]["shipped_kg"] + plan["metrics"]["unmet_kg"]
+    assert delivered == pytest.approx(4175.0, abs=0.01)
+    assert "broken_trucks_excluded" not in {warning["code"] for warning in plan["warnings"]}
+
+
+def test_fixed_route_is_not_planned_on_a_broken_truck(client: TestClient) -> None:
+    """A truck that broke down after the assignment must not keep its trip."""
+
+    assignment = _assign(client)
+    _set_status(client, 1, "in_progress")
+    truck_id = assignment["truck_id"]
+
+    working = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
+    assert truck_id in {route["truck_id"] for route in working["routes"]}
+
+    assert (
+        client.patch(
+            f"/api/v1/erp/trucks/{truck_id}",
+            headers=AUTH,
+            json={"status": "broken"},
+        ).status_code
+        == 200
+    )
+
+    broken = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
+
+    assert truck_id not in {route["truck_id"] for route in broken["routes"]}
+    warning = next(item for item in broken["warnings"] if item["code"] == "fixed_truck_unavailable")
+    assert warning["order_id"] == 1
+    # Маршрут не удалён из фиксации: возврат машины в строй восстанавливает план.
+    assert _state(client)["fixed_assignments"][0]["truck_id"] == truck_id
+
+    assert (
+        client.patch(
+            f"/api/v1/erp/trucks/{truck_id}",
+            headers=AUTH,
+            json={"status": "active"},
+        ).status_code
+        == 200
+    )
+
+    restored = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
+
+    assert truck_id in {route["truck_id"] for route in restored["routes"]}
+    assert "fixed_truck_unavailable" not in {item["code"] for item in restored["warnings"]}
 
 
 def test_reset_demo_clears_fixed_routes(client: TestClient) -> None:

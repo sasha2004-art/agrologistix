@@ -70,6 +70,11 @@ _SQLITE_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
         "has_insulation",
         "ALTER TABLE truck ADD COLUMN has_insulation BOOLEAN NOT NULL DEFAULT 0",
     ),
+    (
+        "route_stop",
+        "price_per_kg",
+        "ALTER TABLE route_stop ADD COLUMN price_per_kg FLOAT NOT NULL DEFAULT 0",
+    ),
 )
 
 

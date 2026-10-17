@@ -91,7 +91,9 @@ def _freshness_warnings(
             PlannedWarning(
                 code="freshness_risk",
                 message=(
-                    f"Сохранность к доставке {stop.expected_freshness * 100:.0f} % — ниже нормы "
+                    # Один знак после запятой: округление до целых давало
+                    # «70 % — ниже нормы 70 %» при пороге 0.70.
+                    f"Сохранность к доставке {stop.expected_freshness * 100:.1f} % — ниже нормы "
                     f"{solver_input.min_stop_freshness * 100:.0f} %: потери учтены в затратах"
                 ),
                 severity=WarningSeverity.WARNING.value,

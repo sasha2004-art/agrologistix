@@ -191,6 +191,19 @@ class ExportRun:
         return round(min(100.0, shipped / capacity * 100.0), 2)
 
     @property
+    def stored_revenue_rub(self) -> float:
+        """Revenue of the saved run, independent of later price edits.
+
+        ``price_per_kg`` is stored per stop for new runs; for older runs (the
+        column is zero) the value is reconstructed from the persisted profit
+        and TCO, so a historical route sheet never mixes two moments in time.
+        """
+
+        if any(stop.price_per_kg > 0.0 for route in self.routes for stop in route.stops):
+            return self.revenue_rub
+        return round(self.run.expected_net_profit_rub + self.run.total_tco_rub, 2)
+
+    @property
     def split_clients(self) -> int:
         """Сколько покупателей обслуживают более одной машины."""
 
@@ -289,8 +302,13 @@ def load_export_run(session: Session, run_id: int) -> ExportRun | None:
                 stop_status=stop.stop_status,
                 client_address=client.address if client else "",
                 road_type=client.road_type if client else "asphalt",
-                # Цена из карточки заявки на момент экспорта; в route_stop она не хранится.
-                price_per_kg=order.purchase_price_rub if order else 0.0,
+                # Цена фиксируется в стопе при расчёте; у старых прогонов колонка
+                # нулевая, поэтому берём текущую цену как запасной вариант.
+                price_per_kg=(
+                    stop.price_per_kg
+                    if stop.price_per_kg > 0.0
+                    else (order.purchase_price_rub if order else 0.0)
+                ),
                 stock_freshness_pct=round(stock.initial_freshness * 100.0, 2) if stock else 100.0,
                 leg_duration_min=round(max(0.0, eta - previous_eta), 2),
                 freshness=stop.expected_freshness,

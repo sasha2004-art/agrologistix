@@ -174,6 +174,41 @@ def test_summary_exposes_loss_and_unmet_shares(client: TestClient) -> None:
     )
 
 
+def test_historical_export_keeps_the_price_of_the_run(client: TestClient) -> None:
+    """An old route sheet must not mix the stored plan with a new price."""
+
+    baseline = _baseline(client)
+
+    def prices_and_revenue(run_id: int) -> tuple[dict[int, float], float]:
+        workbook = load_workbook(BytesIO(_export(client, run_id)))
+        analysis = workbook[ANALYSIS_TITLE]
+        header_row = next(row[0].row for row in analysis.iter_rows() if row[0].value == "Рейс")
+        prices = {
+            row[3]: row[11]
+            for row in analysis.iter_rows(min_row=header_row + 1, values_only=True)
+            if isinstance(row[3], int)
+        }
+        summary = {
+            row[0].value: row[1].value
+            for row in workbook[SUMMARY_TITLE].iter_rows()
+            if row[0].value is not None
+        }
+        return prices, summary["Выручка, руб."]
+
+    before_prices, before_revenue = prices_and_revenue(baseline["run_id"])
+
+    client.patch("/api/v1/erp/orders/1", headers=AUTH, json={"purchase_price_rub": 999.0})
+
+    after_prices, after_revenue = prices_and_revenue(baseline["run_id"])
+    metrics = baseline["metrics"]
+
+    assert after_prices == before_prices
+    assert after_revenue == pytest.approx(before_revenue)
+    assert after_revenue == pytest.approx(
+        metrics["expected_net_profit_rub"] + metrics["total_tco_rub"], abs=0.05
+    )
+
+
 def test_workbook_can_be_built_without_database_entities() -> None:
     run = SimulationRun(
         id=42,

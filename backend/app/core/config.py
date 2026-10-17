@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     solver_improve_max_evaluations: int = Field(default=400, ge=0, le=10_000)
     weather_latitude: float = Field(default=55.11, ge=-90.0, le=90.0)
     weather_longitude: float = Field(default=36.61, ge=-180.0, le=180.0)
+    # Brute-force protection for the six-digit PIN: a client is blocked after
+    # ``max_attempts`` failures inside the window (see app/core/rate_limit.py).
+    auth_rate_limit_max_attempts: int = Field(default=10, ge=1, le=1000)
+    auth_rate_limit_window_sec: float = Field(default=60.0, gt=0.0)
+    auth_rate_limit_block_sec: float = Field(default=300.0, gt=0.0)
     weather_cache_ttl_sec: int = Field(default=900, gt=0)
     mapbox_secret_token: SecretStr = Field(default=SecretStr(""), repr=False)
     vite_mapbox_public_token: str = ""

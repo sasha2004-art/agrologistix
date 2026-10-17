@@ -3,7 +3,7 @@
 from dataclasses import replace
 
 import pytest
-from app.services import solver_engine
+from app.services import solver_engine, solver_improve
 from app.services.solver_allocation import AllocationResult, TruckLoad
 from app.services.solver_contract import SolverInput
 from app.services.solver_engine import run_solver
@@ -88,6 +88,58 @@ def test_merge_is_skipped_when_capacity_forbids_it() -> None:
 
     assert improved.method == draft.method
     assert improved == draft
+
+
+def test_improvement_never_loses_or_duplicates_kilograms() -> None:
+    """A draft may split one order over two trucks; a move must not drop a share."""
+
+    order = _order(1, client_id=1, kg=1000.0, price=300.0)
+    trucks = [_truck(1, capacity=1000.0), _truck(2, capacity=1000.0)]
+    solver_input = _make_input(orders=[order], trucks=trucks, stocks=[_stock(kg=2000.0)])
+    draft = AllocationResult(
+        truck_loads=(
+            TruckLoad(truck=trucks[0], loads=((order, 500.0),)),
+            TruckLoad(truck=trucks[1], loads=((order, 500.0),)),
+        ),
+        unmet={1: 0.0},
+        method="milp",
+        unreachable_order_ids=frozenset(),
+    )
+
+    improved = improve_allocation(
+        solver_input,
+        draft,
+        [order],
+        trucks,
+        LegIndex(solver_input.legs),
+    )
+
+    shipped = sum(kilograms for load in improved.truck_loads for _, kilograms in load.loads)
+    assert shipped + improved.unmet.get(1, 0.0) == pytest.approx(order.requested_kg, abs=1e-3)
+
+
+def test_improve_rejects_a_candidate_that_loses_kilograms() -> None:
+    """Feasibility guards the coverage invariant, not only capacity and stock."""
+
+    order = _order(1, client_id=1, kg=1000.0)
+    trucks = [_truck(1, capacity=1000.0)]
+    solver_input = _make_input(orders=[order], trucks=trucks, stocks=[_stock(kg=2000.0)])
+    draft = AllocationResult(
+        truck_loads=(TruckLoad(truck=trucks[0], loads=((order, 1000.0),)),),
+        unmet={1: 0.0},
+        method="milp",
+        unreachable_order_ids=frozenset(),
+    )
+    evaluator = solver_improve._Evaluator(
+        solver_input,
+        {order.order_id: order},
+        {trucks[0].truck_id: trucks[0]},
+        LegIndex(solver_input.legs),
+    )
+
+    assert evaluator.feasible(solver_improve.Plan.from_allocation(draft)) is True
+    lossy = solver_improve.Plan.from_loads({1: {1: 400.0}}, {})
+    assert evaluator.feasible(lossy) is False
 
 
 def test_improve_respects_the_evaluation_budget() -> None:

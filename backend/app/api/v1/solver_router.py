@@ -55,6 +55,7 @@ def _persist_run(session: Session, outcome: SolverOutcome, weather: WeatherSnaps
                     eta_minutes=stop.eta_minutes,
                     expected_freshness=stop.expected_freshness,
                     trip_leg_cost_rub=stop.trip_leg_cost_rub,
+                    price_per_kg=stop.price_per_kg,
                     stop_status=stop.stop_status,
                 )
             )

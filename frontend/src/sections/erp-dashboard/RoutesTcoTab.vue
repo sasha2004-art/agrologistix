@@ -198,8 +198,22 @@ const planHint = computed(() =>
 async function addPlanToWork(): Promise<void> {
   const orderIds = plannedOrderIds.value
   if (orderIds.length === 0) return
-  await assignment.assignMany(orderIds)
-  void erp.setOrdersStatus(orderIds, 'in_progress')
+  const assigned = await assignment.assignMany(orderIds)
+  if (assigned.length === 0) {
+    notifications.push(
+      'error',
+      'Не удалось закрепить маршруты: проверьте остатки склада, вместимость и допуск на грунт.',
+    )
+    return
+  }
+  // Без фиксации заявку в работу не переводим: backend счёл бы её отгруженной целиком.
+  if (assigned.length < orderIds.length) {
+    notifications.push(
+      'warning',
+      `Маршрут закреплён не для всех заказов: ${assigned.length} из ${orderIds.length}.`,
+    )
+  }
+  void erp.setOrdersStatus(assigned, 'in_progress')
 }
 
 async function exportXlsx(): Promise<void> {
