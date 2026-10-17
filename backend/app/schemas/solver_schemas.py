@@ -63,6 +63,10 @@ class Metrics(APIModel):
     avg_freshness_pct: float = Field(ge=0.0, le=100.0)
     shipped_kg: float = Field(ge=0.0)
     unmet_kg: float = Field(ge=0.0)
+    # Route consolidation telemetry.
+    total_trips: int = Field(default=0, ge=0)
+    avg_load_factor_pct: float = Field(default=0.0, ge=0.0, le=100.0)
+    split_clients: int = Field(default=0, ge=0)
 
 
 class MetricDelta(APIModel):
@@ -81,6 +85,9 @@ class ComparisonDelta(APIModel):
     avg_freshness_pct: MetricDelta
     shipped_kg: MetricDelta
     unmet_kg: MetricDelta
+    total_trips: MetricDelta
+    avg_load_factor_pct: MetricDelta
+    split_clients: MetricDelta
 
 
 class SolverResponse(APIModel):

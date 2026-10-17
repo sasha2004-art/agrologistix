@@ -1,12 +1,12 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_session
 from app.core.security import AccessContext
+from app.models.erp_models import Truck
 from app.models.run_models import RouteStop, SimulationRun
 from app.schemas.enums import SolverMode
 from app.schemas.error_schemas import APIErrorResponse
@@ -30,11 +30,16 @@ _NOT_FOUND_RESPONSE = {"model": APIErrorResponse, "description": "Baseline run w
 
 def _baseline_metrics(session: Session, baseline: SimulationRun) -> BaselineMetrics:
     baseline_id = int(baseline.id or 0)
-    shipped = session.exec(
-        select(func.coalesce(func.sum(RouteStop.shipped_kg), 0.0)).where(
-            RouteStop.run_id == baseline_id
-        )
-    ).one()
+    stops = session.exec(select(RouteStop).where(RouteStop.run_id == baseline_id)).all()
+    shipped_kg = sum(stop.shipped_kg for stop in stops)
+    trucks_used = {stop.truck_id for stop in stops}
+    client_trucks: dict[int, set[int]] = {}
+    for stop in stops:
+        client_trucks.setdefault(stop.client_id, set()).add(stop.truck_id)
+    capacities = session.exec(select(Truck).where(Truck.id.in_(trucks_used))).all()
+    total_capacity_kg = sum(truck.capacity_kg for truck in capacities)
+    load_factor_pct = shipped_kg / total_capacity_kg * 100.0 if total_capacity_kg > 0 else 0.0
+
     return BaselineMetrics(
         total_tco_rub=baseline.total_tco_rub,
         total_trip_cost_rub=baseline.total_trip_cost_rub,
@@ -42,8 +47,11 @@ def _baseline_metrics(session: Session, baseline: SimulationRun) -> BaselineMetr
         total_unmet_penalty_rub=baseline.total_unmet_penalty_rub,
         expected_net_profit_rub=baseline.expected_net_profit_rub,
         avg_freshness_pct=baseline.avg_freshness_pct,
-        shipped_kg=float(shipped or 0.0),
+        shipped_kg=round(shipped_kg, 3),
         unmet_kg=baseline.total_unmet_kg,
+        total_trips=len(trucks_used),
+        avg_load_factor_pct=round(min(100.0, max(0.0, load_factor_pct)), 2),
+        split_clients=sum(1 for truck_ids in client_trucks.values() if len(truck_ids) > 1),
     )
 
 

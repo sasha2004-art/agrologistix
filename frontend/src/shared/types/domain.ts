@@ -201,6 +201,10 @@ export interface Metrics {
   avg_freshness_pct: number
   shipped_kg: number
   unmet_kg: number
+  /** Метрики консолидации рейсов. */
+  total_trips: number
+  avg_load_factor_pct: number
+  split_clients: number
 }
 
 /** solver_schemas.MetricDelta */
@@ -221,6 +225,9 @@ export interface ComparisonDelta {
   avg_freshness_pct: MetricDelta
   shipped_kg: MetricDelta
   unmet_kg: MetricDelta
+  total_trips: MetricDelta
+  avg_load_factor_pct: MetricDelta
+  split_clients: MetricDelta
 }
 
 /** solver_schemas.SolverResponse */

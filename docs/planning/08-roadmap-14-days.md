@@ -92,6 +92,9 @@ Metrics:
   avg_freshness_pct: number
   shipped_kg: number
   unmet_kg: number
+  total_trips: number
+  avg_load_factor_pct: number
+  split_clients: number
 ```
 
 Поля JSON передаются в `snake_case`; на фронтенде типы и адаптеры явно описывают преобразование, если оно понадобится.

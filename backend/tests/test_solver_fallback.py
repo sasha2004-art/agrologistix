@@ -117,6 +117,8 @@ def test_milp_returns_none_without_trucks() -> None:
         origins,
         index,
         1.0,
+        strict_grouping=True,
+        split_penalty_rub=0.0,
     )
 
     assert result is None

@@ -61,6 +61,7 @@ def _collect_metrics(
     routes: list[PlannedRoute],
     allocation: AllocationResult,
     orders: list[SolverOrder],
+    capacity_by_truck: dict[int, float],
 ) -> PlannedMetrics:
     orders_by_id = _orders_by_id(orders)
 
@@ -69,7 +70,12 @@ def _collect_metrics(
     revenue_rub = 0.0
     spoilage_loss_rub = 0.0
     weighted_freshness = 0.0
+    used_capacity_kg = 0.0
+    trucks_used: set[int] = set()
+    client_trucks: dict[int, set[int]] = {}
     for route in routes:
+        trucks_used.add(route.truck_id)
+        used_capacity_kg += capacity_by_truck.get(route.truck_id, 0.0)
         for stop in route.stops:
             order = orders_by_id.get(stop.order_id or -1)
             price = order.price_per_kg if order else 0.0
@@ -77,6 +83,7 @@ def _collect_metrics(
             revenue_rub += stop.shipped_kg * price
             spoilage_loss_rub += stop.shipped_kg * (1.0 - stop.expected_freshness) * price
             weighted_freshness += stop.shipped_kg * stop.expected_freshness
+            client_trucks.setdefault(stop.client_id, set()).add(route.truck_id)
 
     unmet_kg = sum(allocation.unmet.values())
     unmet_penalty_rub = sum(
@@ -86,6 +93,7 @@ def _collect_metrics(
     )
     total_tco_rub = trip_cost + spoilage_loss_rub + unmet_penalty_rub
     avg_freshness_pct = (weighted_freshness / shipped_kg * 100.0) if shipped_kg > 0 else 0.0
+    load_factor_pct = (shipped_kg / used_capacity_kg * 100.0) if used_capacity_kg > 0 else 0.0
 
     return PlannedMetrics(
         total_tco_rub=round(total_tco_rub, 2),
@@ -96,6 +104,9 @@ def _collect_metrics(
         avg_freshness_pct=round(min(100.0, max(0.0, avg_freshness_pct)), 2),
         shipped_kg=round(shipped_kg, 3),
         unmet_kg=round(unmet_kg, 3),
+        total_trips=len(trucks_used),
+        avg_load_factor_pct=round(min(100.0, max(0.0, load_factor_pct)), 2),
+        split_clients=sum(1 for truck_ids in client_trucks.values() if len(truck_ids) > 1),
     )
 
 
@@ -213,6 +224,7 @@ def run_solver(
         active_trucks,
         index,
         time_limit_sec,
+        split_penalty_rub=solver_input.client_split_penalty_rub,
     )
 
     products = {product.product_id: product for product in solver_input.products}
@@ -241,7 +253,12 @@ def run_solver(
             )
         )
 
-    metrics = _collect_metrics(routes, allocation, orders)
+    metrics = _collect_metrics(
+        routes,
+        allocation,
+        orders,
+        {truck.truck_id: truck.capacity_kg for truck in active_trucks},
+    )
     warnings = _collect_warnings(
         solver_input,
         orders,
