@@ -424,7 +424,7 @@ export const useErpStore = defineStore('erp', () => {
       solver.markPlanStale()
       const notice =
         targetStatus === 'in_progress'
-          ? `Добавлено в план: ${done} из ${unique.length}`
+          ? `Взято в работу: ${done} из ${unique.length}`
           : `Отмечено доставленными: ${done} из ${unique.length}`
       notifications.push('success', notice)
     }

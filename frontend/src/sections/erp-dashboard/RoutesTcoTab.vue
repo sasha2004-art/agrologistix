@@ -52,7 +52,7 @@
         :title="planHint"
         @click="addPlanToWork"
       >
-        Добавить в план
+        В работу
       </v-btn>
       <v-chip
         class="soft-chip"
@@ -189,7 +189,7 @@ const planHint = computed(() =>
     : 'Все заказы плана уже в работе',
 )
 
-/** «Добавить в план» — этап «В работе»: один PATCH на заказ, сток списывает backend. */
+/** Кнопка «В работу»: один PATCH на заказ, сток списывает backend. */
 function addPlanToWork(): void {
   void erp.setOrdersStatus(plannedOrderIds.value, 'in_progress')
 }
