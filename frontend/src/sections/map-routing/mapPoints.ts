@@ -33,7 +33,6 @@ export interface MapPointOrder {
   productName: string
   requestedKg: number
   purchasePriceRub: number
-  unmetPenaltyRub: number
   deliveredKg: number
   deliveryStatus: DeliveryStatus
   /** Самый поздний стоп заявки в плане: он же показывается в подробностях. */
@@ -116,7 +115,6 @@ export function buildMapPoints(
         productName: productNames.get(order.product_id) ?? 'Урожай',
         requestedKg: order.requested_kg,
         purchasePriceRub: order.purchase_price_rub,
-        unmetPenaltyRub: order.unmet_penalty_rub,
         deliveredKg: order.delivered_kg,
         deliveryStatus: order.delivery_status,
         plan: latestStop(stops),

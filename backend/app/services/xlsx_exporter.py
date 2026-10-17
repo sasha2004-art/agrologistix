@@ -209,16 +209,28 @@ def _autosize(sheet: Worksheet) -> None:
         sheet.column_dimensions[get_column_letter(column)].width = min(42.0, width + 2.0)
 
 
+def _share_pct(part_kg: float, total_kg: float) -> float:
+    """Share of the ordered volume in percent, ``0`` when there was no demand."""
+
+    return round(part_kg / total_kg * 100.0, 2) if total_kg > 0 else 0.0
+
+
 def _write_summary(sheet: Worksheet, report: ExportRun) -> None:
     run = report.run
+    ordered_kg = run.total_shipped_kg + run.total_unmet_kg
+    # Проценты потерь и недовоза — понятная пользователю замена штрафам:
+    # они выводятся в маршрутном листе, потому что плиток метрик в UI нет.
+    spoilage_pct = max(0.0, 100.0 - run.avg_freshness_pct) if run.total_shipped_kg > 0 else 0.0
     metrics = [
         ("Общие затраты, ₽", run.total_tco_rub),
         ("Затраты на доставку, ₽", run.total_trip_cost_rub),
         ("Потери урожая, ₽", run.total_spoilage_loss_rub),
+        ("Потери урожая, %", round(spoilage_pct, 2)),
         ("Прибыль, ₽", run.expected_net_profit_rub),
         ("Сохранность урожая, %", run.avg_freshness_pct),
         ("Привезли, кг", run.total_shipped_kg),
         ("Не привезли, кг", run.total_unmet_kg),
+        ("Не привезли, %", _share_pct(run.total_unmet_kg, ordered_kg)),
     ]
 
     sheet["A1"] = f"AgroLogistix — маршрутный лист, расчёт №{run.id}"

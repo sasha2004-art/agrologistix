@@ -106,6 +106,22 @@ def test_export_of_run_without_routes_still_returns_workbook(client: TestClient)
     assert baseline["metrics"]["unmet_kg"] > 0
 
 
+def test_summary_exposes_loss_and_unmet_shares(client: TestClient) -> None:
+    baseline = _baseline(client)
+    workbook = load_workbook(BytesIO(_export(client, baseline["run_id"])))
+    summary = workbook[SUMMARY_TITLE]
+
+    values = {row[0].value: row[1].value for row in summary.iter_rows() if row[0].value is not None}
+    metrics = baseline["metrics"]
+    assert values["Потери урожая, %"] == pytest.approx(
+        100.0 - metrics["avg_freshness_pct"], abs=0.05
+    )
+    assert values["Не привезли, %"] == pytest.approx(
+        metrics["unmet_kg"] / (metrics["shipped_kg"] + metrics["unmet_kg"]) * 100.0,
+        abs=0.05,
+    )
+
+
 def test_workbook_can_be_built_without_database_entities() -> None:
     run = SimulationRun(
         id=42,

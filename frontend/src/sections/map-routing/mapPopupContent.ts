@@ -41,7 +41,6 @@ function orderDetailsHtml(order: MapPointOrder): string {
     detailRow('Урожай', escapeHtml(order.productName)),
     detailRow('Заявлено', formatKg(order.requestedKg)),
     detailRow('Цена', `${formatRub(order.purchasePriceRub)} / кг`),
-    detailRow('Штраф за недовоз', `${formatRub(order.unmetPenaltyRub)} / кг`),
     detailRow('Уже доставлено', formatKg(order.deliveredKg)),
     detailRow('Статус', escapeHtml(statusLabel(order.deliveryStatus))),
   ]
