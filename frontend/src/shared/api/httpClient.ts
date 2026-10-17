@@ -186,15 +186,16 @@ export function fetchWeather(accessPin: string): Promise<Loaded<WeatherResponse>
   )
 }
 
-export function overrideWeather(
-  mode: WeatherMode,
-  accessPin: string,
-): Promise<Loaded<WeatherResponse>> {
-  return requestWithFallback<WeatherResponse>(
-    '/weather/override',
-    { method: 'POST', access_pin: accessPin, body: JSON.stringify({ mode }) },
-    () => ({ ...mockData.mockWeather, mode, fetched_at: new Date().toISOString() }),
-  )
+/**
+ * Мутация настроек погоды: без mock-fallback, иначе пресет «сохранится» только
+ * в браузере, а сервер продолжит считать по старому режиму.
+ */
+export function overrideWeather(mode: WeatherMode, accessPin: string): Promise<WeatherResponse> {
+  return request<WeatherResponse>('/weather/override', {
+    method: 'POST',
+    access_pin: accessPin,
+    body: JSON.stringify({ mode }),
+  })
 }
 
 export function optimize(

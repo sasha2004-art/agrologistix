@@ -1,17 +1,16 @@
 <template>
-  <section class="map-panel soft-card" aria-label="Область карты Калужской области">
-    <header class="map-header">
-      <div>
-        <h2 class="map-title">Карта Калужской области</h2>
-        <p class="map-subtitle">
-          Центр — Обнинск, 55.11 / 36.61. Полилинии рейсов появятся после расчёта.
-        </p>
+  <div class="fallback">
+    <div class="fallback-canvas neu-inset">
+      <div class="fallback-grid" aria-hidden="true" />
+      <div class="fallback-content">
+        <v-icon icon="mdi-map-search-outline" size="32" color="primary" />
+        <p class="fallback-title">Карта в режиме схемы</p>
+        <p class="fallback-text">{{ reason }}</p>
       </div>
-      <v-chip class="soft-chip" size="small" prepend-icon="mdi-map-outline">Mapbox · Day 5</v-chip>
-    </header>
+    </div>
 
     <StatePanel
-      class="map-state"
+      class="fallback-points"
       :status="erp.panelStatus"
       :error-text="erp.errorMessage"
       loading-text="Загружаем точки складов и клиентов…"
@@ -19,18 +18,6 @@
       empty-icon="mdi-map-marker-off-outline"
       @retry="reload"
     >
-      <div class="map-canvas neu-inset">
-        <div class="canvas-grid" aria-hidden="true" />
-        <div class="canvas-content">
-          <v-icon icon="mdi-map-search-outline" size="34" color="primary" />
-          <p class="canvas-title">Интерактивная карта подключается на Day 5</p>
-          <p class="canvas-text">
-            Маркеры складов и клиентов, слои маршрутов и попапы по клику. Пока — контрольный список
-            точек с координатами.
-          </p>
-        </div>
-      </div>
-
       <div class="points">
         <div class="points-group">
           <h3 class="points-title">
@@ -70,12 +57,19 @@
         </div>
       </div>
     </StatePanel>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
 import StatePanel from '@/shared/components/StatePanel.vue'
-import { useErpStore } from './useErpStore'
+import { useErpStore } from '@/sections/erp-dashboard/useErpStore'
+
+withDefaults(
+  defineProps<{
+    reason?: string
+  }>(),
+  { reason: 'Показываем контрольный список точек без подложки карты.' },
+)
 
 const erp = useErpStore()
 
@@ -85,51 +79,23 @@ function reload(): void {
 </script>
 
 <style scoped lang="scss">
-.map-panel {
+.fallback {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  padding: 18px;
-  overflow: hidden;
-}
-
-.map-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.map-title {
-  margin: 0;
-  font-size: 18px;
-}
-
-.map-subtitle {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #5b5175;
-}
-
-.map-state {
-  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
 }
 
-.map-canvas {
+.fallback-canvas {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 220px;
+  min-height: 200px;
   padding: 20px;
   overflow: hidden;
 }
 
-.canvas-grid {
+.fallback-grid {
   position: absolute;
   inset: 0;
   background-image:
@@ -139,7 +105,7 @@ function reload(): void {
   pointer-events: none;
 }
 
-.canvas-content {
+.fallback-content {
   position: relative;
   display: grid;
   justify-items: center;
@@ -147,14 +113,14 @@ function reload(): void {
   text-align: center;
 }
 
-.canvas-title {
+.fallback-title {
   margin: 0;
   font-weight: 600;
 }
 
-.canvas-text {
+.fallback-text {
   margin: 0;
-  max-width: 420px;
+  max-width: 460px;
   font-size: 13px;
   color: #5b5175;
 }

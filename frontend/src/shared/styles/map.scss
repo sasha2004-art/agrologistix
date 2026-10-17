@@ -1,0 +1,89 @@
+/*
+ * Глобальные стили карты: маркеры и popup создаются в JS (вне Vue-шаблона),
+ * поэтому scoped-стили к ним не применяются.
+ */
+
+.map-marker {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 4px;
+  background: #6d28d9;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(46, 16, 101, 0.35);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.map-marker .mdi {
+  display: block;
+}
+
+.map-marker:hover,
+.map-marker:focus-visible {
+  transform: translateY(-2px) scale(1.06);
+  box-shadow: 0 8px 18px rgba(46, 16, 101, 0.42);
+}
+
+.map-marker:focus-visible {
+  outline: 2px solid #6d28d9;
+  outline-offset: 3px;
+}
+
+/* Склад — квадратный «хаб», клиент — капля. */
+.map-marker--warehouse {
+  border-radius: 8px;
+  background: #5b21b6;
+}
+
+.map-marker--client {
+  background: #047857;
+}
+
+.map-marker--dirt {
+  background: #b45309;
+}
+
+/* Статус доставки: цветное кольцо + подпись в popup/aria-label. */
+.map-marker--pending {
+  border-color: #f59e0b;
+}
+
+.map-marker--delivered {
+  border-color: #34d399;
+}
+
+.mapboxgl-popup-content {
+  padding: 10px 12px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(46, 16, 101, 0.25);
+  font-family: var(--font-body);
+}
+
+.mapboxgl-popup {
+  z-index: 5;
+}
+
+.map-popup strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: #2e1065;
+}
+
+.map-popup__row {
+  font-size: 12px;
+  color: #5b5175;
+}
+
+.mapboxgl-ctrl-group {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(46, 16, 101, 0.2);
+}
