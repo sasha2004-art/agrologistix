@@ -1,126 +1,271 @@
-"""Input/output contract of the bio-logistics solver engine.
+"""Bio-logistics solver engine: allocation, routing, metrics and warnings.
 
-Day 6 fixes the data contract only. The MILP distribution (SciPy HiGHS),
-capacity and dirt-road constraints, 2-opt stop ordering, ``asyncio.to_thread``
-execution and persistence are implemented on Day 7-8 inside this module.
-
-Input format (:class:`SolverInput`)
------------------------------------
-Everything the engine may read is passed explicitly, so the solver stays pure and
-testable:
-
-* ``products`` — crop spoilage rates ``lambda_p`` and base costs;
-* ``stocks`` — available kilograms per ``(warehouse_id, product_id)`` pair;
-* ``orders`` — pending client demand with price, unmet penalty and road type;
-* ``trucks`` — only ``active`` fleet units with capacity, cruise speed, reefer
-  and dirt road permission;
-* ``legs`` — distance, base duration and geometry per ordered coordinate pair
-  (from ``app.services.distance_matrix``);
-* ``weather`` — temperature and precipitation used by ``app.services.freshness_math``;
-* ``frozen_order_ids`` — orders already marked ``delivered``; they are never
-  reassigned, but their shipments stay in the "before" side of a comparison.
-
-Output format
--------------
-The engine returns ``app.schemas.solver_schemas.SolverResponse`` (converted from
-internal dataclasses by the API layer):
-
-* ``routes[]`` — one entry per truck with ``truck_id``, ``warehouse_id``,
-  ordered ``stops[]`` (``order_id``, ``client_id``, ``product_id``,
-  ``sequence_order``, ``shipped_kg``, ``distance_km``, ``eta_minutes``,
-  ``expected_freshness``, ``trip_leg_cost_rub``), total distance/duration/cost
-  and a ``geometry`` polyline of ``(lat, lon)`` points;
-* ``metrics`` — TCO parts (trip cost, spoilage loss, unmet penalty), expected
-  net profit, average freshness percentage, shipped and unmet kilograms;
-* ``warnings[]`` — structured warnings such as an unreachable dirt road client
-  (``code``, ``message``, ``severity``, ``client_id``, ``order_id``);
-* ``comparison`` — optional ``ComparisonDelta`` against ``baseline_run_id``.
-
-Hard constraints encoded in the contract:
-
-1. a truck with ``can_use_dirt = False`` is never assigned to an order with
-   ``road_type = 'dirt'``;
-2. the sum of ``shipped_kg`` in one route never exceeds ``capacity_kg``;
-3. shipments of product ``p`` from warehouse ``w`` never exceed stock;
-4. frozen (``delivered``) orders are never reassigned;
-5. every scenario stays feasible: unmet demand is a slack variable with
-   ``penalty_per_kg``.
+``run_solver`` is a pure synchronous function so the whole plan can be computed
+outside the event loop; :func:`solve_async` wraps it with ``asyncio.to_thread``
+for FastAPI endpoints. The HiGHS time limit is bounded by the caller
+(``SOLVER_TIME_LIMIT_SEC``) and the greedy fallback keeps the engine alive even
+when the MILP hits that limit.
 """
 
-from dataclasses import dataclass, field
+import asyncio
+from time import perf_counter
 
-from app.schemas.enums import RoadType
+from app.schemas.enums import TruckStatus, WarningSeverity
+from app.services.solver_allocation import AllocationResult, allocate_loads
+from app.services.solver_contract import (
+    PlannedMetrics,
+    PlannedRoute,
+    PlannedStop,
+    PlannedWarning,
+    SolverInput,
+    SolverLeg,
+    SolverOrder,
+    SolverOutcome,
+    SolverProduct,
+    SolverStock,
+    SolverTruck,
+    SolverWarehouse,
+    SolverWeather,
+    truck_can_serve_order,
+)
+from app.services.solver_routing import LegIndex, LoadedOrder, RouteBuildContext, build_route
 
+__all__ = [
+    "PlannedMetrics",
+    "PlannedRoute",
+    "PlannedStop",
+    "PlannedWarning",
+    "SolverInput",
+    "SolverLeg",
+    "SolverOrder",
+    "SolverOutcome",
+    "SolverProduct",
+    "SolverStock",
+    "SolverTruck",
+    "SolverWarehouse",
+    "SolverWeather",
+    "run_solver",
+    "solve_async",
+    "truck_can_serve_order",
+]
 
-@dataclass(frozen=True, slots=True)
-class SolverProduct:
-    product_id: int
-    spoilage_rate: float
-    base_cost_rub: float
-
-
-@dataclass(frozen=True, slots=True)
-class SolverStock:
-    warehouse_id: int
-    product_id: int
-    available_kg: float
-
-
-@dataclass(frozen=True, slots=True)
-class SolverOrder:
-    order_id: int
-    client_id: int
-    product_id: int
-    requested_kg: float
-    price_per_kg: float
-    penalty_per_kg: float
-    road_type: RoadType
-    latitude: float
-    longitude: float
-
-
-@dataclass(frozen=True, slots=True)
-class SolverTruck:
-    truck_id: int
-    name: str
-    warehouse_id: int
-    capacity_kg: float
-    cruise_speed_kmh: float
-    cost_per_km_rub: float
-    fixed_trip_cost_rub: float
-    has_reefer: bool
-    can_use_dirt: bool
-
-
-@dataclass(frozen=True, slots=True)
-class SolverLeg:
-    """Distance and geometry of one ordered coordinate pair."""
-
-    origin: tuple[float, float]
-    destination: tuple[float, float]
-    distance_km: float
-    base_duration_min: float
+DEFAULT_SOLVER_TIME_LIMIT_SEC = 1.0
+HEAT_THRESHOLD_C = 22.0
 
 
-@dataclass(frozen=True, slots=True)
-class SolverWeather:
-    temperature_c: float
-    precipitation_mm: float
-    mode: str
+def _orders_by_id(orders: list[SolverOrder]) -> dict[int, SolverOrder]:
+    return {order.order_id: order for order in orders}
 
 
-@dataclass(frozen=True, slots=True)
-class SolverInput:
-    products: tuple[SolverProduct, ...]
-    stocks: tuple[SolverStock, ...]
-    orders: tuple[SolverOrder, ...]
-    trucks: tuple[SolverTruck, ...]
-    legs: tuple[SolverLeg, ...]
-    weather: SolverWeather
-    frozen_order_ids: tuple[int, ...] = field(default_factory=tuple)
+def _collect_metrics(
+    routes: list[PlannedRoute],
+    allocation: AllocationResult,
+    orders: list[SolverOrder],
+) -> PlannedMetrics:
+    orders_by_id = _orders_by_id(orders)
+
+    trip_cost = sum(route.total_cost_rub for route in routes)
+    shipped_kg = 0.0
+    revenue_rub = 0.0
+    spoilage_loss_rub = 0.0
+    weighted_freshness = 0.0
+    for route in routes:
+        for stop in route.stops:
+            order = orders_by_id.get(stop.order_id or -1)
+            price = order.price_per_kg if order else 0.0
+            shipped_kg += stop.shipped_kg
+            revenue_rub += stop.shipped_kg * price
+            spoilage_loss_rub += stop.shipped_kg * (1.0 - stop.expected_freshness) * price
+            weighted_freshness += stop.shipped_kg * stop.expected_freshness
+
+    unmet_kg = sum(allocation.unmet.values())
+    unmet_penalty_rub = sum(
+        kilograms * orders_by_id[order_id].penalty_per_kg
+        for order_id, kilograms in allocation.unmet.items()
+        if order_id in orders_by_id
+    )
+    total_tco_rub = trip_cost + spoilage_loss_rub + unmet_penalty_rub
+    avg_freshness_pct = (weighted_freshness / shipped_kg * 100.0) if shipped_kg > 0 else 0.0
+
+    return PlannedMetrics(
+        total_tco_rub=round(total_tco_rub, 2),
+        total_trip_cost_rub=round(trip_cost, 2),
+        total_spoilage_loss_rub=round(spoilage_loss_rub, 2),
+        total_unmet_penalty_rub=round(unmet_penalty_rub, 2),
+        expected_net_profit_rub=round(revenue_rub - total_tco_rub, 2),
+        avg_freshness_pct=round(min(100.0, max(0.0, avg_freshness_pct)), 2),
+        shipped_kg=round(shipped_kg, 3),
+        unmet_kg=round(unmet_kg, 3),
+    )
 
 
-def truck_can_serve_order(truck: SolverTruck, order: SolverOrder) -> bool:
-    """Hard constraint 1: a heavy truck never enters a dirt road approach."""
+def _collect_warnings(
+    solver_input: SolverInput,
+    orders: list[SolverOrder],
+    allocation: AllocationResult,
+    routes: list[PlannedRoute],
+    active_trucks: list[SolverTruck],
+    metrics: PlannedMetrics,
+) -> list[PlannedWarning]:
+    warnings: list[PlannedWarning] = []
+    orders_by_id = _orders_by_id(orders)
 
-    return order.road_type is not RoadType.DIRT or truck.can_use_dirt
+    broken_count = len(solver_input.trucks) - len(active_trucks)
+    if broken_count > 0:
+        warnings.append(
+            PlannedWarning(
+                code="broken_trucks_excluded",
+                message=f"Сломанные машины исключены из расчёта: {broken_count}",
+                severity=WarningSeverity.INFO.value,
+            )
+        )
+
+    if not active_trucks and orders:
+        warnings.append(
+            PlannedWarning(
+                code="no_active_trucks",
+                message="Нет ни одной машины в строю: весь объём уходит в недовоз",
+                severity=WarningSeverity.ERROR.value,
+            )
+        )
+
+    requested_kg = sum(order.requested_kg for order in orders)
+    if metrics.unmet_kg > 0:
+        ratio = metrics.unmet_kg / requested_kg if requested_kg > 0 else 1.0
+        severity = WarningSeverity.ERROR.value if ratio >= 0.5 else WarningSeverity.WARNING.value
+        warnings.append(
+            PlannedWarning(
+                code="unmet_demand",
+                message=(
+                    f"Недовоз {metrics.unmet_kg:.0f} кг: не хватает транспорта, "
+                    f"остатков или подходящих машин"
+                ),
+                severity=severity,
+            )
+        )
+
+    for order_id in sorted(allocation.unreachable_order_ids):
+        order = orders_by_id.get(order_id)
+        if order is None:
+            continue
+        warnings.append(
+            PlannedWarning(
+                code="dirt_unreachable",
+                message=("Точка недоступна: требуется транспорт с допуском к грунтовым дорогам"),
+                severity=WarningSeverity.ERROR.value,
+                client_id=order.client_id,
+                order_id=order.order_id,
+            )
+        )
+
+    if solver_input.weather.temperature_c > HEAT_THRESHOLD_C:
+        unrefrigerated = {truck.truck_id for truck in active_trucks if not truck.has_reefer}
+        heat_risk = [route for route in routes if route.truck_id in unrefrigerated and route.stops]
+        if heat_risk:
+            warnings.append(
+                PlannedWarning(
+                    code="heat_without_reefer",
+                    message=(
+                        f"Жара +{solver_input.weather.temperature_c:.0f} °C: "
+                        f"{len(heat_risk)} рейс(а) без рефрижератора, груз портится быстрее"
+                    ),
+                    severity=WarningSeverity.WARNING.value,
+                )
+            )
+
+    products = {product.product_id: product for product in solver_input.products}
+    stock_by_product: dict[int, float] = {}
+    for stock in solver_input.stocks:
+        stock_by_product[stock.product_id] = (
+            stock_by_product.get(stock.product_id, 0.0) + stock.available_kg
+        )
+    for product_id, product in products.items():
+        requested = sum(order.requested_kg for order in orders if order.product_id == product_id)
+        if requested > 0 and stock_by_product.get(product_id, 0.0) < requested:
+            warnings.append(
+                PlannedWarning(
+                    code="stock_shortage",
+                    message=(
+                        f"Остатков «{product.name or product.product_id}» не хватает: "
+                        f"запрошено {requested:.0f} кг, на складах "
+                        f"{stock_by_product.get(product_id, 0.0):.0f} кг"
+                    ),
+                    severity=WarningSeverity.WARNING.value,
+                )
+            )
+
+    return warnings
+
+
+def run_solver(
+    solver_input: SolverInput,
+    time_limit_sec: float = DEFAULT_SOLVER_TIME_LIMIT_SEC,
+) -> SolverOutcome:
+    """Build a plan: allocate loads, order stops, compute metrics and warnings."""
+
+    started = perf_counter()
+    active_trucks = [truck for truck in solver_input.trucks if truck.status is TruckStatus.ACTIVE]
+    frozen = set(solver_input.frozen_order_ids)
+    orders = [order for order in solver_input.orders if order.order_id not in frozen]
+
+    index = LegIndex(solver_input.legs)
+    allocation = allocate_loads(
+        solver_input,
+        orders,
+        active_trucks,
+        index,
+        time_limit_sec,
+    )
+
+    products = {product.product_id: product for product in solver_input.products}
+    stocks = {(stock.warehouse_id, stock.product_id): stock for stock in solver_input.stocks}
+    warehouses = {warehouse.warehouse_id: warehouse for warehouse in solver_input.warehouses}
+
+    routes: list[PlannedRoute] = []
+    for truck_load in allocation.truck_loads:
+        warehouse = warehouses.get(truck_load.truck.warehouse_id)
+        if warehouse is None:
+            continue
+        routes.append(
+            build_route(
+                RouteBuildContext(
+                    truck=truck_load.truck,
+                    warehouse=warehouse,
+                    loads=tuple(
+                        LoadedOrder(order=order, shipped_kg=kilograms)
+                        for order, kilograms in truck_load.loads
+                    ),
+                    products=products,
+                    stocks=stocks,
+                    weather=solver_input.weather,
+                    index=index,
+                )
+            )
+        )
+
+    metrics = _collect_metrics(routes, allocation, orders)
+    warnings = _collect_warnings(
+        solver_input,
+        orders,
+        allocation,
+        routes,
+        active_trucks,
+        metrics,
+    )
+
+    return SolverOutcome(
+        routes=tuple(routes),
+        metrics=metrics,
+        warnings=tuple(warnings),
+        allocation_method=allocation.method,
+        elapsed_ms=round((perf_counter() - started) * 1000.0, 2),
+    )
+
+
+async def solve_async(
+    solver_input: SolverInput,
+    time_limit_sec: float = DEFAULT_SOLVER_TIME_LIMIT_SEC,
+) -> SolverOutcome:
+    """Run the CPU-bound solver outside the FastAPI event loop."""
+
+    return await asyncio.to_thread(run_solver, solver_input, time_limit_sec)
