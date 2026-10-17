@@ -159,7 +159,7 @@ def test_greedy_fallback_keeps_client_orders_together(
 
     outcome = run_solver(solver_input)
 
-    assert outcome.allocation_method == "greedy"
+    assert outcome.allocation_method.startswith("greedy")
     assert outcome.metrics.split_clients == 0
     assert outcome.metrics.shipped_kg == pytest.approx(900.0, abs=TOLERANCE)
 

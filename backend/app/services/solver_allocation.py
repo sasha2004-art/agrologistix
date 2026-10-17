@@ -239,17 +239,23 @@ def _milp_allocate(
         row_upper.append(0.0)
 
     product_ids = sorted({order.product_id for order in orders})
-    for truck_position, truck in enumerate(trucks):
+    # Warehouse stock is a shared resource: two trucks of the same base must not
+    # each take the full available weight. The row is built per warehouse and
+    # product, so the sum over all its trucks stays within ``available_kg``.
+    warehouse_ids = sorted({truck.warehouse_id for truck in trucks})
+    for warehouse_id in warehouse_ids:
         for product_id in product_ids:
-            stock = stocks.get((truck.warehouse_id, product_id))
+            stock = stocks.get((warehouse_id, product_id))
             row = np.zeros(variable_count)
-            for order_position, order in enumerate(orders):
-                if order.product_id == product_id:
-                    row[x_index(truck_position, order_position)] = 1.0
-            row[y_index(truck_position)] = -(stock.available_kg if stock else 0.0)
+            for truck_position, truck in enumerate(trucks):
+                if truck.warehouse_id != warehouse_id:
+                    continue
+                for order_position, order in enumerate(orders):
+                    if order.product_id == product_id:
+                        row[x_index(truck_position, order_position)] = 1.0
             rows.append(row)
             row_lower.append(-np.inf)
-            row_upper.append(0.0)
+            row_upper.append(stock.available_kg if stock else 0.0)
 
     # A truck only carries an order when it is allowed to serve that client.
     for order_position, order in enumerate(orders):

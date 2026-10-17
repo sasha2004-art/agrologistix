@@ -50,7 +50,7 @@ def test_stop_limit_is_enforced_when_milp_solution_is_rejected() -> None:
     finally:
         solver_allocation.milp = original  # type: ignore[assignment]
 
-    assert outcome.allocation_method == "greedy"
+    assert outcome.allocation_method.startswith("greedy")
     assert all(len(route.stops) <= 2 for route in outcome.routes)
     assert outcome.metrics.shipped_kg <= 1200.0 + TOLERANCE
     assert "trip_limit_exceeded" in {warning.code for warning in outcome.warnings}

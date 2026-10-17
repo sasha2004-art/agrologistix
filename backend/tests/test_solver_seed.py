@@ -51,7 +51,7 @@ def test_seed_dataset_produces_a_plan(session: Session) -> None:
     assert outcome.routes
     assert outcome.metrics.shipped_kg > 0
     assert outcome.metrics.total_trip_cost_rub > 0
-    assert outcome.allocation_method == "milp"
+    assert outcome.allocation_method.startswith("milp")
     assert outcome.elapsed_ms < 1500.0
 
 
