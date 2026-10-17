@@ -8,6 +8,7 @@ from sqlmodel import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.auth_router import router as auth_router
+from app.api.v1.erp_create_router import router as erp_create_router
 from app.api.v1.erp_router import router as erp_router, system_router
 from app.api.v1.export_router import router as export_router
 from app.api.v1.health_router import router as health_router
@@ -55,6 +56,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api_router.include_router(auth_router)
     api_router.include_router(health_router)
     api_router.include_router(erp_router)
+    api_router.include_router(erp_create_router)
     api_router.include_router(system_router)
     api_router.include_router(weather_router)
     api_router.include_router(solver_router)

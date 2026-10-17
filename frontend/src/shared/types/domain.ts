@@ -129,6 +129,58 @@ export interface TruckPatch {
   status: TruckStatus
 }
 
+/* --- Ручное создание справочников (erp_create_schemas) --- */
+
+/** erp_create_schemas.ProductCreate */
+export interface ProductCreate {
+  code: string
+  name: string
+  base_spoilage_rate: number
+  optimal_temp_c: number
+  base_cost_rub: number
+}
+
+/** erp_create_schemas.ClientCreate */
+export interface ClientCreate {
+  name: string
+  lat: number
+  lon: number
+  road_type: RoadType
+  address?: string
+}
+
+/** erp_create_schemas.TruckCreate */
+export interface TruckCreate {
+  name: string
+  plate_number: string
+  warehouse_id: number
+  capacity_kg: number
+  cruise_speed_kmh: number
+  cost_per_km_rub: number
+  fixed_trip_cost_rub: number
+  has_reefer?: boolean
+  has_insulation?: boolean
+  can_use_dirt?: boolean
+  status?: TruckStatus
+}
+
+/** erp_create_schemas.ClientOrderCreate */
+export interface ClientOrderCreate {
+  client_id: number
+  product_id: number
+  requested_kg: number
+  purchase_price_rub: number
+  unmet_penalty_rub?: number
+}
+
+/** erp_create_schemas.WarehouseStockCreate */
+export interface WarehouseStockCreate {
+  warehouse_id: number
+  product_id: number
+  available_kg: number
+  initial_freshness?: number
+}
+
 /** erp_schemas.WarehouseStockPatch */
 export interface WarehouseStockPatch {
   available_kg: number

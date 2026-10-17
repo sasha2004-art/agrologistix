@@ -25,6 +25,7 @@
       <v-tabs v-model="tab" density="comfortable" show-arrows class="dash-tabs">
         <v-tab value="erp">Заказы</v-tab>
         <v-tab value="fleet">Машины и склады</v-tab>
+        <v-tab value="products">Товары</v-tab>
         <v-tab value="routes">Расчёт</v-tab>
       </v-tabs>
 
@@ -38,6 +39,9 @@
             <v-divider class="my-4" />
             <WarehousesStockTab />
           </div>
+        </v-window-item>
+        <v-window-item value="products">
+          <div class="tab-scroll"><ProductsTab /></div>
         </v-window-item>
         <v-window-item value="routes">
           <div class="tab-scroll"><RoutesTcoTab /></div>
@@ -59,6 +63,7 @@ import ClientsOrdersTab from './ClientsOrdersTab.vue'
 import FleetTrucksTab from './FleetTrucksTab.vue'
 import KalugaMapCanvas from '@/sections/map-routing/KalugaMapCanvas.vue'
 import WeatherControlBar from './WeatherControlBar.vue'
+import ProductsTab from './ProductsTab.vue'
 import RoutesTcoTab from './RoutesTcoTab.vue'
 import WarehousesStockTab from './WarehousesStockTab.vue'
 import { useAssignmentStore } from './useAssignmentStore'
