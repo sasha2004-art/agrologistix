@@ -116,7 +116,7 @@ STAND_ACCOUNT_SEED: tuple[dict[str, str], ...] = (
         "name": "Логист смены №7",
         "role": AuthRole.DISPATCHER.value,
         "pin": "445566",
-        "profile": "peak",
+        "profile": "base",
     },
     {
         "id": "dispatcher-8",
@@ -124,7 +124,7 @@ STAND_ACCOUNT_SEED: tuple[dict[str, str], ...] = (
         "name": "Логист смены №8",
         "role": AuthRole.DISPATCHER.value,
         "pin": "778899",
-        "profile": "heat",
+        "profile": "base",
     },
     {
         "id": "dispatcher-9",
@@ -132,7 +132,7 @@ STAND_ACCOUNT_SEED: tuple[dict[str, str], ...] = (
         "name": "Логист смены №9",
         "role": AuthRole.DISPATCHER.value,
         "pin": "334455",
-        "profile": "rain",
+        "profile": "base",
     },
     {
         "id": "dispatcher-10",
@@ -140,7 +140,7 @@ STAND_ACCOUNT_SEED: tuple[dict[str, str], ...] = (
         "name": "Логист смены №10",
         "role": AuthRole.DISPATCHER.value,
         "pin": "667788",
-        "profile": "scarce",
+        "profile": "base",
     },
     {
         "id": "dispatcher-11",

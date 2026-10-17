@@ -4,16 +4,27 @@ from functools import lru_cache
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.accounts import (
+    DEVELOPMENT_PINS,
+    AccessAccount,
+    AccountsMixin,
+    build_default_accounts,
+    database_path_for,
+    parse_accounts,
+    validate_accounts,
+)
+
 logger = logging.getLogger(__name__)
 
-# Development PINs that must be rotated before a public deployment.
-DEVELOPMENT_PINS = frozenset({"202601", "999999"})
 
-
-class Settings(BaseSettings):
+class Settings(AccountsMixin, BaseSettings):
     app_env: str = "development"
     user_access_pin: SecretStr = Field(default=SecretStr("202601"), repr=False)
     admin_access_pin: SecretStr = Field(default=SecretStr("999999"), repr=False)
+    # Optional JSON array that fully replaces the built-in six demo accounts
+    # (docs/ARCHITECTURE.md, §4). Empty means the documented default set.
+    access_accounts_json: str = ""
+    access_accounts: list[AccessAccount] = Field(default_factory=list)
     sqlite_db_path: str = "./data/app.db"
     external_api_timeout_sec: float = Field(default=1.5, gt=0.0)
     # Mapbox строит матрицу по одному запросу на пару точек: 1.5 с хватает погоде,
@@ -62,16 +73,33 @@ class Settings(BaseSettings):
     def validate_access_pins(self) -> "Settings":
         user_pin = self.user_access_pin.get_secret_value()
         admin_pin = self.admin_access_pin.get_secret_value()
-        if user_pin == admin_pin:
+        custom_accounts = self.access_accounts_json.strip()
+        if user_pin == admin_pin and not custom_accounts:
             raise ValueError("user and admin access PINs must be different")
+
+        accounts = (
+            parse_accounts(custom_accounts)
+            if custom_accounts
+            else build_default_accounts(user_pin, admin_pin)
+        )
+        self.access_accounts = validate_accounts(accounts)
+
         if self.app_env.lower() == "production":
-            if not {"user_access_pin", "admin_access_pin"}.issubset(self.model_fields_set):
+            explicit_primary = {"user_access_pin", "admin_access_pin"}.issubset(
+                self.model_fields_set
+            )
+            if not explicit_primary and not custom_accounts:
                 raise ValueError("production requires explicit user and admin access PINs")
-            if {user_pin, admin_pin} & DEVELOPMENT_PINS:
+            if {account.pin_value for account in self.access_accounts} & DEVELOPMENT_PINS:
                 logger.warning(
                     "production uses the development access PINs: rotate them for a public demo"
                 )
         return self
+
+    def database_path_for(self, account: AccessAccount) -> str:
+        """SQLite file of one account: the main file or a per-stand sibling."""
+
+        return database_path_for(self.sqlite_db_path, account)
 
     @property
     def cors_origins(self) -> list[str]:
