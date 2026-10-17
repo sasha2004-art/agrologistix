@@ -2,7 +2,7 @@
 
 The active preset (``normal`` / ``heatwave_35c`` / ``heavy_rain``) is persisted in
 SQLite via :class:`WeatherOverrideState`, so the backend keeps a single source of
-truth for what-if scenarios. Live Open-Meteo data is requested only in ``normal``
+truth for the manual weather preset. Live Open-Meteo data is requested only in ``normal``
 mode; the result (or the fallback) is cached in memory for the configured TTL to
 keep the solver response below the two-second budget when the network is down.
 """

@@ -103,7 +103,7 @@ def _assert_plan_invariants(state: dict, payload: dict) -> None:
 def test_plan_invariants_hold_for_every_weather_preset(client: TestClient, mode: str) -> None:
     assert client.post(WEATHER_URL, headers=AUTH, json={"mode": mode}).status_code == 200
 
-    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
     assert payload["metrics"]["shipped_kg"] > 0.0
     _assert_plan_invariants(_state(client), payload)
@@ -113,7 +113,7 @@ def test_invariants_hold_without_reefers_in_the_heat(client: TestClient) -> None
     client.post(WEATHER_URL, headers=AUTH, json={"mode": "heatwave_35c"})
     _break_reefers(client)
 
-    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
     _assert_plan_invariants(_state(client), payload)
     assert "heat_without_reefer" in {warning["code"] for warning in payload["warnings"]}
@@ -124,7 +124,7 @@ def test_invariants_hold_with_a_partially_broken_fleet(client: TestClient) -> No
         client.patch(f"{TRUCKS_URL}/1", headers=AUTH, json={"status": "broken"}).status_code == 200
     )
 
-    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
     _assert_plan_invariants(_state(client), payload)
     assert 1 not in {route["truck_id"] for route in payload["routes"]}
@@ -134,7 +134,7 @@ def test_invariants_hold_with_a_partially_broken_fleet(client: TestClient) -> No
 def test_everything_unmet_without_trucks(client: TestClient) -> None:
     _break_everything(client)
 
-    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
     state = _state(client)
 
     assert payload["routes"] == []
@@ -147,8 +147,8 @@ def test_everything_unmet_without_trucks(client: TestClient) -> None:
 
 
 def test_repeated_calculation_is_deterministic(client: TestClient) -> None:
-    first = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
-    second = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    first = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
+    second = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
     assert second["run_id"] > first["run_id"]
     assert second["metrics"] == first["metrics"]

@@ -1,6 +1,6 @@
 import pytest
 from app.schemas import AuthResponse, SolverRequest
-from app.schemas.enums import AuthRole, SolverMode, WeatherMode
+from app.schemas.enums import AuthRole, WeatherMode
 from pydantic import ValidationError
 
 
@@ -12,12 +12,10 @@ def test_auth_role_matches_admin_flag() -> None:
         AuthResponse(role=AuthRole.ADMIN, is_admin=False)
 
 
-def test_what_if_requires_baseline_run() -> None:
-    with pytest.raises(ValidationError):
-        SolverRequest(mode=SolverMode.WHAT_IF)
+def test_optimize_request_carries_no_scenario_switch() -> None:
+    request = SolverRequest()
 
-    request = SolverRequest(mode=SolverMode.WHAT_IF, baseline_run_id=1)
-    assert request.baseline_run_id == 1
+    assert request.model_dump() == {}
 
 
 def test_contract_enum_values_are_stable() -> None:
@@ -26,4 +24,3 @@ def test_contract_enum_values_are_stable() -> None:
         "heatwave_35c",
         "heavy_rain",
     ]
-    assert [mode.value for mode in SolverMode] == ["baseline", "what_if"]

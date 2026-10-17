@@ -1,4 +1,4 @@
-"""XLSX export tests: workbook structure, what-if delta and error handling."""
+"""XLSX export tests: workbook structure, stored runs and error handling."""
 
 from datetime import UTC, datetime
 from io import BytesIO
@@ -29,7 +29,7 @@ def _database_session(client: TestClient) -> Session:
 
 
 def _baseline(client: TestClient) -> dict:
-    response = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"})
+    response = client.post(OPTIMIZE_URL, headers=AUTH, json={})
     assert response.status_code == 200
     return response.json()
 
@@ -88,23 +88,6 @@ def test_export_route_sheet_matches_planned_stops(client: TestClient) -> None:
     )
     etas = [row[6] for row in rows]
     assert etas == sorted(etas)
-
-
-def test_export_of_what_if_run_includes_comparison_columns(client: TestClient) -> None:
-    baseline = _baseline(client)
-    what_if = client.post(
-        OPTIMIZE_URL,
-        headers=AUTH,
-        json={"mode": "what_if", "baseline_run_id": baseline["run_id"]},
-    ).json()
-
-    workbook = load_workbook(BytesIO(_export(client, what_if["run_id"])))
-    summary = workbook[SUMMARY_TITLE]
-    values = [cell.value for row in summary.iter_rows() for cell in row]
-
-    assert "Что, если" in values
-    assert f"Было (№{baseline['run_id']})" in values
-    assert "Δ" in values
 
 
 def test_export_of_run_without_routes_still_returns_workbook(client: TestClient) -> None:

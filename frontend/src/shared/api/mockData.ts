@@ -266,9 +266,7 @@ export const mockMetrics: Metrics = {
 
 export const mockSolverResponse: SolverResponse = {
   run_id: 1,
-  parent_run_id: null,
   metrics: mockMetrics,
   warnings: [],
-  comparison: null,
   routes: [],
 }

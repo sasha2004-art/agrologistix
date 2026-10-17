@@ -18,20 +18,18 @@ def _database_session(client: TestClient) -> Session:
 
 
 def test_optimize_requires_access_pin(client: TestClient) -> None:
-    response = client.post(OPTIMIZE_URL, json={"mode": "baseline"})
+    response = client.post(OPTIMIZE_URL, json={})
 
     assert response.status_code == 401
     assert response.json()["code"] == "unauthorized"
 
 
 def test_baseline_returns_full_plan_and_metrics(client: TestClient) -> None:
-    response = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"})
+    response = client.post(OPTIMIZE_URL, headers=AUTH, json={})
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["run_id"] >= 1
-    assert payload["parent_run_id"] is None
-    assert payload["comparison"] is None
     assert payload["routes"]
     assert payload["metrics"]["shipped_kg"] > 0
     assert payload["metrics"]["unmet_kg"] == 0
@@ -50,7 +48,7 @@ def test_metrics_are_consistent(client: TestClient) -> None:
     metrics = client.post(
         OPTIMIZE_URL,
         headers=AUTH,
-        json={"mode": "baseline"},
+        json={},
     ).json()["metrics"]
 
     assert metrics["total_tco_rub"] == pytest.approx(
@@ -63,7 +61,7 @@ def test_metrics_are_consistent(client: TestClient) -> None:
 
 
 def test_baseline_is_persisted_with_route_stops(client: TestClient) -> None:
-    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
     with _database_session(client) as session:
         run = session.get(SimulationRun, payload["run_id"])
@@ -79,8 +77,8 @@ def test_baseline_is_persisted_with_route_stops(client: TestClient) -> None:
 
 
 def test_repeated_calculation_creates_a_new_run(client: TestClient) -> None:
-    first = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
-    second = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    first = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
+    second = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
     with _database_session(client) as session:
         runs = session.exec(select(SimulationRun)).all()
@@ -91,7 +89,7 @@ def test_repeated_calculation_creates_a_new_run(client: TestClient) -> None:
 
 def test_optimize_completes_within_the_budget(client: TestClient) -> None:
     started = perf_counter()
-    response = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"})
+    response = client.post(OPTIMIZE_URL, headers=AUTH, json={})
     elapsed = perf_counter() - started
 
     assert response.status_code == 200
@@ -105,7 +103,7 @@ def test_weather_override_is_persisted_in_the_run(client: TestClient) -> None:
         json={"mode": "heatwave_35c"},
     )
 
-    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
     with _database_session(client) as session:
         run = session.get(SimulationRun, payload["run_id"])
@@ -128,7 +126,7 @@ def test_heat_without_reefer_warning_reaches_the_api(client: TestClient) -> None
         headers=AUTH,
         json={"mode": "heatwave_35c"},
     )
-    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
     codes = {warning["code"] for warning in payload["warnings"]}
     assert {"heat_without_reefer", "broken_trucks_excluded"} <= codes
@@ -141,7 +139,7 @@ def test_no_active_trucks_returns_unmet_demand(client: TestClient) -> None:
             session.add(truck)
         session.commit()
 
-    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
     assert payload["routes"] == []
     assert payload["metrics"]["shipped_kg"] == 0
@@ -156,42 +154,20 @@ def test_delivered_order_is_not_reassigned(client: TestClient) -> None:
         json={"delivery_status": "delivered"},
     )
 
-    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    payload = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
     shipped_order_ids = {stop["order_id"] for route in payload["routes"] for stop in route["stops"]}
 
     assert 1 not in shipped_order_ids
 
 
-def test_what_if_with_unknown_baseline_returns_404(client: TestClient) -> None:
-    response = client.post(
-        OPTIMIZE_URL,
-        headers=AUTH,
-        json={"mode": "what_if", "baseline_run_id": 9999},
-    )
-
-    assert response.status_code == 404
-    assert response.json() == {
-        "code": "not_found",
-        "detail": "Simulation run with id 9999 was not found",
-    }
-
-
-def test_what_if_requires_baseline_run_id(client: TestClient) -> None:
-    response = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "what_if"})
-
-    assert response.status_code == 422
-    assert response.json()["code"] == "validation_error"
-
-
 def test_request_body_is_validated(client: TestClient) -> None:
-    missing_mode = client.post(OPTIMIZE_URL, headers=AUTH, json={})
+    ok = client.post(OPTIMIZE_URL, headers=AUTH, json={})
     unknown_field = client.post(
         OPTIMIZE_URL,
         headers=AUTH,
-        json={"mode": "baseline", "trucks": []},
+        json={"trucks": []},
     )
 
-    assert missing_mode.status_code == 422
-    assert "mode" in missing_mode.json()["fields"]
+    assert ok.status_code == 200
     assert unknown_field.status_code == 422
     assert unknown_field.json()["code"] == "validation_error"

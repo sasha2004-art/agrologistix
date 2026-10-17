@@ -11,7 +11,6 @@ export type DeliveryStatus = 'pending' | 'delivered'
 export type TruckStatus = 'active' | 'broken'
 export type StopStatus = 'planned' | 'delivered'
 export type WeatherMode = 'normal' | 'heatwave_35c' | 'heavy_rain'
-export type SolverMode = 'baseline' | 'what_if'
 export type WarningSeverity = 'info' | 'warning' | 'error'
 
 /** auth_schemas.AuthResponse */
@@ -142,12 +141,6 @@ export interface WeatherResponse {
   fetched_at: string
 }
 
-/** solver_schemas.SolverRequest */
-export interface SolverRequest {
-  mode: SolverMode
-  baseline_run_id?: number
-}
-
 /** solver_schemas.SolverWarning */
 export interface SolverWarning {
   code: string
@@ -207,37 +200,12 @@ export interface Metrics {
   split_clients: number
 }
 
-/** solver_schemas.MetricDelta */
-export interface MetricDelta {
-  before: number
-  after: number
-  delta: number
-  delta_pct: number | null
-}
-
-/** solver_schemas.ComparisonDelta */
-export interface ComparisonDelta {
-  total_tco_rub: MetricDelta
-  total_trip_cost_rub: MetricDelta
-  total_spoilage_loss_rub: MetricDelta
-  total_unmet_penalty_rub: MetricDelta
-  expected_net_profit_rub: MetricDelta
-  avg_freshness_pct: MetricDelta
-  shipped_kg: MetricDelta
-  unmet_kg: MetricDelta
-  total_trips: MetricDelta
-  avg_load_factor_pct: MetricDelta
-  split_clients: MetricDelta
-}
-
-/** solver_schemas.SolverResponse */
+/** solver_schemas.SolverResponse — план строится по актуальному состоянию ERP. */
 export interface SolverResponse {
   run_id: number
-  parent_run_id?: number | null
   routes: Route[]
   metrics: Metrics
   warnings: SolverWarning[]
-  comparison?: ComparisonDelta | null
 }
 
 /** error_schemas.APIErrorResponse */

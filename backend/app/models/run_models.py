@@ -18,11 +18,6 @@ class SimulationRun(SQLModel, table=True):
     __tablename__ = "simulation_run"
 
     id: int | None = Field(default=None, primary_key=True)
-    parent_run_id: int | None = Field(
-        default=None,
-        foreign_key="simulation_run.id",
-        index=True,
-    )
     created_at: datetime = Field(default_factory=utc_now, index=True)
     weather_mode: str = Field(default=WeatherMode.NORMAL.value, max_length=16)
     temp_c: float = Field(default=20.0)
@@ -113,7 +108,7 @@ WEATHER_OVERRIDE_ID = 1
 class WeatherOverrideState(SQLModel, table=True):
     """Singleton row with the active manual weather preset.
 
-    SQLite is the single source of truth for what-if scenarios, so the preset
+    SQLite is the single source of truth for the manual weather preset, so it
     survives restarts and is reset together with the demo dataset.
     """
 

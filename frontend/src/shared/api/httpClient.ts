@@ -16,7 +16,6 @@ import type {
   DataSource,
   ERPState,
   Loaded,
-  SolverRequest,
   SolverResponse,
   Truck,
   TruckPatch,
@@ -231,11 +230,11 @@ function filenameFromDisposition(header: string | null, runId: number): string {
  * Расчёт плана: без mock-fallback — выдуманный план хуже явной ошибки,
  * потому что на его основе диспетчер принимает решения.
  */
-export function optimize(requestBody: SolverRequest, accessPin: string): Promise<SolverResponse> {
+export function optimize(accessPin: string): Promise<SolverResponse> {
   return request<SolverResponse>('/solver/optimize', {
     method: 'POST',
     access_pin: accessPin,
-    body: JSON.stringify(requestBody),
+    body: JSON.stringify({}),
   })
 }
 

@@ -135,7 +135,7 @@ def test_improve_is_deterministic() -> None:
 
 
 def _baseline(client: TestClient) -> dict:
-    response = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"})
+    response = client.post(OPTIMIZE_URL, headers=AUTH, json={})
     assert response.status_code == 200
     return response.json()
 
@@ -158,7 +158,7 @@ def test_seed_plan_is_never_worse_with_the_local_search(client: TestClient) -> N
     assert with_metrics["shipped_kg"] >= plain_metrics["shipped_kg"] - 0.001
 
 
-def test_local_search_keeps_one_shop_per_truck_in_what_if(client: TestClient) -> None:
+def test_local_search_keeps_one_shop_per_truck_after_broken_truck(client: TestClient) -> None:
     baseline = _baseline(client)
     assert (
         client.patch(
@@ -169,14 +169,10 @@ def test_local_search_keeps_one_shop_per_truck_in_what_if(client: TestClient) ->
         == 200
     )
 
-    what_if = client.post(
-        OPTIMIZE_URL,
-        headers=AUTH,
-        json={"mode": "what_if", "baseline_run_id": baseline["run_id"]},
-    ).json()
+    replanned = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
 
-    assert what_if["metrics"]["split_clients"] == 0
-    assert what_if["metrics"]["shipped_kg"] == baseline["metrics"]["shipped_kg"]
+    assert replanned["metrics"]["split_clients"] == 0
+    assert replanned["metrics"]["shipped_kg"] == baseline["metrics"]["shipped_kg"]
 
 
 def test_solver_stays_within_the_time_budget(client: TestClient) -> None:

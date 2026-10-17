@@ -32,11 +32,6 @@ class WeatherMode(StrEnum):
     HEAVY_RAIN = "heavy_rain"
 
 
-class SolverMode(StrEnum):
-    BASELINE = "baseline"
-    WHAT_IF = "what_if"
-
-
 class WarningSeverity(StrEnum):
     INFO = "info"
     WARNING = "warning"

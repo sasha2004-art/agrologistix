@@ -1,18 +1,15 @@
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from app.schemas.base import APIModel
-from app.schemas.enums import SolverMode, StopStatus, WarningSeverity
+from app.schemas.enums import StopStatus, WarningSeverity
 
 
 class SolverRequest(APIModel):
-    mode: SolverMode
-    baseline_run_id: int | None = Field(default=None, gt=0)
+    """The plan is always rebuilt from the current ERP state.
 
-    @model_validator(mode="after")
-    def validate_baseline_reference(self) -> "SolverRequest":
-        if self.mode is SolverMode.WHAT_IF and self.baseline_run_id is None:
-            raise ValueError("baseline_run_id is required for what_if mode")
-        return self
+    There is no scenario switch: the logist changes orders/trucks/weather via
+    ``PATCH`` and asks the solver again, so the request carries no fields.
+    """
 
 
 class SolverWarning(APIModel):
@@ -69,31 +66,8 @@ class Metrics(APIModel):
     split_clients: int = Field(default=0, ge=0)
 
 
-class MetricDelta(APIModel):
-    before: float
-    after: float
-    delta: float
-    delta_pct: float | None = None
-
-
-class ComparisonDelta(APIModel):
-    total_tco_rub: MetricDelta
-    total_trip_cost_rub: MetricDelta
-    total_spoilage_loss_rub: MetricDelta
-    total_unmet_penalty_rub: MetricDelta
-    expected_net_profit_rub: MetricDelta
-    avg_freshness_pct: MetricDelta
-    shipped_kg: MetricDelta
-    unmet_kg: MetricDelta
-    total_trips: MetricDelta
-    avg_load_factor_pct: MetricDelta
-    split_clients: MetricDelta
-
-
 class SolverResponse(APIModel):
     run_id: int = Field(gt=0)
-    parent_run_id: int | None = Field(default=None, gt=0)
     routes: list[RouteResponse] = Field(default_factory=list)
     metrics: Metrics
     warnings: list[SolverWarning] = Field(default_factory=list)
-    comparison: ComparisonDelta | None = None

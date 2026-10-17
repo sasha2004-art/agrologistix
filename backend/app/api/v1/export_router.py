@@ -33,7 +33,7 @@ def _content_disposition(run_id: int) -> str:
         },
         status.HTTP_404_NOT_FOUND: _NOT_FOUND_RESPONSE,
     },
-    summary="Download the XLSX route sheet of a baseline or what-if run",
+    summary="Download the XLSX route sheet of a stored solver run",
 )
 def export_run(
     run_id: int,

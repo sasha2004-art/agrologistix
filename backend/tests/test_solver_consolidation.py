@@ -22,7 +22,7 @@ def _database_session(client: TestClient) -> Session:
 
 
 def _baseline(client: TestClient) -> dict:
-    response = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"})
+    response = client.post(OPTIMIZE_URL, headers=AUTH, json={})
     assert response.status_code == 200
     return response.json()
 
@@ -162,33 +162,6 @@ def test_greedy_fallback_keeps_client_orders_together(
     assert outcome.allocation_method.startswith("greedy")
     assert outcome.metrics.split_clients == 0
     assert outcome.metrics.shipped_kg == pytest.approx(900.0, abs=TOLERANCE)
-
-
-def test_what_if_delta_contains_trip_metrics(client: TestClient) -> None:
-    baseline = _baseline(client)
-    assert (
-        client.patch(
-            "/api/v1/erp/trucks/1",
-            headers=AUTH,
-            json={"status": "broken"},
-        ).status_code
-        == 200
-    )
-
-    what_if = client.post(
-        OPTIMIZE_URL,
-        headers=AUTH,
-        json={"mode": "what_if", "baseline_run_id": baseline["run_id"]},
-    ).json()
-    comparison = what_if["comparison"]
-
-    assert comparison["total_trips"]["before"] == baseline["metrics"]["total_trips"]
-    assert comparison["total_trips"]["after"] == what_if["metrics"]["total_trips"]
-    assert comparison["split_clients"]["before"] == baseline["metrics"]["split_clients"]
-    assert comparison["avg_load_factor_pct"]["delta"] == pytest.approx(
-        what_if["metrics"]["avg_load_factor_pct"] - baseline["metrics"]["avg_load_factor_pct"],
-        abs=0.05,
-    )
 
 
 @pytest.mark.parametrize("mode", ["normal", "heatwave_35c", "heavy_rain"])

@@ -1,4 +1,4 @@
-"""Delivery accounting: stock write-off, partial deliveries and what-if demand."""
+"""Delivery accounting: stock write-off, partial deliveries and leftover demand."""
 
 import pytest
 from app.models.erp_models import ClientOrder, Truck, WarehouseStock
@@ -23,7 +23,7 @@ def _database_session(client: TestClient) -> Session:
 
 @pytest.fixture
 def baseline(client: TestClient) -> dict:
-    response = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"})
+    response = client.post(OPTIMIZE_URL, headers=AUTH, json={})
     assert response.status_code == 200
     return response.json()
 
@@ -40,7 +40,7 @@ def _planned_kg_by_warehouse(routes: list[dict], order_id: int) -> dict[int, flo
 
 
 def test_delivered_order_consumes_stock_and_leaves_new_plan(client: TestClient) -> None:
-    baseline = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    baseline = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
     order_id = baseline["routes"][0]["stops"][0]["order_id"]
     planned = _planned_kg_by_warehouse(baseline["routes"], order_id)
     assert planned
@@ -89,14 +89,12 @@ def test_delivered_order_consumes_stock_and_leaves_new_plan(client: TestClient) 
     assert stock_before - stock_after == pytest.approx(sum(planned.values()))
     assert sum(entry.shipped_kg for entry in journal) == pytest.approx(sum(planned.values()))
 
-    what_if = client.post(
-        OPTIMIZE_URL,
-        headers=AUTH,
-        json={"mode": "what_if", "baseline_run_id": baseline["run_id"]},
-    ).json()
-    shipped_ids = {stop["order_id"] for route in what_if["routes"] for stop in route["stops"]}
+    # A fresh plan built from the current ERP state must not ship the delivered
+    # order again and can only move the remaining demand.
+    replanned = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
+    shipped_ids = {stop["order_id"] for route in replanned["routes"] for stop in route["stops"]}
     assert order_id not in shipped_ids
-    assert what_if["metrics"]["shipped_kg"] <= baseline["metrics"]["shipped_kg"]
+    assert replanned["metrics"]["shipped_kg"] <= baseline["metrics"]["shipped_kg"]
 
 
 def test_partial_plan_keeps_leftover_demand_and_reports_delivered_kg(
@@ -170,7 +168,7 @@ def test_partial_plan_keeps_leftover_demand_and_reports_delivered_kg(
     assert stock_before - stock_total == pytest.approx(500.0)
     assert consumed_stock.available_kg == pytest.approx(0.0)
 
-    plan = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    plan = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
     replanned = _planned_kg_by_warehouse(plan["routes"], order_id)
     assert 500.0 + sum(replanned.values()) <= requested_kg + EPSILON
 
@@ -233,7 +231,7 @@ def test_partial_delivery_can_be_rolled_back_with_pending_status(client: TestCli
 
 
 def test_switching_back_to_pending_restores_stock_and_demand(client: TestClient) -> None:
-    baseline = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    baseline = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
     order_id = baseline["routes"][0]["stops"][0]["order_id"]
 
     with _database_session(client) as session:
@@ -273,7 +271,7 @@ def test_switching_back_to_pending_restores_stock_and_demand(client: TestClient)
 
 
 def test_delivery_conflicts_when_stock_changed_after_the_plan(client: TestClient) -> None:
-    baseline = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    baseline = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
     order_id = baseline["routes"][0]["stops"][0]["order_id"]
 
     with _database_session(client) as session:
@@ -294,7 +292,7 @@ def test_delivery_conflicts_when_stock_changed_after_the_plan(client: TestClient
 
 
 def test_reset_demo_clears_delivered_stock_journal(client: TestClient) -> None:
-    baseline = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    baseline = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
     order_id = baseline["routes"][0]["stops"][0]["order_id"]
     assert (
         client.patch(

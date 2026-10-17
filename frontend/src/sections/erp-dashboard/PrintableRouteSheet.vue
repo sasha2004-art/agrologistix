@@ -1,11 +1,9 @@
 <template>
-  <section v-if="solver.activePlan" class="sheet print-root" aria-label="Печатный маршрутный лист">
+  <section v-if="solver.plan" class="sheet print-root" aria-label="Печатный маршрутный лист">
     <header class="sheet-head">
       <div>
         <h1 class="sheet-title">Маршрутный лист</h1>
-        <p class="sheet-sub">
-          {{ solver.activeLabel }} · прогон №{{ runId }} · {{ printedAtText }}
-        </p>
+        <p class="sheet-sub">План поставок · прогон №{{ runId }} · {{ printedAtText }}</p>
       </div>
       <div class="sheet-weather">
         <p>Погода: {{ weatherText }}</p>
@@ -99,7 +97,7 @@ const solver = useSolverStore()
 const erp = useErpStore()
 const weather = useWeatherStore()
 
-const runId = computed(() => solver.activePlan?.run_id ?? '—')
+const runId = computed(() => solver.plan?.run_id ?? '—')
 const printedAtText = computed(() => new Date().toLocaleString('ru-RU'))
 
 const weatherText = computed(() => {
