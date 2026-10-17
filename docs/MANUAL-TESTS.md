@@ -676,5 +676,6 @@ curl -s -H "$U" $B/erp/state | python3 -c "import sys,json;d=json.load(sys.stdin
 ```
 
 Ожидается: `{'warehouses': 2, 'products': 3, 'stocks': 6, 'clients': 5, 'orders': 9, 'trucks': 3}`,
-все заявки `pending`, машины `active`. История прогонов (`simulation_run`,
-`route_stop`) и кэш маршрутов также очищаются.
+все заявки `pending` (`delivered_kg = 0`), машины `active`. История прогонов
+(`simulation_run`, `route_stop`), журнал списаний (`delivered_order_stock`) и
+кэш маршрутов также очищаются, а остатки складов возвращаются к seed-значениям.
