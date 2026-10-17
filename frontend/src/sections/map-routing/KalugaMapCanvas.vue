@@ -130,9 +130,7 @@ onMounted(() => {
     mapReady.value = true
     ensureRouteLayers(map)
     markers = createMarkerManager(map, {
-      onHover: (handle) => {
-        void handleMarkerHover(handle)
-      },
+      onHover: handleMarkerHover,
     })
     markers.sync(points.value)
     setRouteGeometry(map, props.routes ?? [])
@@ -149,27 +147,21 @@ onMounted(() => {
 })
 
 /**
- * Данные маркера всегда подтверждаются сервером: при наведении тихо перечитываем
- * ERP-state (не чаще раза в 3 секунды) и обновляем popup/подписи без пересоздания
- * маркеров, чтобы открытый popup не исчезал.
+ * Маркеры живут только от общего стора: наведение просто дорисовывает актуальную
+ * точку (сеть тянет фоновый опрос раз в секунду в useErpStore.startAutoSync).
  */
-const HOVER_REFRESH_MS = 3000
-let lastHoverRefreshAt = 0
-
-async function handleMarkerHover(handle: MarkerHandle): Promise<void> {
-  const now = Date.now()
-  if (now - lastHoverRefreshAt > HOVER_REFRESH_MS) {
-    lastHoverRefreshAt = now
-    await erp.loadState({ force: true, silent: true })
-    markers?.applyAll(points.value)
-  }
+function handleMarkerHover(handle: MarkerHandle): void {
   const fresh = points.value.find((point) => point.id === handle.point.id)
   if (fresh) applyPoint(handle, fresh)
 }
 
-watch(points, (next) => {
-  if (mapReady.value) markers?.applyAll(next)
-})
+watch(
+  points,
+  (next) => {
+    if (mapReady.value) markers?.applyAll(next)
+  },
+  { deep: true },
+)
 
 watch(
   () => props.routes,

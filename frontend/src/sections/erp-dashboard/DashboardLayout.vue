@@ -168,10 +168,15 @@ function startResize(event: PointerEvent): void {
   window.addEventListener('pointercancel', cleanup)
 }
 
-onBeforeUnmount(() => stopResize?.())
+onBeforeUnmount(() => {
+  stopResize?.()
+  erp.stopAutoSync()
+})
 
 onMounted(() => {
   void erp.loadState()
+  // Раз в секунду подтягиваем состояние с сервера: store — единственный источник правды.
+  erp.startAutoSync()
 })
 
 function reload(): void {

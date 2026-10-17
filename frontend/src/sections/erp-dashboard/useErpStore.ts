@@ -227,7 +227,9 @@ export const useErpStore = defineStore('erp', () => {
     riskAlerts.value.filter((alert) => alert.severity === 'warning'),
   )
 
-  async function loadState(options: { force?: boolean; silent?: boolean } = {}): Promise<void> {
+  async function loadState(
+    options: { force?: boolean; silent?: boolean; quiet?: boolean } = {},
+  ): Promise<void> {
     if (!auth.accessPin) {
       status.value = 'error'
       errorMessage.value = 'Требуется вход по PIN-коду.'
@@ -248,13 +250,46 @@ export const useErpStore = defineStore('erp', () => {
       status.value = 'ready'
     } catch (error) {
       const message = describeApiError(error)
-      notifications.push('error', message)
-      if (options.silent) {
-        // Тихий refetch после PATCH: данные уже применены, показываем только уведомление.
+      // quiet — фоновый опрос: разовая сеть-ошибка не должна спамить уведомлениями.
+      if (!options.quiet) notifications.push('error', message)
+      if (options.silent || options.quiet) {
+        // Тихий refetch: данные уже применены, состояние не ломаем.
         return
       }
       errorMessage.value = message
       status.value = 'error'
+    }
+  }
+
+  /**
+   * Фоновая синхронизация со сервером: раз в секунду перечитываем состояние,
+   * чтобы карта, таблицы и KPI всегда жили от одного источника правды — store.
+   * Ошибки глушим: следующий тик всё равно попробует снова.
+   */
+  const SYNC_INTERVAL_MS = 1000
+  const isSyncing = ref(false)
+  let syncTimer: number | null = null
+
+  async function syncTick(): Promise<void> {
+    if (!auth.accessPin || isSyncing.value || status.value === 'loading') return
+    isSyncing.value = true
+    try {
+      await loadState({ force: true, silent: true, quiet: true })
+    } finally {
+      isSyncing.value = false
+    }
+  }
+
+  function startAutoSync(intervalMs: number = SYNC_INTERVAL_MS): void {
+    stopAutoSync()
+    if (typeof window === 'undefined') return
+    syncTimer = window.setInterval(() => void syncTick(), intervalMs)
+  }
+
+  function stopAutoSync(): void {
+    if (syncTimer !== null) {
+      window.clearInterval(syncTimer)
+      syncTimer = null
     }
   }
 
@@ -327,11 +362,13 @@ export const useErpStore = defineStore('erp', () => {
     pendingKeys.value.clear()
     notifications.clear()
   }
-
   watch(
     () => auth.isAuthenticated,
     (isAuthenticated) => {
-      if (!isAuthenticated) clear()
+      if (!isAuthenticated) {
+        stopAutoSync()
+        clear()
+      }
     },
   )
 
@@ -374,6 +411,10 @@ export const useErpStore = defineStore('erp', () => {
     errorAlerts,
     warningAlerts,
     loadState,
+    isSyncing,
+    syncTick,
+    startAutoSync,
+    stopAutoSync,
     isPending,
     updateOrder,
     updateTruck,
