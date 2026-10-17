@@ -393,7 +393,7 @@ def test_delivery_uses_the_latest_plan_and_truncates_it_to_the_leftover(
     assert len(by_warehouse) == 1
     assert sum(by_warehouse.values()) == pytest.approx(500.0)
     warehouse_one = next(stock for stock in stocks if stock.warehouse_id == 1)
-    assert warehouse_one.available_kg == pytest.approx(4200.0 - 500.0)
+    assert warehouse_one.available_kg == pytest.approx(9000.0 - 500.0)
 
 
 def test_delivery_ignores_stops_of_another_product(client: TestClient) -> None:

@@ -186,7 +186,7 @@ def test_stock_of_inactive_warehouse_is_ignored(tmp_path) -> None:
         detchino = next(
             warehouse
             for warehouse in session.exec(
-                select(Warehouse).where(Warehouse.name == "Склад Детчино-Агро")
+                select(Warehouse).where(Warehouse.name == "Склад Детчино")
             ).all()
         )
         detchino.is_active = False
@@ -207,4 +207,4 @@ def test_stock_of_inactive_warehouse_is_ignored(tmp_path) -> None:
     assert {warehouse.warehouse_id for warehouse in solver_input.warehouses} == {1}
     assert all(stock.warehouse_id == 1 for stock in solver_input.stocks)
     assert len(solver_input.stocks) == 3
-    assert sum(stock.available_kg for stock in solver_input.stocks) == pytest.approx(18200.0)
+    assert sum(stock.available_kg for stock in solver_input.stocks) == pytest.approx(45000.0)

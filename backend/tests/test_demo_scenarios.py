@@ -32,7 +32,7 @@ def _warehouse(session: Session, name: str) -> Warehouse:
 
 
 def _distance_km(session: Session, client: Client) -> float:
-    warehouse = _warehouse(session, "Хаб Обнинск-Северный")
+    warehouse = _warehouse(session, "Хаб Обнинск")
     leg = fallback_leg(
         Coordinate(lat=warehouse.lat, lon=warehouse.lon),
         Coordinate(lat=client.lat, lon=client.lon),
@@ -43,7 +43,7 @@ def _distance_km(session: Session, client: Client) -> float:
 def test_normal_reefer_trip_keeps_strawberry_fresh(session: Session) -> None:
     seed_database(session)
     strawberry = _product(session, "strawberry")
-    kaluga = _client(session, "РЦ «ВкусВилл» Калуга")
+    kaluga = _client(session, "ВкусВилл")
     volvo = _truck(session, "А001АА40")
 
     trip = TripConditions(
@@ -62,7 +62,7 @@ def test_normal_reefer_trip_keeps_strawberry_fresh(session: Session) -> None:
 def test_heatwave_without_reefer_spoils_strawberry(session: Session) -> None:
     seed_database(session)
     strawberry = _product(session, "strawberry")
-    kaluga = _client(session, "РЦ «ВкусВилл» Калуга")
+    kaluga = _client(session, "ВкусВилл")
     kamaz = _truck(session, "С303СС40")
     volvo = _truck(session, "А001АА40")
 
@@ -91,7 +91,7 @@ def test_heatwave_without_reefer_spoils_strawberry(session: Session) -> None:
 def test_dirt_approach_is_slower_than_asphalt(session: Session) -> None:
     seed_database(session)
     strawberry = _product(session, "strawberry")
-    borovsk = _client(session, "Фермерский кооператив Боровск")
+    borovsk = _client(session, "Кооператив Боровск")
     gazelle = _truck(session, "В202ВВ40")
 
     distance_km = _distance_km(session, borovsk)
@@ -118,8 +118,8 @@ def test_dirt_approach_is_slower_than_asphalt(session: Session) -> None:
 
 def test_obninsk_warehouse_is_the_loading_origin(session: Session) -> None:
     seed_database(session)
-    warehouse = _warehouse(session, "Хаб Обнинск-Северный")
-    tarusa = _client(session, "Эко-база Таруса")
+    warehouse = _warehouse(session, "Хаб Обнинск")
+    tarusa = _client(session, "Эко-база")
 
     assert warehouse.is_active is True
     assert OBININSK.lat == pytest.approx(warehouse.lat, abs=1e-9)
