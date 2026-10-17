@@ -17,8 +17,9 @@ class Settings(BaseSettings):
     sqlite_db_path: str = "./data/app.db"
     external_api_timeout_sec: float = Field(default=1.5, gt=0.0)
     solver_time_limit_sec: float = Field(default=1.0, gt=0.0)
-    # Route consolidation (docs/planning/09-route-consolidation.md): keep the
-    # orders of one client on a single truck unless capacity forces a split.
+    # Route consolidation (docs/ARCHITECTURE.md, «Мультистоп и консолидация
+    # рейсов»): keep the orders of one client on a single truck unless capacity
+    # forces a split.
     solver_client_split_penalty_rub: float = Field(default=5000.0, ge=0.0)
     # Realistic trip limits enforced by the solver and the post-check.
     solver_max_stops_per_trip: int = Field(default=5, ge=1, le=50)

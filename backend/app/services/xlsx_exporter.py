@@ -3,13 +3,12 @@
 The workbook is generated in memory (:class:`io.BytesIO`) with ``openpyxl`` and
 contains one summary sheet plus one sheet per route:
 
-* ``Сводка`` — run metadata, weather, metrics and, for ``what_if``, the delta
-  against the parent run;
+* ``Сводка`` — run metadata, weather, consolidation telemetry and metrics;
 * ``Рейс N`` — truck and warehouse header, the ordered stops with weight, leg
   distance, ETA, expected freshness and leg cost, and the route totals.
 
-Only persisted data is used, so the same exporter serves ``baseline`` and
-``what_if`` runs. No PDF engine is involved: printing is a frontend concern.
+Only persisted data is used, so the exporter never depends on the live ERP
+state. No PDF engine is involved: printing is a frontend concern.
 """
 
 from dataclasses import dataclass
@@ -84,7 +83,6 @@ class ExportRoute:
 class ExportRun:
     run: SimulationRun
     routes: tuple[ExportRoute, ...]
-    parent: SimulationRun | None = None
 
 
 def _names(
@@ -130,7 +128,6 @@ def load_export_run(session: Session, run_id: int) -> ExportRun | None:
         ).all()
     )
     trucks, warehouses, clients, products = _names(session, stop_rows)
-    parent = session.get(SimulationRun, run.parent_run_id) if run.parent_run_id else None
 
     grouped: dict[int, list[ExportStop]] = {}
     for stop in stop_rows:
@@ -163,7 +160,7 @@ def load_export_run(session: Session, run_id: int) -> ExportRun | None:
         )
         for truck_id, stops in grouped.items()
     )
-    return ExportRun(run=run, routes=routes, parent=parent)
+    return ExportRun(run=run, routes=routes)
 
 
 def _safe_sheet_title(raw: str, used: set[str]) -> str:
@@ -218,8 +215,6 @@ def _write_summary(sheet: Worksheet, report: ExportRun) -> None:
 
     info = [
         ("Дата расчёта (UTC)", run.created_at.strftime("%d.%m.%Y %H:%M")),
-        ("Тип расчёта", "Что, если" if run.parent_run_id else "Базовый"),
-        ("Базовый расчёт", f"№{run.parent_run_id}" if run.parent_run_id else "—"),
         ("Погодный режим", run.weather_mode),
         ("Температура, °C", run.temp_c),
         ("Осадки, мм", run.precip_mm),
@@ -234,31 +229,15 @@ def _write_summary(sheet: Worksheet, report: ExportRun) -> None:
     row += 1
     header_row = row
     headers = ["Показатель", "Значение"]
-    if report.parent is not None:
-        headers += [f"Было (№{report.parent.id})", "Δ"]
     for column, header in enumerate(headers, start=1):
         sheet.cell(row=header_row, column=column, value=header)
     _highlight_header(header_row, len(headers), sheet)
 
     row += 1
-    for index, (label, value) in enumerate(metrics):
+    for label, value in metrics:
         sheet.cell(row=row, column=1, value=label)
         cell = sheet.cell(row=row, column=2, value=round(value, 2))
         cell.number_format = "#,##0.00"
-        if report.parent is not None:
-            before = (
-                report.parent.total_tco_rub,
-                report.parent.total_trip_cost_rub,
-                report.parent.total_spoilage_loss_rub,
-                report.parent.total_unmet_penalty_rub,
-                report.parent.expected_net_profit_rub,
-                report.parent.avg_freshness_pct,
-                report.parent.total_shipped_kg,
-                report.parent.total_unmet_kg,
-            )[index]
-            sheet.cell(row=row, column=3, value=round(before, 2)).number_format = "#,##0.00"
-            delta_cell = sheet.cell(row=row, column=4, value=round(value - before, 2))
-            delta_cell.number_format = "#,##0.00;[Red]-#,##0.00"
         row += 1
 
     row += 1

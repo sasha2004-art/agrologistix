@@ -9,22 +9,12 @@
       </div>
       <div class="header-chips">
         <v-chip
-          v-if="solver.hasBaseline"
+          v-if="solver.hasPlan"
           class="soft-chip"
           size="small"
           prepend-icon="mdi-clock-outline"
         >
           {{ calculatedAtText }}
-        </v-chip>
-        <v-chip
-          v-if="solver.hasScenario"
-          class="soft-chip"
-          size="small"
-          variant="text"
-          :color="solver.tcoDeltaWorse ? 'error' : 'success'"
-          prepend-icon="mdi-compare-horizontal"
-        >
-          {{ solver.tcoDeltaLabel }}
         </v-chip>
       </div>
     </header>
@@ -34,36 +24,17 @@
         color="primary"
         class="btn-gradient"
         prepend-icon="mdi-routes"
-        :loading="solver.isLoading && solver.isRunning === 'baseline'"
+        :loading="solver.isLoading"
         :disabled="solver.isLoading || !erp.isReady"
         @click="runPlan"
       >
-        {{ solver.hasBaseline ? 'Пересчитать базу' : 'Рассчитать поставки' }}
-      </v-btn>
-      <v-btn
-        v-if="solver.hasBaseline"
-        variant="tonal"
-        color="primary"
-        prepend-icon="mdi-source-branch"
-        :loading="solver.isLoading && solver.isRunning === 'what_if'"
-        :disabled="solver.isLoading"
-        @click="solver.runScenario()"
-      >
-        Сценарий «что, если»
-      </v-btn>
-      <v-btn
-        v-if="solver.hasScenario"
-        variant="text"
-        prepend-icon="mdi-compare-horizontal"
-        @click="comparisonOpen = true"
-      >
-        Было / Стало
+        {{ solver.hasPlan ? 'Пересчитать план' : 'Рассчитать поставки' }}
       </v-btn>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-server-outline">
         POST /solver/optimize
       </v-chip>
       <v-btn
-        v-if="solver.hasBaseline"
+        v-if="solver.hasPlan"
         variant="text"
         size="small"
         prepend-icon="mdi-close-circle-outline"
@@ -73,7 +44,7 @@
       </v-btn>
     </div>
 
-    <div v-if="solver.hasBaseline" class="export-row">
+    <div v-if="solver.hasPlan" class="export-row">
       <v-btn
         variant="tonal"
         color="primary"
@@ -98,27 +69,15 @@
     </div>
 
     <v-alert
-      v-if="solver.hasBaseline && solver.scenarioStale"
+      v-if="solver.hasPlan && solver.planStale"
       type="info"
       variant="tonal"
       density="comfortable"
       class="stale-note"
     >
-      ERP изменился —
-      {{ solver.isLoading ? 'сценарий пересчитывается…' : 'сценарий пересчитается автоматически.' }}
+      Исходные данные изменились — пересчитайте план поставок, чтобы увидеть актуальные рейсы и
+      метрики.
     </v-alert>
-
-    <v-btn-toggle
-      v-if="solver.hasScenario"
-      :model-value="solver.view"
-      mandatory
-      density="comfortable"
-      class="view-toggle"
-      @update:model-value="onViewChange"
-    >
-      <v-btn value="baseline" prepend-icon="mdi-map-marker-path">Базовый план</v-btn>
-      <v-btn value="scenario" prepend-icon="mdi-source-branch">Сценарий</v-btn>
-    </v-btn-toggle>
 
     <StatePanel
       :status="erp.panelStatus"
@@ -140,7 +99,7 @@
           </v-btn>
         </v-alert>
 
-        <template v-if="solver.hasBaseline">
+        <template v-if="solver.hasPlan">
           <TcoMetricsPanel />
           <SolverWarningsPanel />
           <RoutePlanTable />
@@ -182,8 +141,6 @@
         </section>
       </div>
     </StatePanel>
-
-    <ComparisonDialog v-model="comparisonOpen" />
   </div>
 </template>
 
@@ -191,7 +148,6 @@
 import { computed, ref } from 'vue'
 import { describeApiError, downloadRouteSheet } from '@/shared/api/httpClient'
 import StatePanel from '@/shared/components/StatePanel.vue'
-import ComparisonDialog from './ComparisonDialog.vue'
 import RoutePlanTable from './RoutePlanTable.vue'
 import SolverWarningsPanel from './SolverWarningsPanel.vue'
 import TcoMetricsPanel from './TcoMetricsPanel.vue'
@@ -206,18 +162,17 @@ const erp = useErpStore()
 const solver = useSolverStore()
 const auth = useAuthStore()
 const notifications = useNotificationStore()
-const comparisonOpen = ref(false)
 const exporting = ref(false)
 
-/** Прогон, который уйдёт в файл и на печать: тот, что сейчас на экране. */
-const activeRunId = computed(() => solver.activePlan?.run_id ?? null)
+/** Прогон, который попадает в XLSX и на печать. */
+const activeRunId = computed(() => solver.plan?.run_id ?? null)
 
 /** Подсказка к чипу: какие именно рейсы попадут в маршрутный лист. */
 const routesInSheetText = computed(() =>
   solver.routes.map((route) => `${route.truck_name} (${route.stops.length})`).join(', '),
 )
 
-/** Печать текущего вида: браузер показывает только печатный лист (print.scss). */
+/** Печать текущего плана: браузер показывает только печатный лист (print.scss). */
 function printSheet(): void {
   window.print()
 }
@@ -243,11 +198,7 @@ const calculatedAtText = computed(() =>
 )
 
 function runPlan(): void {
-  void solver.optimizeBaseline()
-}
-
-function onViewChange(next: unknown): void {
-  if (next === 'baseline' || next === 'scenario') solver.setView(next)
+  void solver.optimizePlan()
 }
 
 function reload(): void {
@@ -295,10 +246,6 @@ function reload(): void {
 
 .stale-note {
   font-size: 13px;
-}
-
-.view-toggle {
-  align-self: flex-start;
 }
 
 /* Внутри StatePanel слот не имеет собственных отступов — задаём их сами. */

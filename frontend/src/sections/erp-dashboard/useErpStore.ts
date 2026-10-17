@@ -357,9 +357,9 @@ export const useErpStore = defineStore('erp', () => {
       await mutate(accessPin)
       notifications.push('success', notice)
       await loadState({ force: true, silent: true })
-      // Изменение ERP делает посчитанный сценарий устаревшим: стор солвера
-      // сам пересчитает «что, если» относительно сохранённого базового плана.
-      solver.afterMutation()
+      // Изменение ERP делает посчитанный план устаревшим: стор солвера
+      // подсветит, что исходные данные изменились, и логист пересчитает план.
+      solver.markPlanStale()
       return true
     } catch (error) {
       notifications.push('error', describeApiError(error))
