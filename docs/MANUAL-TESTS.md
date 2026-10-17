@@ -1,4 +1,4 @@
-# Ручные тесты: Day 4 → Day 9
+# Ручные тесты: Day 4 → Day 10
 
 Проверка backend-функциональности вручную через `curl`. Все ожидаемые значения
 получены на seed-данных из `POST /api/v1/system/reset-demo`.
@@ -586,6 +586,84 @@ sqlite3 /opt/agrologistix/data/app.db "select id, parent_run_id, total_tco_rub f
 
 Ожидается: строка базового прогона не изменилась (`parent_run_id` = null,
 метрики те же), а новый прогон ссылается на неё через `parent_run_id`.
+
+---
+
+## Day 10 — XLSX-экспорт маршрутного листа
+
+Экспорт работает и для базового расчёта, и для «Что, если»: данные берутся
+только из сохранённого прогона (`simulation_run` + `route_stop`), поэтому файл
+не зависит от текущего состояния ERP.
+
+### 10.1 Скачивание XLSX базового расчёта
+
+```bash
+BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize)
+RID=$(echo "$BASE" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
+curl -s -D /tmp/export-headers.txt -o /tmp/route-sheet.xlsx -H "$U" $B/export/run/$RID/xlsx
+grep -i 'HTTP/\|content-type\|content-disposition\|content-length' /tmp/export-headers.txt
+```
+
+Ожидается `200` и заголовки:
+
+```text
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="agrologistix-run-<id>.xlsx"
+```
+
+### 10.2 Проверка структуры файла
+
+```bash
+uv run --directory backend python - <<'PY'
+from openpyxl import load_workbook
+book = load_workbook('/tmp/route-sheet.xlsx')
+print(book.sheetnames)
+print([c.value for c in book['Сводка'][1]])
+sheet = book[book.sheetnames[1]]
+for row in sheet.iter_rows(min_row=1, max_row=6, values_only=True):
+    print(row)
+PY
+```
+
+Ожидается: первый лист `Сводка`, затем по одному листу `Рейс N <номер>` на
+каждую машину; в сводке — метрики TCO, свежести и недовоза; в листе рейса —
+шапка (машина, склад, вместимость, пробег, стоимость) и таблица остановок
+`№ / Заявка / Клиент / Культура / Отгружено, кг / Участок, км / ETA, мин /
+Свежесть, % / Стоимость участка, ₽ / Статус`, затем строка `Итого`.
+
+Сумма `shipped_kg` по листам рейсов совпадает с `metrics.shipped_kg` расчёта.
+
+### 10.3 XLSX для «Что, если»
+
+```bash
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"delivery_status":"delivered"}' $B/erp/orders/1
+WIF=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what_if\",\"baseline_run_id\":$RID}" $B/solver/optimize)
+WID=$(echo "$WIF" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
+curl -s -H "$U" -o /tmp/route-sheet-wif.xlsx $B/export/run/$WID/xlsx
+uv run --directory backend python - <<'PY'
+from openpyxl import load_workbook
+book = load_workbook('/tmp/route-sheet-wif.xlsx')
+summary = book['Сводка']
+header = next(row for row in summary.iter_rows() if row[0].value == 'Показатель')
+print(book.sheetnames, [cell.value for cell in header])
+PY
+```
+
+Ожидается `['Сводка', 'Рейс 1 ...', ...]` и строка заголовков
+`['Показатель', 'Значение', 'Было (№<базовый>)', 'Δ']`: в сводке есть сравнение
+«Было / Стало» с базовым расчётом.
+
+### 10.4 Негативные сценарии
+
+```bash
+curl -s -o /dev/null -w 'no pin:  %{http_code}\n' $B/export/run/1/xlsx
+curl -s -w '\nunknown: %{http_code}\n' -H "$U" $B/export/run/9999/xlsx
+```
+
+Ожидается `401` (`code: unauthorized`) без PIN и `404`
+(`code: not_found`, `detail: Solver run with id 9999 was not found`) для
+несуществующего расчёта. Если все машины сломаны, экспорт всё равно отдаёт
+рабочий файл только с листом `Сводка`, где `Недовоз, кг` > 0.
 
 ---
 
