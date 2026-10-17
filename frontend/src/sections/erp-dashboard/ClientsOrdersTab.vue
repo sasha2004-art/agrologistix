@@ -63,13 +63,16 @@
               />
             </td>
             <td>
-              <v-chip
-                class="soft-chip"
-                size="small"
-                :prepend-icon="row.client.road_type === 'dirt' ? 'mdi-road-variant' : 'mdi-road'"
+              <!-- Дорога только иконкой: расшифровка — в подсказке и aria-label. -->
+              <v-icon
+                :icon="row.client.road_type === 'dirt' ? 'mdi-road-variant' : 'mdi-road'"
+                size="20"
+                :aria-label="row.client.road_type === 'dirt' ? 'Грунтовка' : 'Асфальт'"
               >
-                {{ row.client.road_type === 'dirt' ? 'Грунтовка' : 'Асфальт' }}
-              </v-chip>
+                <v-tooltip activator="parent" location="top">
+                  {{ row.client.road_type === 'dirt' ? 'Грунтовка' : 'Асфальт' }}
+                </v-tooltip>
+              </v-icon>
             </td>
             <td>
               <v-menu location="bottom end">
