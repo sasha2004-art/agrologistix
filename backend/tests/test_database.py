@@ -46,6 +46,34 @@ def test_migration_adds_shipped_and_unmet_columns(tmp_path: Path) -> None:
     assert {"total_shipped_kg", "total_unmet_kg"} <= migrated
 
 
+def test_migration_adds_delivered_kg_to_client_order(tmp_path: Path) -> None:
+    settings = Settings(sqlite_db_path=str(tmp_path / "legacy-order.db"))
+    engine = create_database_engine(settings)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE client_order ("
+            "id INTEGER PRIMARY KEY, client_id INTEGER, product_id INTEGER, "
+            "requested_kg FLOAT, purchase_price_rub FLOAT, unmet_penalty_rub FLOAT, "
+            "delivery_status VARCHAR)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO client_order VALUES (1, 1, 1, 1000.0, 100.0, 5.0, 'pending')"
+        )
+
+    apply_schema_migrations(engine)
+    migrated = _columns(engine, "client_order")
+    apply_schema_migrations(engine)
+
+    with engine.connect() as connection:
+        delivered_kg = connection.exec_driver_sql(
+            "SELECT delivered_kg FROM client_order WHERE id = 1"
+        ).scalar_one()
+
+    engine.dispose()
+    assert "delivered_kg" in migrated
+    assert delivered_kg == 0.0
+
+
 def test_migration_ignores_missing_tables(tmp_path: Path) -> None:
     settings = Settings(sqlite_db_path=str(tmp_path / "empty.db"))
     engine = create_database_engine(settings)

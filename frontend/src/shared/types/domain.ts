@@ -68,6 +68,8 @@ export interface ClientOrder {
   requested_kg: number
   purchase_price_rub: number
   unmet_penalty_rub: number
+  /** Сумма фактически отгружённых кг; остаток спроса = requested_kg - delivered_kg. */
+  delivered_kg: number
   delivery_status: DeliveryStatus
 }
 

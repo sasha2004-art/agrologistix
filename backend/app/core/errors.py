@@ -12,6 +12,7 @@ def _error_code(status_code: int) -> str:
         status.HTTP_401_UNAUTHORIZED: "unauthorized",
         status.HTTP_403_FORBIDDEN: "forbidden",
         status.HTTP_404_NOT_FOUND: "not_found",
+        status.HTTP_409_CONFLICT: "conflict",
         status.HTTP_501_NOT_IMPLEMENTED: "not_implemented",
     }.get(status_code, "request_error")
 

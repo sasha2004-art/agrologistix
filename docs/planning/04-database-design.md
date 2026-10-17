@@ -56,6 +56,7 @@ erDiagram
         float requested_kg
         float purchase_price_rub
         float unmet_penalty_rub
+        float delivered_kg "фактически отгружено"
         string delivery_status "pending | delivered"
     }
 
@@ -91,6 +92,7 @@ erDiagram
     ROUTE_STOP {
         int id PK
         int run_id FK
+        int order_id FK "nullable"
         int truck_id FK
         int warehouse_id FK
         int client_id FK
@@ -109,6 +111,13 @@ erDiagram
         float distance_km
         float base_duration_min
         string geojson_geometry
+    }
+
+    DELIVERED_ORDER_STOCK {
+        int id PK
+        int order_id FK
+        int stock_id FK
+        float shipped_kg
     }
 ```
 
@@ -150,7 +159,8 @@ erDiagram
 * `requested_kg`: `FLOAT NOT NULL CHECK (requested_kg > 0)`
 * `purchase_price_rub`: `FLOAT NOT NULL CHECK (purchase_price_rub > 0)` (закупочная цена клиента за 1 кг)
 * `unmet_penalty_rub`: `FLOAT NOT NULL` (штраф за каждый недопоставленный кг)
-* `delivery_status`: `VARCHAR(16) DEFAULT 'pending'` (`pending` | `delivered` — при статусе `delivered` заявка считается уже закрытой при пересчётах «Что, если»)
+* `delivered_kg`: `FLOAT NOT NULL DEFAULT 0` (сумма фактически отгружённых кг; остаточный спрос на пересчёте равен `requested_kg - delivered_kg`)
+* `delivery_status`: `VARCHAR(16) DEFAULT 'pending'` (`pending` | `delivered` — при статусе `delivered` заявка считается уже закрытой при пересчётах «Что, если»; частично закрытая заявка остаётся `pending` с остаточным спросом)
 
 ### 2.6. `truck` (Автопарк)
 * `id`: `INTEGER PRIMARY KEY`
@@ -167,3 +177,11 @@ erDiagram
 
 ### 2.7. `simulation_run` и `route_stop` (История расчётов и Маршрутные листы)
 * Хранят полный слепок расчёта. Если `parent_run_id` заполнен, бэкенд автоматически формирует структуру `ComparisonDelta` (разница TCO, прибыли, свежести и недовоза между `parent_run_id` и текущим расчётом).
+* `route_stop.order_id` связывает план с заявкой, чтобы `PATCH /erp/orders/{id}` знал, какие склады и объёмы списать при фиксации доставки.
+
+### 2.8. `delivered_order_stock` (Журнал списания остатков)
+* `id`: `INTEGER PRIMARY KEY`
+* `order_id`: `INTEGER REFERENCES client_order(id) INDEX`
+* `stock_id`: `INTEGER REFERENCES warehouse_stock(id) INDEX`
+* `shipped_kg`: `FLOAT NOT NULL CHECK (shipped_kg >= 0)`
+* Появляется при переводе заявки в `delivered`: фактические кг распределяются по складам последнего плана и вычитаются из `warehouse_stock.available_kg`. Записи удаляются с возвратом остатка, если заявку возвращают в `pending`.

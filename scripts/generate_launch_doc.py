@@ -61,6 +61,10 @@ npm ci --prefix frontend
 - dispatcher: `{backend["user_pin"]}`
 - admin: `{backend["admin_pin"]}`
 
+В production нужны собственные значения `USER_ACCESS_PIN` и `ADMIN_ACCESS_PIN`:
+они должны отличаться друг от друга и от локальных значений по умолчанию,
+иначе backend не стартует (`app_env=production`).
+
 ## Запуск backend
 
 В отдельном терминале:

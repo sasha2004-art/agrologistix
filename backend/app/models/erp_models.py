@@ -74,6 +74,7 @@ class ClientOrder(SQLModel, table=True):
     __tablename__ = "client_order"
     __table_args__ = (
         CheckConstraint("requested_kg > 0", name="ck_order_requested_positive"),
+        CheckConstraint("delivered_kg >= 0", name="ck_order_delivered_non_negative"),
         CheckConstraint("purchase_price_rub > 0", name="ck_order_price_positive"),
         CheckConstraint("unmet_penalty_rub >= 0", name="ck_order_penalty_non_negative"),
         CheckConstraint(
@@ -88,6 +89,7 @@ class ClientOrder(SQLModel, table=True):
     requested_kg: float = Field(gt=0.0)
     purchase_price_rub: float = Field(gt=0.0)
     unmet_penalty_rub: float = Field(default=0.0, ge=0.0)
+    delivered_kg: float = Field(default=0.0, ge=0.0)
     delivery_status: str = Field(
         default=DeliveryStatus.PENDING.value,
         max_length=16,

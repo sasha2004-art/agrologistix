@@ -78,7 +78,7 @@ curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' \
 Ожидается `200`:
 
 ```json
-{"id":1,"client_id":1,"product_id":1,"requested_kg":1500.0,"purchase_price_rub":999.0,"unmet_penalty_rub":120.0,"delivery_status":"pending"}
+{"id":1,"client_id":1,"product_id":1,"requested_kg":1500.0,"purchase_price_rub":999.0,"unmet_penalty_rub":120.0,"delivered_kg":0.0,"delivery_status":"pending"}
 ```
 
 Повторная загрузка состояния подтверждает сохранение:
@@ -91,12 +91,37 @@ curl -s -H "$U" $B/erp/state | python3 -c "import sys,json;print([o for o in jso
 
 ### 4.2 Статус доставки и возврат в pending
 
+На этом шаге плана ещё нет, поэтому заявка просто закрывается как доставленная
+(`delivered_kg` станет равным `requested_kg`).
+
 ```bash
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"delivery_status":"delivered"}' $B/erp/orders/1
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"delivery_status":"pending"}' $B/erp/orders/1
 ```
 
-Ожидается `200` и `"delivery_status":"delivered"`, затем `"pending"`.
+Ожидается `200` и `"delivery_status":"delivered"` (с `delivered_kg: 1500.0`), затем `"pending"` с `delivered_kg: 0.0`.
+
+### 4.2.1 Фиксация доставки со списанием склада
+
+После расчёта baseline доставка заявки списывает фактически отгруженные кг с тех
+складов, откуда их повёз план:
+
+```bash
+BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize)
+STOCK_BEFORE=$(curl -s -H "$U" $B/erp/state | python3 -c "import sys,json;print(sum(s['available_kg'] for s in json.load(sys.stdin)['stocks']))")
+curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"delivery_status":"delivered"}' $B/erp/orders/1
+STOCK_AFTER=$(curl -s -H "$U" $B/erp/state | python3 -c "import sys,json;print(sum(s['available_kg'] for s in json.load(sys.stdin)['stocks']))")
+python3 -c "print('списано:', $STOCK_BEFORE - $STOCK_AFTER)"
+```
+
+Ожидается, что списанный объём равен сумме `shipped_kg` остановок заявки 1 в
+baseline, а `delivered_kg` в ответе — тому же числу. Повторный `what_if` не должен
+распределять уже вывезенный товар: склада на него больше нет, а остаток спроса
+заявки (`requested_kg - delivered_kg`) остаётся в плане.
+
+Возврат заявки в `pending` восстанавливает остатки и очищает журнал списания.
+Если остаток склада изменился после расчёта, PATCH отвечает `409` с кодом
+`conflict` и подсказкой `Warehouse stock changed since the latest plan`.
 
 ### 4.3 Пустой патч заявки
 
@@ -498,6 +523,10 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what
 * заявки 1 нет среди `routes[].stops[].order_id`;
 * `truck_id=2` отсутствует среди маршрутов;
 * `warnings` содержит `broken_trucks_excluded`.
+
+Инвариант списания: сумма `delivered_kg` по доставленным заявкам плюс текущие
+`available_kg` складов равна исходному остатку после `reset-demo` — то есть
+вывезенный товар больше не может попасть в новый план.
 
 ### 9.5 Несколько заявок одного клиента
 

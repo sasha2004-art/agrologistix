@@ -72,6 +72,18 @@ class RouteStop(SQLModel, table=True):
     stop_status: str = Field(default=StopStatus.PLANNED.value, max_length=16, index=True)
 
 
+class DeliveredOrderStock(SQLModel, table=True):
+    """Warehouse quantities consumed when an order is marked delivered."""
+
+    __tablename__ = "delivered_order_stock"
+    __table_args__ = (CheckConstraint("shipped_kg >= 0", name="ck_delivered_stock_non_negative"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    order_id: int = Field(foreign_key="client_order.id", index=True)
+    stock_id: int = Field(foreign_key="warehouse_stock.id", index=True)
+    shipped_kg: float = Field(ge=0.0)
+
+
 class RouteCache(SQLModel, table=True):
     """Cached distance and geometry for an ordered coordinate pair."""
 
