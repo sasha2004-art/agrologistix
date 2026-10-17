@@ -86,6 +86,22 @@ export interface Truck {
   status: TruckStatus
 }
 
+/** erp_schemas.ClientOrderPatch — хотя бы одно поле обязательно */
+export interface ClientOrderPatch {
+  purchase_price_rub?: number
+  delivery_status?: DeliveryStatus
+}
+
+/** erp_schemas.TruckPatch */
+export interface TruckPatch {
+  status: TruckStatus
+}
+
+/** erp_schemas.WarehouseStockPatch */
+export interface WarehouseStockPatch {
+  available_kg: number
+}
+
 /** erp_schemas.ERPStateResponse */
 export interface ERPState {
   warehouses: Warehouse[]

@@ -8,16 +8,26 @@
 
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { describeApiError, fetchErpState } from '@/shared/api/httpClient'
+import {
+  describeApiError,
+  fetchErpState,
+  patchOrder,
+  patchStock,
+  patchTruck,
+} from '@/shared/api/httpClient'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
+import { useNotificationStore } from '@/shared/stores/useNotificationStore'
 import type {
   Client,
   ClientOrder,
+  ClientOrderPatch,
   DataSource,
   ERPState,
   Product,
+  TruckPatch,
   Warehouse,
   WarehouseStock,
+  WarehouseStockPatch,
 } from '@/shared/types/domain'
 
 export type ErpLoadStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -55,12 +65,15 @@ export interface RiskAlert {
 
 export const useErpStore = defineStore('erp', () => {
   const auth = useAuthStore()
+  const notifications = useNotificationStore()
 
   const state = ref<ERPState | null>(null)
   const status = ref<ErpLoadStatus>('idle')
   const errorMessage = ref<string | null>(null)
   const source = ref<DataSource>('api')
   const loadedAt = ref<Date | null>(null)
+  /** Ключи вида `order:3` — по ним рисуются per-row индикаторы сохранения. */
+  const pendingKeys = ref<Set<string>>(new Set())
 
   const warehouses = computed(() => state.value?.warehouses ?? [])
   const products = computed(() => state.value?.products ?? [])
@@ -214,17 +227,19 @@ export const useErpStore = defineStore('erp', () => {
     riskAlerts.value.filter((alert) => alert.severity === 'warning'),
   )
 
-  async function loadState(options: { force?: boolean } = {}): Promise<void> {
+  async function loadState(options: { force?: boolean; silent?: boolean } = {}): Promise<void> {
     if (!auth.accessPin) {
       status.value = 'error'
       errorMessage.value = 'Требуется вход по PIN-коду.'
       return
     }
     if (status.value === 'loading') return
-    if (status.value === 'ready' && !options.force) return
+    if (status.value === 'ready' && !options.force && !options.silent) return
 
-    status.value = 'loading'
-    errorMessage.value = null
+    if (!options.silent) {
+      status.value = 'loading'
+      errorMessage.value = null
+    }
     try {
       const result = await fetchErpState(auth.accessPin)
       state.value = result.data
@@ -232,9 +247,76 @@ export const useErpStore = defineStore('erp', () => {
       loadedAt.value = new Date()
       status.value = 'ready'
     } catch (error) {
-      errorMessage.value = describeApiError(error)
+      const message = describeApiError(error)
+      notifications.push('error', message)
+      if (options.silent) {
+        // Тихий refetch после PATCH: данные уже применены, показываем только уведомление.
+        return
+      }
+      errorMessage.value = message
       status.value = 'error'
     }
+  }
+
+  function isPending(key: string): boolean {
+    return pendingKeys.value.has(key)
+  }
+
+  function replaceById<T extends { id: number }>(items: T[], updated: T): T[] {
+    return items.map((item) => (item.id === updated.id ? updated : item))
+  }
+
+  /**
+   * Единый путь мутации: PATCH → применение ответа → тихий refetch актуального состояния.
+   * Локальный store никогда не остаётся единственным источником правды.
+   */
+  async function runMutation(
+    key: string,
+    notice: string,
+    mutate: (accessPin: string) => Promise<void>,
+  ): Promise<boolean> {
+    const accessPin = auth.accessPin
+    if (!accessPin) {
+      notifications.push('error', 'Требуется вход по PIN-коду.')
+      return false
+    }
+    pendingKeys.value.add(key)
+    try {
+      await mutate(accessPin)
+      notifications.push('success', notice)
+      await loadState({ force: true, silent: true })
+      return true
+    } catch (error) {
+      notifications.push('error', describeApiError(error))
+      return false
+    } finally {
+      pendingKeys.value.delete(key)
+    }
+  }
+
+  function updateOrder(orderId: number, patch: ClientOrderPatch): Promise<boolean> {
+    if (patch.purchase_price_rub === undefined && patch.delivery_status === undefined) {
+      // Backend отвечает 400 на пустой патч — не отправляем заведомо невалидный запрос.
+      return Promise.resolve(false)
+    }
+    return runMutation(`order:${orderId}`, `Заявка №${orderId} сохранена`, async (accessPin) => {
+      const updated = await patchOrder(orderId, patch, accessPin)
+      if (state.value) state.value.orders = replaceById(state.value.orders, updated)
+    })
+  }
+
+  function updateTruck(truckId: number, patch: TruckPatch): Promise<boolean> {
+    return runMutation(`truck:${truckId}`, `Машина №${truckId} обновлена`, async (accessPin) => {
+      const updated = await patchTruck(truckId, patch, accessPin)
+      if (state.value) state.value.trucks = replaceById(state.value.trucks, updated)
+    })
+  }
+
+  function updateStock(stockId: number, patch: WarehouseStockPatch): Promise<boolean> {
+    return runMutation(`stock:${stockId}`, 'Остаток склада обновлён', async (accessPin) => {
+      const updated = await patchStock(stockId, patch, accessPin)
+      if (state.value) state.value.stocks = replaceById(state.value.stocks, updated)
+    })
   }
 
   function clear(): void {
@@ -242,6 +324,8 @@ export const useErpStore = defineStore('erp', () => {
     status.value = 'idle'
     errorMessage.value = null
     loadedAt.value = null
+    pendingKeys.value.clear()
+    notifications.clear()
   }
 
   watch(
@@ -257,6 +341,7 @@ export const useErpStore = defineStore('erp', () => {
     errorMessage,
     source,
     loadedAt,
+    pendingKeys,
     isLoading,
     hasError,
     isReady,
@@ -289,6 +374,10 @@ export const useErpStore = defineStore('erp', () => {
     errorAlerts,
     warningAlerts,
     loadState,
+    isPending,
+    updateOrder,
+    updateTruck,
+    updateStock,
     clear,
   }
 })

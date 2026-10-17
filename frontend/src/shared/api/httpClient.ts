@@ -11,12 +11,18 @@
 import * as mockData from './mockData'
 import type {
   AuthResponse,
+  ClientOrder,
+  ClientOrderPatch,
   DataSource,
   ERPState,
   Loaded,
   SolverRequest,
   SolverResponse,
+  Truck,
+  TruckPatch,
   ValidationErrorBody,
+  WarehouseStock,
+  WarehouseStockPatch,
   WeatherMode,
   WeatherResponse,
 } from '@/shared/types/domain'
@@ -136,6 +142,42 @@ export function fetchErpState(accessPin: string): Promise<Loaded<ERPState>> {
   )
 }
 
+/**
+ * Мутации не имеют mock-fallback: логист обязан видеть реальный результат PATCH,
+ * иначе изменение «сохранится» только в браузере и потеряется после перезагрузки.
+ */
+export function patchOrder(
+  orderId: number,
+  patch: ClientOrderPatch,
+  accessPin: string,
+): Promise<ClientOrder> {
+  return request<ClientOrder>(`/erp/orders/${orderId}`, {
+    method: 'PATCH',
+    access_pin: accessPin,
+    body: JSON.stringify(patch),
+  })
+}
+
+export function patchTruck(truckId: number, patch: TruckPatch, accessPin: string): Promise<Truck> {
+  return request<Truck>(`/erp/trucks/${truckId}`, {
+    method: 'PATCH',
+    access_pin: accessPin,
+    body: JSON.stringify(patch),
+  })
+}
+
+export function patchStock(
+  stockId: number,
+  patch: WarehouseStockPatch,
+  accessPin: string,
+): Promise<WarehouseStock> {
+  return request<WarehouseStock>(`/erp/stocks/${stockId}`, {
+    method: 'PATCH',
+    access_pin: accessPin,
+    body: JSON.stringify(patch),
+  })
+}
+
 export function fetchWeather(accessPin: string): Promise<Loaded<WeatherResponse>> {
   return requestWithFallback<WeatherResponse>(
     '/weather/current',
@@ -171,8 +213,14 @@ export function describeApiError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'PIN-код не принят или сессия истекла.'
     if (error.status === 403) return 'Недостаточно прав для этого действия.'
+    if (error.status === 404) return 'Запись не найдена — возможно, данные уже обновлены.'
+    if (error.status === 422) return `Некорректное значение: ${error.detail}`
+    if (error.status >= 500)
+      return `Сервер временно недоступен (${error.status}). Изменение не сохранено — повторите позже.`
     return error.detail
   }
+  if (error instanceof TypeError)
+    return 'Сервер недоступен: изменение не сохранено. Проверьте соединение и повторите.'
   if (error instanceof Error) return error.message
   return 'Не удалось выполнить запрос. Попробуйте ещё раз.'
 }
