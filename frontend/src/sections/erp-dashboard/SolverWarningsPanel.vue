@@ -1,17 +1,17 @@
 <template>
-  <section class="warnings" aria-label="Предупреждения расчёта">
+  <section class="warnings" aria-label="Замечания к расчёту">
     <div class="warnings-head">
-      <h3 class="warnings-title">Предупреждения расчёта</h3>
+      <h3 class="warnings-title">Замечания к расчёту</h3>
       <v-chip
         v-if="solver.warnings.length > 0"
         class="soft-chip"
         size="small"
         prepend-icon="mdi-alert-outline"
       >
-        {{ solver.warnings.length }} от сервера
+        Замечаний: {{ solver.warnings.length }}
       </v-chip>
       <v-chip v-else class="soft-chip" size="small" prepend-icon="mdi-check-circle-outline">
-        Сервер без замечаний
+        Замечаний нет
       </v-chip>
     </div>
 
@@ -46,7 +46,7 @@
     <div v-if="solver.riskyStops.length > 0" class="warnings-risky">
       <p class="risky-title">
         <v-icon icon="mdi-thermometer-low" color="warning" size="18" />
-        Стопы с низкой свежестью ({{ solver.riskyStops.length }} из
+        Точки с низкой сохранностью ({{ solver.riskyStops.length }} из
         {{ solver.plannedStops.length }})
       </p>
       <ul class="warnings-list">
@@ -57,9 +57,9 @@
         >
           <span class="risky-dot" :style="{ background: item.color }" aria-hidden="true" />
           <span class="warning-text">
-            {{ clientName(item.stop.client_id) }} · заявка №{{ item.stop.order_id ?? '—' }} ·
-            {{ truckName(item.truckId) }} · ETA {{ formatMinutes(item.stop.eta_minutes) }} ·
-            свежесть {{ formatFreshness(item.stop.expected_freshness) }}
+            {{ clientName(item.stop.client_id) }} · заказ №{{ item.stop.order_id ?? '—' }} ·
+            {{ truckName(item.truckId) }} · в пути {{ formatMinutes(item.stop.eta_minutes) }} ·
+            сохранность {{ formatFreshness(item.stop.expected_freshness) }}
           </span>
           <v-chip
             class="soft-chip"
@@ -86,7 +86,7 @@ const solver = useSolverStore()
 const erp = useErpStore()
 
 function clientName(clientId: number): string {
-  return erp.clientById.get(clientId)?.name ?? `Клиент №${clientId}`
+  return erp.clientById.get(clientId)?.name ?? `Покупатель №${clientId}`
 }
 
 function truckName(truckId: number): string {

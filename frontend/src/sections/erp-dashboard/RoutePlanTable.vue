@@ -1,6 +1,6 @@
 <template>
   <section class="plan" aria-label="Рейсы рассчитанного плана">
-    <h3 class="plan-title">Рейсы плана</h3>
+    <h3 class="plan-title">Маршруты</h3>
 
     <article v-for="route in solver.routes" :key="route.truck_id" class="route-card neu-inset">
       <header class="route-head">
@@ -14,20 +14,20 @@
           {{ formatKm(route.total_distance_km) }} · {{ formatMinutes(route.total_duration_min) }} ·
           {{ formatRub(route.total_cost_rub) }}
         </span>
-        <v-chip class="soft-chip" size="x-small">{{ route.stops.length }} стоп(ов)</v-chip>
+        <v-chip class="soft-chip" size="x-small">{{ route.stops.length }} остановок</v-chip>
       </header>
 
       <v-table density="compact" class="erp-table">
         <thead>
           <tr>
             <th scope="col" class="text-right">#</th>
-            <th scope="col">Клиент</th>
-            <th scope="col">Продукт</th>
+            <th scope="col">Покупатель</th>
+            <th scope="col">Урожай</th>
             <th scope="col" class="text-right">Вес</th>
-            <th scope="col" class="text-right">Дорога</th>
-            <th scope="col" class="text-right">ETA</th>
-            <th scope="col" class="text-right">Свежесть</th>
-            <th scope="col" class="text-right">Плечо</th>
+            <th scope="col" class="text-right">Расстояние</th>
+            <th scope="col" class="text-right">В пути</th>
+            <th scope="col" class="text-right">Сохранность</th>
+            <th scope="col" class="text-right">Стоимость</th>
             <th scope="col">Статус</th>
           </tr>
         </thead>
@@ -89,14 +89,14 @@ function colorOf(truckId: number): string {
 }
 
 function clientName(clientId: number): string {
-  return erp.clientById.get(clientId)?.name ?? `Клиент №${clientId}`
+  return erp.clientById.get(clientId)?.name ?? `Покупатель №${clientId}`
 }
 
 function productName(productId: number): string {
-  return erp.productById.get(productId)?.name ?? `Продукт №${productId}`
+  return erp.productById.get(productId)?.name ?? `Урожай №${productId}`
 }
 
-/** Клиент с подъездом по грунтовке — это замедление рейса и потеря свежести. */
+/** Клиент с подъездом по грунтовке — это замедление рейса и потеря сохранности. */
 function isDirt(clientId: number): boolean {
   return erp.clientById.get(clientId)?.road_type === 'dirt'
 }

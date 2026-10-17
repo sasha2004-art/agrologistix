@@ -44,7 +44,7 @@ def export_run(
     if report is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Solver run with id {run_id} was not found",
+            detail=f"Расчёт №{run_id} не найден",
         )
 
     payload = export_run_xlsx(report)

@@ -4,8 +4,12 @@
       <div>
         <h2 class="map-title">Карта Калужской области</h2>
         <p class="map-subtitle">
-          Центр — Обнинск, {{ OBNINSK_CENTER[1].toFixed(4) }} / {{ OBNINSK_CENTER[0].toFixed(4) }}.
-          {{ mapReady ? 'Клик по маркеру — детали точки.' : 'Карта в режиме схемы.' }}
+          Склады и покупатели.
+          {{
+            mapReady
+              ? 'Нажмите на точку, чтобы увидеть детали.'
+              : 'Карта недоступна — показываем список точек.'
+          }}
         </p>
       </div>
     </header>
@@ -16,7 +20,7 @@
         ref="container"
         class="map-canvas"
         :class="{ 'map-canvas--dimmed': !mapReady }"
-        aria-label="Интерактивная карта складов и клиентов"
+        aria-label="Интерактивная карта складов и покупателей"
       />
       <MapFallbackPanel v-else :reason="fallbackReason" />
 
@@ -33,15 +37,15 @@
       </li>
       <li class="legend-item">
         <span class="legend-marker legend-marker--asphalt" aria-hidden="true" />
-        Клиент, асфальт
+        Покупатель — асфальт
       </li>
       <li class="legend-item">
         <span class="legend-marker legend-marker--dirt" aria-hidden="true" />
-        Клиент, грунтовка
+        Покупатель — грунтовка
       </li>
       <li class="legend-item">
         <span class="legend-marker legend-marker--pending" aria-hidden="true" />
-        Заявки в работе
+        Заказ в работе
       </li>
       <li class="legend-item">
         <span class="legend-marker legend-marker--delivered" aria-hidden="true" />
@@ -56,7 +60,7 @@
     >
       <li v-for="route in solver.routeLegend" :key="route.truckId" class="legend-item">
         <span class="legend-line" :style="{ background: route.color }" aria-hidden="true" />
-        {{ route.truckName }}: {{ route.stops }} стоп(ов), {{ formatKm(route.distanceKm) }},
+        {{ route.truckName }}: {{ route.stops }} остановок, {{ formatKm(route.distanceKm) }},
         {{ formatRub(route.costRub) }}
       </li>
     </ul>
@@ -120,9 +124,8 @@ const points = computed<MapPoint[]>(() =>
 )
 const showMap = computed(() => accessToken.length > 0 && !mapFailed.value)
 const fallbackReason = computed(() => {
-  if (!accessToken)
-    return 'Не задан VITE_MAPBOX_PUBLIC_TOKEN: показываем схему точек. Интерактивная карта включится после сборки с токеном.'
-  return failureText.value ?? 'Mapbox недоступен: показываем схему точек.'
+  if (!accessToken) return 'Карта недоступна — показываем список складов и покупателей.'
+  return failureText.value ?? 'Карта недоступна — показываем список складов и покупателей.'
 })
 
 let map: mapboxgl.Map | null = null

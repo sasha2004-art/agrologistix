@@ -3,10 +3,10 @@
     <header class="tab-header">
       <div>
         <h2 class="tab-title">Склады и остатки</h2>
-        <p class="tab-subtitle">Мульти-склады Калужской области и доступные партии по культурам.</p>
+        <p class="tab-subtitle">Склады и доступные партии урожая.</p>
       </div>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-warehouse">
-        {{ erp.warehouses.length }} склада
+        Складов: {{ erp.warehouses.length }}
       </v-chip>
     </header>
 
@@ -22,9 +22,7 @@
         <div v-for="row in erp.stockMatrix" :key="row.warehouse.id" class="summary-card neu-inset">
           <span class="summary-label">{{ row.warehouse.name }}</span>
           <span class="summary-value mono">{{ formatKg(row.total_kg) }}</span>
-          <span class="summary-hint">{{
-            row.warehouse.is_active ? 'склад активен' : 'склад отключён'
-          }}</span>
+          <span class="summary-hint">{{ row.warehouse.is_active ? 'работает' : 'отключён' }}</span>
         </div>
       </div>
 
@@ -34,7 +32,6 @@
             <th scope="col">Склад</th>
             <th v-for="product in erp.products" :key="product.id" scope="col" class="text-right">
               {{ product.name }}
-              <span class="cell-code mono">{{ product.code }}</span>
             </th>
             <th scope="col" class="text-right">Итого</th>
           </tr>
@@ -64,8 +61,7 @@
       </v-table>
 
       <p class="tab-footnote">
-        Остаток сохраняется сразу (<span class="mono">PATCH /erp/stocks/&#123;id&#125;</span>) и
-        учитывается солвером при расчёте.
+        Остаток сохраняется сразу и учитывается в следующем расчёте поставок.
       </p>
     </StatePanel>
   </div>

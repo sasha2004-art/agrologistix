@@ -2,10 +2,9 @@
   <div class="tab-body">
     <header class="tab-header">
       <div>
-        <h2 class="tab-title">Автопарк</h2>
+        <h2 class="tab-title">Машины</h2>
         <p class="tab-subtitle">
-          Рефрижератор, допуск к грунтовке и состояние машины. Сломанные машины исключаются из
-          расчёта.
+          Рефрижератор, проходимость и состояние. Сломанные машины в расчёт не берутся.
         </p>
       </div>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-truck-outline">
@@ -30,17 +29,17 @@
         <div class="summary-card neu-inset">
           <span class="summary-label">Сломано</span>
           <span class="summary-value mono">{{ erp.brokenTrucks.length }}</span>
-          <span class="summary-hint">исключены из расчёта</span>
+          <span class="summary-hint">в расчёт не берутся</span>
         </div>
         <div class="summary-card neu-inset">
           <span class="summary-label">Рефрижераторы</span>
           <span class="summary-value mono">{{ erp.reeferTrucks.length }}</span>
-          <span class="summary-hint">контроль температуры</span>
+          <span class="summary-hint">с охлаждением</span>
         </div>
         <div class="summary-card neu-inset">
-          <span class="summary-label">Проходимые</span>
+          <span class="summary-label">По грунтовке</span>
           <span class="summary-value mono">{{ erp.dirtCapableTrucks.length }}</span>
-          <span class="summary-hint">допуск к грунтовке</span>
+          <span class="summary-hint">могут проехать по грунту</span>
         </div>
       </div>
 
@@ -51,8 +50,8 @@
             <th scope="col">База</th>
             <th scope="col" class="text-right">Вместимость</th>
             <th scope="col" class="text-right">Скорость</th>
-            <th scope="col" class="text-right">₽/км</th>
-            <th scope="col" class="text-right">Фикс. рейс</th>
+            <th scope="col" class="text-right">Цена за км</th>
+            <th scope="col" class="text-right">Выезд</th>
             <th scope="col">Оснащение</th>
             <th scope="col">Статус</th>
           </tr>
@@ -79,14 +78,14 @@
                   class="soft-chip"
                   :prepend-icon="truck.has_reefer ? 'mdi-snowflake' : 'mdi-weather-sunny'"
                 >
-                  {{ truck.has_reefer ? 'Реф' : 'Без рефа' }}
+                  {{ truck.has_reefer ? 'Рефрижератор' : 'Без охлаждения' }}
                 </v-chip>
                 <v-chip
                   size="small"
                   class="soft-chip"
                   :prepend-icon="truck.can_use_dirt ? 'mdi-image-filter-hdr' : 'mdi-highway'"
                 >
-                  {{ truck.can_use_dirt ? 'Грунт' : 'Только асфальт' }}
+                  {{ truck.can_use_dirt ? 'Грунтовка' : 'Только асфальт' }}
                 </v-chip>
               </div>
             </td>
@@ -110,11 +109,7 @@
         </tbody>
       </v-table>
 
-      <p class="tab-footnote">
-        Сломанная машина сохраняется на сервере (<span class="mono"
-          >PATCH /erp/trucks/&#123;id&#125;</span
-        >) и исключается из расчёта поставок.
-      </p>
+      <p class="tab-footnote">Сломанная машина не участвует в расчёте поставок.</p>
     </StatePanel>
   </div>
 </template>

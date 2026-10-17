@@ -4,7 +4,7 @@
       <div class="fallback-grid" aria-hidden="true" />
       <div class="fallback-content">
         <v-icon icon="mdi-map-search-outline" size="32" color="primary" />
-        <p class="fallback-title">Карта в режиме схемы</p>
+        <p class="fallback-title">Карта недоступна</p>
         <p class="fallback-text">{{ reason }}</p>
       </div>
     </div>
@@ -13,7 +13,7 @@
       class="fallback-points"
       :status="erp.panelStatus"
       :error-text="erp.errorMessage"
-      loading-text="Загружаем точки складов и клиентов…"
+      loading-text="Загружаем склады и покупателей…"
       empty-title="Точек на карте пока нет"
       empty-icon="mdi-map-marker-off-outline"
       @retry="reload"
@@ -36,7 +36,7 @@
 
         <div class="points-group">
           <h3 class="points-title">
-            <v-icon icon="mdi-storefront-outline" size="18" color="primary" /> Клиенты
+            <v-icon icon="mdi-storefront-outline" size="18" color="primary" /> Покупатели
             <span class="points-count mono">{{ erp.clients.length }}</span>
           </h3>
           <ul class="points-list">
@@ -48,9 +48,6 @@
                   size="14"
                 />
                 {{ client.road_type === 'dirt' ? 'грунтовка' : 'асфальт' }}
-                <span class="point-coords mono">
-                  {{ client.lat.toFixed(4) }}, {{ client.lon.toFixed(4) }}
-                </span>
               </span>
             </li>
           </ul>
@@ -68,7 +65,7 @@ withDefaults(
   defineProps<{
     reason?: string
   }>(),
-  { reason: 'Показываем контрольный список точек без подложки карты.' },
+  { reason: 'Показываем список складов и покупателей.' },
 )
 
 const erp = useErpStore()

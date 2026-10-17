@@ -129,7 +129,7 @@ def _collect_warnings(
         warnings.append(
             PlannedWarning(
                 code="broken_trucks_excluded",
-                message=f"Сломанные машины исключены из расчёта: {broken_count}",
+                message=f"Сломанные машины не участвуют в расчёте: {broken_count}",
                 severity=WarningSeverity.INFO.value,
             )
         )
@@ -138,7 +138,7 @@ def _collect_warnings(
         warnings.append(
             PlannedWarning(
                 code="no_active_trucks",
-                message="Нет ни одной машины в строю: весь объём уходит в недовоз",
+                message="Нет машин в строю: весь урожай остался не привезённым",
                 severity=WarningSeverity.ERROR.value,
             )
         )
@@ -151,8 +151,8 @@ def _collect_warnings(
             PlannedWarning(
                 code="unmet_demand",
                 message=(
-                    f"Недовоз {metrics.unmet_kg:.0f} кг: не хватает транспорта, "
-                    f"остатков или подходящих машин"
+                    f"Не удалось привезти {metrics.unmet_kg:.0f} кг: не хватает машин, "
+                    f"урожая на складе или подходящего транспорта"
                 ),
                 severity=severity,
             )
@@ -163,7 +163,9 @@ def _collect_warnings(
         warnings.append(
             PlannedWarning(
                 code="dirt_unreachable",
-                message=("Точка недоступна: требуется транспорт с допуском к грунтовым дорогам"),
+                message=(
+                    "К этой точке не проехать: нужна машина, которая может ехать по грунтовке"
+                ),
                 severity=WarningSeverity.ERROR.value,
                 client_id=order.client_id,
                 order_id=order.order_id,
@@ -178,8 +180,8 @@ def _collect_warnings(
                 PlannedWarning(
                     code="heat_without_reefer",
                     message=(
-                        f"Жара +{solver_input.weather.temperature_c:.0f} °C: "
-                        f"{len(heat_risk)} рейс(а) без рефрижератора, груз портится быстрее"
+                        f"Жара +{solver_input.weather.temperature_c:.0f} °C: часть машин едет "
+                        f"без охлаждения, урожай портится быстрее"
                     ),
                     severity=WarningSeverity.WARNING.value,
                 )
@@ -198,8 +200,8 @@ def _collect_warnings(
                 PlannedWarning(
                     code="stock_shortage",
                     message=(
-                        f"Остатков «{product.name or product.product_id}» не хватает: "
-                        f"запрошено {requested:.0f} кг, на складах "
+                        f"Урожая «{product.name or product.product_id}» не хватает: "
+                        f"заказали {requested:.0f} кг, на складах "
                         f"{stock_by_product.get(product_id, 0.0):.0f} кг"
                     ),
                     severity=WarningSeverity.WARNING.value,

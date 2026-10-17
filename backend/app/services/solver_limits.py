@@ -62,7 +62,7 @@ def _route_limit(
 
     limit = solver_input.max_stops_per_trip
     if len(route.stops) > limit:
-        return limit, "stops", f"Рейс на {len(route.stops)} точек сокращён до {limit}"
+        return limit, "stops", f"В рейсе было {len(route.stops)} остановок — оставили {limit}"
 
     max_minutes = solver_input.max_trip_hours * 60.0
     for position, stop in enumerate(route.stops):
@@ -70,7 +70,7 @@ def _route_limit(
             return (
                 position,
                 "hours",
-                f"Рейс длиннее смены {solver_input.max_trip_hours:.0f} ч: поздние точки сняты",
+                f"Рейс длиннее {solver_input.max_trip_hours:.0f} ч: поздние точки сняли",
             )
     return len(route.stops), None, None
 
@@ -91,9 +91,8 @@ def _freshness_warnings(
             PlannedWarning(
                 code="freshness_risk",
                 message=(
-                    f"Свежесть {stop.expected_freshness * 100:.0f} % ниже нормы "
-                    f"{solver_input.min_stop_freshness * 100:.0f} %: груз довезётся, "
-                    f"потери учтены в TCO"
+                    f"Сохранность к доставке {stop.expected_freshness * 100:.0f} % — ниже нормы "
+                    f"{solver_input.min_stop_freshness * 100:.0f} %: потери учтены в затратах"
                 ),
                 severity=WarningSeverity.WARNING.value,
                 client_id=order.client_id if order else None,
@@ -147,8 +146,8 @@ def enforce_trip_limits(
             PlannedWarning(
                 code="trip_limit_exceeded",
                 message=(
-                    f"Достигнут лимит {stops_limit} остановок на рейс: "
-                    f"часть заявок не помещается в график смены"
+                    f"В один рейс помещается не больше {stops_limit} остановок: "
+                    f"часть заказов не влезла в график"
                 ),
                 severity=WarningSeverity.WARNING.value,
             )

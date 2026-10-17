@@ -130,14 +130,14 @@ export const useSolverStore = defineStore('solver', () => {
   /** Отдельные формулировки: у расчёта нет «несохранённого изменения», есть «нет плана». */
   function solverErrorMessage(error: unknown): string {
     if (error instanceof ApiError) {
-      if (error.status === 401) return 'PIN-код не принят: войдите заново, чтобы рассчитать план.'
-      if (error.status === 422) return `Сервер отклонил запрос расчёта: ${error.detail}`
-      if (error.status >= 500)
-        return `Сервер не смог рассчитать план (${error.status}). Повторите попытку.`
+      if (error.status === 401)
+        return 'Код доступа не принят: войдите заново, чтобы рассчитать план.'
+      if (error.status === 422) return `Не удалось рассчитать план: ${error.detail}`
+      if (error.status >= 500) return 'Не получилось рассчитать план. Повторите попытку.'
       return error.detail
     }
     if (error instanceof TypeError)
-      return 'Сервер недоступен: план не рассчитан. Проверьте соединение и повторите.'
+      return 'Нет связи с сервисом: проверьте подключение и повторите.'
     if (error instanceof Error) return error.message
     return 'Не удалось рассчитать план. Попробуйте ещё раз.'
   }

@@ -2,24 +2,22 @@
   <div class="tab-body">
     <header class="tab-header">
       <div>
-        <h2 class="tab-title">Заявки B2B-клиентов</h2>
+        <h2 class="tab-title">Заказы покупателей</h2>
         <p class="tab-subtitle">
-          Объём, закупочная цена и тип подъездной дороги. Цена и статус сохраняются сразу (<span
-            class="mono"
-            >PATCH /erp/orders/&#123;id&#125;</span
-          >) и перечитываются с сервера.
+          Объём, цена продажи и дорога к покупателю. Изменения сохраняются сразу и учитываются в
+          следующем расчёте.
         </p>
       </div>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-clipboard-list-outline">
-        {{ erp.orderRows.length }} заявок
+        {{ erp.orderRows.length }} заказов
       </v-chip>
     </header>
 
     <StatePanel
       :status="erp.panelStatus"
       :error-text="erp.errorMessage"
-      loading-text="Загружаем заявки клиентов…"
-      empty-title="Заявок пока нет"
+      loading-text="Загружаем заказы покупателей…"
+      empty-title="Заказов пока нет"
       empty-icon="mdi-clipboard-text-off-outline"
       @retry="reload"
     >
@@ -40,9 +38,9 @@
           <span class="summary-hint">объём × цена</span>
         </div>
         <div class="summary-card neu-inset">
-          <span class="summary-label">Точки на грунте</span>
+          <span class="summary-label">Дорога — грунтовка</span>
           <span class="summary-value mono">{{ erp.dirtClients.length }}</span>
-          <span class="summary-hint">нужен вездеход</span>
+          <span class="summary-hint">нужна проходимая машина</span>
         </div>
       </div>
 
@@ -50,7 +48,7 @@
         <thead>
           <tr>
             <th scope="col">№</th>
-            <th scope="col">Клиент</th>
+            <th scope="col">Покупатель</th>
             <th scope="col">Культура</th>
             <th scope="col" class="text-right">Объём</th>
             <th scope="col" class="text-right">Цена, ₽/кг</th>
@@ -84,7 +82,7 @@
                 :step="10"
                 suffix="₽"
                 :loading="erp.isPending(`order:${row.order.id}`)"
-                :aria-label="`Заявка №${row.order.id}: цена за кг в рублях`"
+                :aria-label="`Заказ №${row.order.id}: цена за кг в рублях`"
                 @commit="(value) => savePrice(row, value)"
               />
             </td>
@@ -110,7 +108,7 @@
                 "
                 :loading="erp.isPending(`order:${row.order.id}`)"
                 :aria-pressed="row.order.delivery_status === 'delivered'"
-                :aria-label="`Заявка №${row.order.id}: переключить статус доставки`"
+                :aria-label="`Заказ №${row.order.id}: переключить статус доставки`"
                 @click="toggleDelivered(row)"
               >
                 {{ row.order.delivery_status === 'delivered' ? 'Доставлено' : 'В работе' }}
@@ -121,8 +119,8 @@
       </v-table>
 
       <p class="tab-footnote">
-        Статус меняется на уровне заявки (<span class="mono">order_id</span>), а не клиента: у
-        одного клиента может быть несколько культур и рейсов.
+        Статус ставится каждому заказу отдельно: у одного покупателя может быть несколько культур и
+        рейсов.
       </p>
     </StatePanel>
   </div>

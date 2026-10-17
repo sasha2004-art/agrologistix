@@ -55,7 +55,7 @@ withDefaults(
   {
     loadingText: 'Загружаем данные…',
     emptyTitle: 'Данных пока нет',
-    emptyText: 'Измените фильтры или запустите расчёт поставок.',
+    emptyText: 'Данные появятся после загрузки.',
     emptyIcon: 'mdi-tray-remove',
     errorText: null,
     minHeight: '120px',

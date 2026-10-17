@@ -33,6 +33,19 @@ TITLE_FONT = Font(bold=True, size=14)
 LABEL_FONT = Font(bold=True)
 THIN_BORDER = Border(*[Side(style="thin", color="BFBFBF")] * 4)
 
+# Человекочитаемая подпись погоды для итогового файла.
+WEATHER_LABELS = {
+    "normal": "фактическая",
+    "heatwave_35c": "симуляция: жара +35 °C",
+    "heavy_rain": "симуляция: сильный дождь",
+}
+
+
+def weather_label(mode: str) -> str:
+    """Plain-language weather caption for the workbook."""
+
+    return WEATHER_LABELS.get(mode, mode)
+
 
 @dataclass(frozen=True, slots=True)
 class ExportStop:
@@ -199,14 +212,14 @@ def _autosize(sheet: Worksheet) -> None:
 def _write_summary(sheet: Worksheet, report: ExportRun) -> None:
     run = report.run
     metrics = [
-        ("TCO, ₽", run.total_tco_rub),
-        ("Стоимость рейсов, ₽", run.total_trip_cost_rub),
-        ("Потери от порчи, ₽", run.total_spoilage_loss_rub),
-        ("Штраф за недовоз, ₽", run.total_unmet_penalty_rub),
-        ("Ожидаемая прибыль, ₽", run.expected_net_profit_rub),
-        ("Средняя свежесть, %", run.avg_freshness_pct),
-        ("Отгружено, кг", run.total_shipped_kg),
-        ("Недовоз, кг", run.total_unmet_kg),
+        ("Общие затраты, ₽", run.total_tco_rub),
+        ("Затраты на доставку, ₽", run.total_trip_cost_rub),
+        ("Потери урожая, ₽", run.total_spoilage_loss_rub),
+        ("Штраф за недопоставку, ₽", run.total_unmet_penalty_rub),
+        ("Прибыль, ₽", run.expected_net_profit_rub),
+        ("Сохранность урожая, %", run.avg_freshness_pct),
+        ("Привезли, кг", run.total_shipped_kg),
+        ("Не привезли, кг", run.total_unmet_kg),
     ]
 
     sheet["A1"] = f"AgroLogistix — маршрутный лист, расчёт №{run.id}"
@@ -214,11 +227,11 @@ def _write_summary(sheet: Worksheet, report: ExportRun) -> None:
     sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=4)
 
     info = [
-        ("Дата расчёта (UTC)", run.created_at.strftime("%d.%m.%Y %H:%M")),
-        ("Погодный режим", run.weather_mode),
+        ("Дата расчёта", run.created_at.strftime("%d.%m.%Y %H:%M")),
+        ("Погода", weather_label(run.weather_mode)),
         ("Температура, °C", run.temp_c),
         ("Осадки, мм", run.precip_mm),
-        ("Рейсов", len(report.routes)),
+        ("Машин", len(report.routes)),
     ]
     row = 3
     for label, value in info:
@@ -249,7 +262,7 @@ def _write_summary(sheet: Worksheet, report: ExportRun) -> None:
             "Рейс",
             "Машина",
             "Склад",
-            "Стопов",
+            "Остановок",
             "Отгружено, кг",
             "Пробег, км",
             "Время, мин",
@@ -288,11 +301,11 @@ def _write_route(sheet: Worksheet, index: int, route: ExportRoute, run: Simulati
         ("Склад загрузки", route.warehouse_name),
         ("Вместимость, кг", route.capacity_kg),
         ("Отгружено, кг", route.total_kg),
-        ("Пробег рейса, км", route.total_distance_km),
+        ("Пробег, км", route.total_distance_km),
         ("Время в пути, мин", route.total_duration_min),
-        ("Стоимость рейса, ₽", route.total_cost_rub),
-        ("Свежесть в последней точке, %", route.final_freshness_pct),
-        ("Погодный режим", run.weather_mode),
+        ("Стоимость, ₽", route.total_cost_rub),
+        ("Сохранность в последней точке, %", route.final_freshness_pct),
+        ("Погода", weather_label(run.weather_mode)),
     ]
     row = 3
     for label, value in info:
@@ -306,14 +319,14 @@ def _write_route(sheet: Worksheet, index: int, route: ExportRoute, run: Simulati
     header_row = row
     headers = [
         "№",
-        "Заявка",
-        "Клиент",
-        "Культура",
+        "Заказ",
+        "Покупатель",
+        "Урожай",
         "Отгружено, кг",
-        "Участок, км",
-        "ETA, мин",
-        "Свежесть, %",
-        "Стоимость участка, ₽",
+        "Расстояние, км",
+        "В пути, мин",
+        "Сохранность, %",
+        "Стоимость, ₽",
         "Статус",
     ]
     for column, header in enumerate(headers, start=1):
