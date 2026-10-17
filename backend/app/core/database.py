@@ -55,6 +55,16 @@ _SQLITE_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
         "delivered_kg",
         "ALTER TABLE client_order ADD COLUMN delivered_kg FLOAT NOT NULL DEFAULT 0",
     ),
+    (
+        "route_cache",
+        "source",
+        "ALTER TABLE route_cache ADD COLUMN source VARCHAR(16) NOT NULL DEFAULT 'fallback'",
+    ),
+    (
+        "route_cache",
+        "mapbox_checked_at",
+        "ALTER TABLE route_cache ADD COLUMN mapbox_checked_at FLOAT",
+    ),
 )
 
 

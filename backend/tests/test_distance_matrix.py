@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 from math import pi
 
@@ -109,6 +110,8 @@ def test_route_leg_is_cached_in_sqlite(session: Session) -> None:
     assert len(stored) == 1
     assert stored[0].pair_key == dm.coordinate_key(OBININSK, KALUGA)
     assert stored[0].distance_km == leg.distance_km
+    assert stored[0].source == dm.FALLBACK_SOURCE
+    assert stored[0].mapbox_checked_at is None
 
 
 def test_second_call_uses_cache_without_network(
@@ -143,6 +146,8 @@ def test_mapbox_leg_is_preferred_when_available(
     stored = session.get(RouteCache, dm.coordinate_key(OBININSK, KALUGA))
     assert stored is not None
     assert stored.distance_km == 100.0
+    assert stored.source == dm.MAPBOX_SOURCE
+    assert stored.mapbox_checked_at is not None
 
 
 def test_empty_token_skips_network_instantly() -> None:
@@ -255,7 +260,7 @@ def test_fetch_closes_its_own_http_client(monkeypatch: pytest.MonkeyPatch) -> No
                         {
                             "distance": 1000.0,
                             "duration": 60.0,
-                            "geometry": {"coordinates": []},
+                            "geometry": {"coordinates": [[36.61, 55.09], [36.26, 54.51]]},
                         }
                     ]
                 },
@@ -272,7 +277,7 @@ def test_fetch_closes_its_own_http_client(monkeypatch: pytest.MonkeyPatch) -> No
     assert closed == [True]
     assert leg is not None
     assert leg.distance_km == 1.0
-    assert leg.geometry == []
+    assert len(leg.geometry) == 2
 
 
 def test_matrix_is_symmetric_for_straight_line_fallback(session: Session) -> None:
@@ -317,6 +322,76 @@ def test_cold_matrix_fetches_mapbox_legs_concurrently(
     assert calls == 20
     assert len(matrix) == 5
     assert elapsed < 0.6
+
+
+def test_old_fallback_cache_is_upgraded_to_a_mapbox_road_route(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key = dm.coordinate_key(OBININSK, KALUGA)
+    road_geometry = [
+        (55.0968, 36.6103),
+        (55.08, 36.57),
+        (55.02, 36.48),
+        (54.9, 36.39),
+        (54.7, 36.32),
+        (54.5138, 36.2612),
+    ]
+    session.add(
+        RouteCache(
+            pair_key=key,
+            distance_km=89.152,
+            base_duration_min=89.152,
+            geojson_geometry=json.dumps(dm.build_polyline(OBININSK, KALUGA)),
+        )
+    )
+    session.commit()
+    calls = 0
+
+    async def fake_mapbox(*_args: object, **_kwargs: object) -> dm.RouteLeg:
+        nonlocal calls
+        calls += 1
+        return dm.RouteLeg(79.568, 83.0, road_geometry)
+
+    monkeypatch.setattr(dm, "fetch_mapbox_leg", fake_mapbox)
+    settings = _settings("pk.test")
+
+    first = asyncio.run(dm.get_route_leg(session, OBININSK, KALUGA, settings))
+    second = asyncio.run(dm.get_route_leg(session, OBININSK, KALUGA, settings))
+    stored = session.get(RouteCache, key)
+
+    assert first.distance_km == 79.568
+    assert first.geometry == road_geometry
+    assert second.geometry == road_geometry
+    assert calls == 1
+    assert stored is not None
+    assert stored.source == dm.MAPBOX_SOURCE
+    assert stored.mapbox_checked_at is not None
+
+
+def test_failed_mapbox_refresh_is_throttled(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 10_000.0
+    calls = 0
+    monkeypatch.setattr(dm.time, "time", lambda: now)
+
+    async def unavailable(*_args: object, **_kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
+        return None
+
+    monkeypatch.setattr(dm, "fetch_mapbox_leg", unavailable)
+    settings = _settings("pk.test")
+
+    asyncio.run(dm.get_route_leg(session, OBININSK, KALUGA, settings))
+    asyncio.run(dm.get_route_leg(session, OBININSK, KALUGA, settings))
+    assert calls == 1
+
+    now += dm.MAPBOX_RETRY_INTERVAL_SEC
+    asyncio.run(dm.get_route_leg(session, OBININSK, KALUGA, settings))
+    assert calls == 2
 
 
 def test_matrix_falls_back_when_mapbox_exceeds_the_deadline(

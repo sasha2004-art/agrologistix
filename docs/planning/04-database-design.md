@@ -110,7 +110,9 @@ erDiagram
         string pair_key PK "origLat_origLon_destLat_destLon"
         float distance_km
         float base_duration_min
-        string geojson_geometry
+        string geojson_geometry "реальная дорожная линия Mapbox или офлайн-ломаная"
+        string source "mapbox | fallback"
+        float mapbox_checked_at "nullable, unix seconds"
     }
 
     DELIVERED_ORDER_STOCK {
@@ -185,7 +187,15 @@ Seed задаёт разные партии в пределах реальной
 * Хранят полный слепок расчёта. Если `parent_run_id` заполнен, бэкенд автоматически формирует структуру `ComparisonDelta` (разница TCO, прибыли, свежести и недовоза между `parent_run_id` и текущим расчётом).
 * `route_stop.order_id` связывает план с заявкой, чтобы `PATCH /erp/orders/{id}` знал, какие склады и объёмы списать при фиксации доставки.
 
-### 2.8. `delivered_order_stock` (Журнал списания остатков)
+### 2.8. `route_cache` (Кэш дорожных плеч)
+* `pair_key`: `VARCHAR(128) PRIMARY KEY` (округлённые координаты `origLat_origLon_destLat_destLon`);
+* `distance_km`, `base_duration_min`: метрики плеча от Mapbox Directions;
+* `geojson_geometry`: сериализованный список точек `[lat, lon]` — реальная дорожная линия Mapbox или офлайн-ломаная (haversine×1.3) при недоступном API;
+* `source`: `mapbox` для реального маршрута, `fallback` для офлайн-оценки. Записи со `source = 'fallback'` и `mapbox_checked_at IS NULL` остались от запусков без `MAPBOX_SECRET_TOKEN` и автоматически перезапрашиваются при первом же расчёте с токеном;
+* `mapbox_checked_at`: unix-время последней попытки получить дорогу. Повторные попытки после неудачи ограничены `MAPBOX_RETRY_INTERVAL_SEC` (15 минут), чтобы дашборд не бил в API на каждом пересчёте;
+* реальная дорожная геометрия отдаётся фронтенду в `RouteResponse.geometry`, поэтому линия на карте идёт по дорогам, а не по прямой.
+
+### 2.9. `delivered_order_stock` (Журнал списания остатков)
 * `id`: `INTEGER PRIMARY KEY`
 * `order_id`: `INTEGER REFERENCES client_order(id) INDEX`
 * `stock_id`: `INTEGER REFERENCES warehouse_stock(id) INDEX`

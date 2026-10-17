@@ -85,7 +85,7 @@ class DeliveredOrderStock(SQLModel, table=True):
 
 
 class RouteCache(SQLModel, table=True):
-    """Cached distance and geometry for an ordered coordinate pair."""
+    """Cached Mapbox road route or offline estimate for an ordered pair."""
 
     __tablename__ = "route_cache"
     __table_args__ = (
@@ -94,12 +94,17 @@ class RouteCache(SQLModel, table=True):
             "base_duration_min >= 0",
             name="ck_route_cache_duration_non_negative",
         ),
+        CheckConstraint("source IN ('mapbox', 'fallback')", name="ck_route_cache_source"),
     )
 
     pair_key: str = Field(primary_key=True, max_length=128)
     distance_km: float = Field(ge=0.0)
     base_duration_min: float = Field(ge=0.0)
     geojson_geometry: str | None = Field(default=None)
+    source: str = Field(default="fallback", max_length=16, index=True)
+    # Null means never tried against Mapbox. Old fallback cache entries are
+    # migrated this way and are upgraded on the first request with a token.
+    mapbox_checked_at: float | None = Field(default=None, ge=0.0)
 
 
 WEATHER_OVERRIDE_ID = 1
