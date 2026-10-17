@@ -69,9 +69,8 @@
             <span class="risky-row">
               <span class="risky-dot" :style="{ background: item.color }" aria-hidden="true" />
               <span class="risky-text">
-                {{ clientName(item.stop.client_id) }} · заказ №{{ item.stop.order_id ?? '—' }} ·
-                {{ truckName(item.truckId) }} · в пути {{ formatMinutes(item.stop.eta_minutes) }} ·
-                сохранность {{ formatFreshness(item.stop.expected_freshness) }}
+                {{ clientName(item.stop.client_id) }} · {{ truckName(item.truckId) }} · сохранность
+                {{ formatFreshness(item.stop.expected_freshness) }}
               </span>
               <v-chip
                 class="soft-chip"
@@ -92,7 +91,7 @@
 <script setup lang="ts">
 import { useSolverStore } from './useSolverStore'
 import { useErpStore } from './useErpStore'
-import { formatFreshness, formatMinutes } from '@/shared/utils/format'
+import { formatFreshness } from '@/shared/utils/format'
 import { freshnessLabel } from '@/shared/utils/freshness'
 import { warningColor, warningMeta, warningTarget } from '@/shared/utils/solverWarnings'
 
