@@ -282,6 +282,20 @@ onBeforeUnmount(teardownMap)
   pointer-events: none;
 }
 
+/*
+ * Контролы стоят в 10 px от края, а скругление карты — 20 px, поэтому кнопки
+ * попадали на срез угла. Сдвигаем их за пределы радиуса.
+ */
+.map-area :deep(.mapboxgl-ctrl-top-right) {
+  top: 14px;
+  right: 14px;
+}
+
+.map-area :deep(.mapboxgl-ctrl-bottom-right) {
+  bottom: 14px;
+  right: 14px;
+}
+
 /* Масштабная линейка и подпись Mapbox в той же мягкой палитре, что и панели. */
 .map-area :deep(.mapboxgl-ctrl-scale) {
   border: var(--neu-border) !important;
