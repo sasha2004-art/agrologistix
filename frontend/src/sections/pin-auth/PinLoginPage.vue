@@ -38,7 +38,7 @@
       </v-card-text>
 
       <v-card-actions class="justify-center pb-5">
-        <v-btn to="/" variant="text" prepend-icon="mdi-arrow-left">На главную</v-btn>
+        <span class="login-note">Доступ открыт только по PIN-коду диспетчера</span>
       </v-card-actions>
     </v-card>
   </v-main>
@@ -121,6 +121,11 @@ async function submitPin(value: string): Promise<void> {
 </script>
 
 <style scoped lang="scss">
+.login-note {
+  font-size: 12px;
+  color: #5b5175;
+}
+
 .login-card {
   padding-block: 4px;
 }

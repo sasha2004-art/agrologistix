@@ -17,6 +17,22 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // mapbox-gl и Vuetify — самые тяжёлые зависимости (в одном чанке
+        // дашборда они давали 2 МБ). Отдельные чанки грузятся параллельно
+        // и переиспользуются из кэша после деплоя, когда меняется только код UI.
+        manualChunks(id: string): string | undefined {
+          if (id.includes('node_modules/mapbox-gl') || id.includes('node_modules/@mapbox/')) {
+            return 'mapbox'
+          }
+          if (id.includes('node_modules/vuetify')) return 'vuetify'
+          return undefined
+        },
+      },
+    },
+  },
   server: {
     proxy: apiProxy,
   },
