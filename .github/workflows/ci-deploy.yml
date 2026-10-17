@@ -72,6 +72,9 @@ jobs:
         run: npm run lint
 
       - name: Type-check and build
+        env:
+          # Public Mapbox token is inlined into the bundle at build time.
+          VITE_MAPBOX_PUBLIC_TOKEN: ${{ vars.VITE_MAPBOX_PUBLIC_TOKEN }}
         run: npm run build
 
   deploy:
@@ -91,6 +94,9 @@ jobs:
 
       - name: Build frontend artifacts
         working-directory: frontend
+        env:
+          # Public Mapbox token is inlined into the bundle at build time.
+          VITE_MAPBOX_PUBLIC_TOKEN: ${{ vars.VITE_MAPBOX_PUBLIC_TOKEN }}
         run: npm ci && npm run build
 
       - name: Configure SSH access

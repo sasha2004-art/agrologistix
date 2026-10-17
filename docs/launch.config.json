@@ -41,7 +41,8 @@
       "DEPLOY_WEB_ROOT",
       "DEPLOY_SERVICE",
       "DEPLOY_DOMAIN",
-      "APP_ENV"
+      "APP_ENV",
+      "VITE_MAPBOX_PUBLIC_TOKEN"
     ],
     "secrets": [
       "DEPLOY_SSH_KEY",
