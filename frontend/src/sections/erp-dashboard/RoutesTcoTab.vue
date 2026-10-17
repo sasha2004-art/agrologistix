@@ -5,16 +5,6 @@
         <h2 class="tab-title">Расчёт маршрутов</h2>
         <p class="tab-subtitle">Машины, маршруты, затраты и сохранность урожая.</p>
       </div>
-      <div class="header-chips">
-        <v-chip
-          v-if="solver.hasPlan"
-          class="soft-chip"
-          size="small"
-          prepend-icon="mdi-clock-outline"
-        >
-          {{ calculatedAtText }}
-        </v-chip>
-      </div>
     </header>
 
     <div class="run-row">
@@ -147,7 +137,6 @@ import { useErpStore } from './useErpStore'
 import { useSolverStore } from './useSolverStore'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 import { useNotificationStore } from '@/shared/stores/useNotificationStore'
-import { formatDateTime } from '@/shared/utils/format'
 import { triggerDownload } from '@/shared/utils/download'
 
 const erp = useErpStore()
@@ -184,10 +173,6 @@ async function exportXlsx(): Promise<void> {
     exporting.value = false
   }
 }
-
-const calculatedAtText = computed(() =>
-  solver.calculatedAt ? `Рассчитано ${formatDateTime(solver.calculatedAt)}` : 'План получен',
-)
 
 function runPlan(): void {
   void solver.optimizePlan()
@@ -227,13 +212,6 @@ function reload(): void {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-}
-
-.header-chips {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
 }
 
 .stale-note {
