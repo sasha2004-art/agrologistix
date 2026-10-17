@@ -86,7 +86,8 @@ class SolverTruck:
     cost_per_km_rub: float
     fixed_trip_cost_rub: float
     has_reefer: bool
-    can_use_dirt: bool
+    has_insulation: bool = False
+    can_use_dirt: bool = False
     status: TruckStatus = TruckStatus.ACTIVE
 
 

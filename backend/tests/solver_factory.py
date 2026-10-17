@@ -85,6 +85,7 @@ def _truck(
     cost_km: float = 30.0,
     fixed: float = 3000.0,
     reefer: bool = True,
+    insulated: bool = False,
     dirt: bool = True,
     status: TruckStatus = TruckStatus.ACTIVE,
 ) -> SolverTruck:
@@ -97,6 +98,7 @@ def _truck(
         cost_per_km_rub=cost_km,
         fixed_trip_cost_rub=fixed,
         has_reefer=reefer,
+        has_insulation=insulated,
         can_use_dirt=dirt,
         status=status,
     )

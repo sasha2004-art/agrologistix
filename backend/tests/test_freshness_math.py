@@ -5,12 +5,14 @@ import pytest
 from app.schemas.enums import RoadType
 from app.services.freshness_math import (
     HEAT_THRESHOLD_C,
+    INSULATION_BONUS_C,
     PRECIPITATION_MAX_FACTOR,
     CargoProfile,
     TripConditions,
     assess_trip,
     expected_freshness,
     freshness_after_hours,
+    heat_limit_c,
     precipitation_factor,
     spoilage_loss_rub,
     surface_factor,
@@ -58,6 +60,42 @@ def test_reefer_neutralizes_heat() -> None:
     assert expected_freshness(NORMAL_CARGO, heat_with_reefer) == pytest.approx(
         expected_freshness(NORMAL_CARGO, NORMAL_TRIP),
         abs=1e-12,
+    )
+
+
+def test_insulation_raises_the_heat_threshold() -> None:
+    """Изотермический кузов держит +6 °C дольше тента, но проигрывает рефу."""
+
+    assert heat_limit_c(has_reefer=False) == HEAT_THRESHOLD_C
+    assert heat_limit_c(has_reefer=False, has_insulation=True) == pytest.approx(
+        HEAT_THRESHOLD_C + INSULATION_BONUS_C
+    )
+    assert heat_limit_c(has_reefer=True, has_insulation=False) is None
+
+    warm = 26.0
+    hot = 35.0
+    cargo = CargoProfile(spoilage_rate=STRAWBERRY_RATE)
+
+    def trip(temperature_c: float, *, reefer: bool = False, insulated: bool = False):
+        return TripConditions(
+            distance_km=100.0,
+            cruise_speed_kmh=60.0,
+            temperature_c=temperature_c,
+            has_reefer=reefer,
+            has_insulation=insulated,
+        )
+
+    # При +26 °C тент уже теряет свежесть, утепление и реф держат её полностью.
+    assert temperature_factor(warm, has_reefer=False, has_insulation=False) > 1.0
+    assert temperature_factor(warm, has_reefer=False, has_insulation=True) == 1.0
+    assert temperature_factor(warm, has_reefer=True, has_insulation=False) == 1.0
+
+    # В жару +35 °C порядок строгий: тент хуже утепления, утепление хуже рефа.
+    assert temperature_factor(hot, False, True) < temperature_factor(hot, False, False)
+    assert (
+        expected_freshness(cargo, trip(hot))
+        < expected_freshness(cargo, trip(hot, insulated=True))
+        < expected_freshness(cargo, trip(hot, reefer=True))
     )
 
 

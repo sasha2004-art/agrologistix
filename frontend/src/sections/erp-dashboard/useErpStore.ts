@@ -171,13 +171,13 @@ export const useErpStore = defineStore('erp', () => {
       })
     }
 
-    // Часть парка сломана: расчёт пройдёт, но часть груза придётся распределить иначе.
+    // Часть парка не в работе: расчёт пройдёт, но груз придётся распределить иначе.
     if (isReady.value && brokenTrucks.value.length > 0 && activeTrucks.value.length > 0) {
       const names = brokenTrucks.value.map((truck) => truck.name).join(', ')
       alerts.push({
         id: 'broken-trucks',
         severity: 'info',
-        message: `Сломано машин: ${brokenTrucks.value.length} (${names}) — в расчёте не участвуют.`,
+        message: `Не в работе: ${brokenTrucks.value.length} машин (${names}) — в расчёте не участвуют.`,
       })
     }
 

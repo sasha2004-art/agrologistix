@@ -84,6 +84,8 @@ export interface Truck {
   cost_per_km_rub: number
   fixed_trip_cost_rub: number
   has_reefer: boolean
+  /** Изотермический кузов (утепление): в жару порча начинается позже. */
+  has_insulation: boolean
   can_use_dirt: boolean
   status: TruckStatus
 }

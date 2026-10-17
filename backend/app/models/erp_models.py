@@ -118,5 +118,7 @@ class Truck(SQLModel, table=True):
     cost_per_km_rub: float = Field(ge=0.0)
     fixed_trip_cost_rub: float = Field(ge=0.0)
     has_reefer: bool = Field(default=False)
+    # Изотермический кузов (утепление): замедляет нагрев без холодильной установки.
+    has_insulation: bool = Field(default=False)
     can_use_dirt: bool = Field(default=False)
     status: str = Field(default=TruckStatus.ACTIVE.value, max_length=16, index=True)

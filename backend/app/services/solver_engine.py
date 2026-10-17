@@ -12,6 +12,7 @@ from dataclasses import replace
 from time import perf_counter
 
 from app.schemas.enums import TruckStatus, WarningSeverity
+from app.services.freshness_math import heat_limit_c
 from app.services.solver_allocation import AllocationResult, allocate_loads
 from app.services.solver_contract import (
     PlannedMetrics,
@@ -53,7 +54,6 @@ __all__ = [
 ]
 
 DEFAULT_SOLVER_TIME_LIMIT_SEC = 1.0
-HEAT_THRESHOLD_C = 22.0
 
 
 def _orders_by_id(orders: list[SolverOrder]) -> dict[int, SolverOrder]:
@@ -139,7 +139,7 @@ def _collect_warnings(
         warnings.append(
             PlannedWarning(
                 code="broken_trucks_excluded",
-                message=f"Сломанные машины не участвуют в расчёте: {broken_count}",
+                message=f"Не в работе: {broken_count} — в расчёте не участвуют",
                 severity=WarningSeverity.INFO.value,
             )
         )
@@ -182,20 +182,26 @@ def _collect_warnings(
             )
         )
 
-    if solver_input.weather.temperature_c > HEAT_THRESHOLD_C:
-        unrefrigerated = {truck.truck_id for truck in active_trucks if not truck.has_reefer}
-        heat_risk = [route for route in routes if route.truck_id in unrefrigerated and route.stops]
-        if heat_risk:
-            warnings.append(
-                PlannedWarning(
-                    code="heat_without_reefer",
-                    message=(
-                        f"Жара +{solver_input.weather.temperature_c:.0f} °C: часть машин едет "
-                        f"без охлаждения, урожай портится быстрее"
-                    ),
-                    severity=WarningSeverity.WARNING.value,
-                )
+    temperature = solver_input.weather.temperature_c
+    # Утеплённый кузов отодвигает порог порчи на +6 °C, рефрижератор порога не имеет.
+    overheating = {
+        truck.truck_id
+        for truck in active_trucks
+        if (limit := heat_limit_c(truck.has_reefer, truck.has_insulation)) is not None
+        and temperature > limit
+    }
+    heat_risk = [route for route in routes if route.truck_id in overheating and route.stops]
+    if heat_risk:
+        warnings.append(
+            PlannedWarning(
+                code="heat_without_reefer",
+                message=(
+                    f"Жара +{temperature:.0f} °C: часть машин едет "
+                    f"без охлаждения, урожай портится быстрее"
+                ),
+                severity=WarningSeverity.WARNING.value,
             )
+        )
 
     products = {product.product_id: product for product in solver_input.products}
     stock_by_product: dict[int, float] = {}
