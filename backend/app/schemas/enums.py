@@ -12,7 +12,16 @@ class RoadType(StrEnum):
 
 
 class DeliveryStatus(StrEnum):
+    """Этапы поставки заявки.
+
+    ``PENDING`` — «В плане»: заявка ожидает, её спрос участвует в расчёте.
+    ``IN_PROGRESS`` — «В работе»: груз отгружен по последнему плану (сток списан),
+    заявка исключена из нового расчёта, но получение ещё не подтверждено.
+    ``DELIVERED`` — «Доставлено»: заявка закрыта.
+    """
+
     PENDING = "pending"
+    IN_PROGRESS = "in_progress"
     DELIVERED = "delivered"
 
 

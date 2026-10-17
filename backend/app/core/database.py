@@ -79,6 +79,53 @@ def apply_schema_migrations(database_engine: Engine) -> None:
             if column not in existing:
                 connection.exec_driver_sql(statement)
 
+    _migrate_delivery_status_constraint(database_engine)
+
+
+def _migrate_delivery_status_constraint(database_engine: Engine) -> None:
+    """Расширяет CHECK у ``client_order.delivery_status`` до трёх этапов поставки.
+
+    SQLite не умеет менять CHECK у существующей таблицы, поэтому базу приходится
+    пересобирать: создать копию с новым ограничением, перенести строки, удалить
+    старую и переименовать. Шаг идемпотентен: если в сохранённом DDL уже есть
+    ``in_progress``, ничего не делаем. Индексы после DROP TABLE создаются заново.
+    """
+
+    old_check = "delivery_status IN ('pending', 'delivered')"
+    new_statuses = "('pending', 'in_progress', 'delivered')"
+    new_check = f"delivery_status IN {new_statuses}"
+
+    # PRAGMA foreign_keys не работает внутри транзакции: пересборка идёт в AUTOCOMMIT.
+    with database_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+        row = connection.exec_driver_sql(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'client_order'"
+        ).first()
+        if row is None or not row[0]:
+            return
+        ddl: str = row[0]
+        if new_statuses in ddl or old_check not in ddl:
+            return
+
+        indexes = connection.exec_driver_sql(
+            "SELECT sql FROM sqlite_master "
+            "WHERE type = 'index' AND tbl_name = 'client_order' AND sql IS NOT NULL"
+        ).all()
+        rebuilt = ddl.replace(old_check, new_check)
+        rebuilt = rebuilt.replace(
+            "CREATE TABLE client_order", "CREATE TABLE client_order_rebuilt", 1
+        )
+
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.exec_driver_sql("BEGIN")
+        connection.exec_driver_sql(rebuilt)
+        connection.exec_driver_sql("INSERT INTO client_order_rebuilt SELECT * FROM client_order")
+        connection.exec_driver_sql("DROP TABLE client_order")
+        connection.exec_driver_sql("ALTER TABLE client_order_rebuilt RENAME TO client_order")
+        for (index_sql,) in indexes:
+            connection.exec_driver_sql(index_sql)
+        connection.exec_driver_sql("COMMIT")
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+
 
 def init_database(database_engine: Engine) -> None:
     SQLModel.metadata.create_all(database_engine)

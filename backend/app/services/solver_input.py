@@ -5,8 +5,8 @@ fleet, resolves every coordinate pair through the cached distance matrix and
 returns an immutable :class:`SolverInput`. The demand of an order is its
 outstanding weight (``requested_kg - delivered_kg``), so a partially delivered
 order keeps only the leftover demand and the stock write-off is not replanned.
-Orders closed as delivered are passed as ``frozen_order_ids`` so the engine can
-distinguish them from unmet demand.
+Orders already shipped (``in_progress``) or closed as delivered are passed as
+``frozen_order_ids`` so the engine can distinguish them from unmet demand.
 """
 
 from sqlmodel import Session, select
@@ -122,7 +122,8 @@ async def build_solver_input(
     frozen_order_ids = tuple(
         int(order.id or 0)
         for order in orders
-        if order.id is not None and order.delivery_status == DeliveryStatus.DELIVERED
+        if order.id is not None
+        and order.delivery_status in (DeliveryStatus.IN_PROGRESS, DeliveryStatus.DELIVERED)
     )
 
     return SolverInput(
