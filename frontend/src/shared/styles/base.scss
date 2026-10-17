@@ -16,10 +16,13 @@
   /* Страховочный контур: неоморфизм не должен быть единственным носителем границы (3:1). */
   --neu-border: 1px solid rgba(91, 81, 117, 0.18);
 
-  /* Типографика: без внешних CDN, осознанный системный fallback. */
-  --font-heading: 'Lora', 'PT Serif', Georgia, 'Times New Roman', serif;
-  --font-body: 'Raleway', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  /* Типографика: один системный стек на весь проект — без внешних CDN.
+     Заголовки, текст и цифры больше не расходятся по семействам: serif у заголовков
+     и моноширинный у чисел были единственным источником разнобоя. */
+  --font-main: 'Raleway', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+  --font-heading: var(--font-main);
+  --font-body: var(--font-main);
+  --font-mono: var(--font-main);
 
   font-family: var(--font-body);
   color: #2e1065;
@@ -75,6 +78,7 @@ h4 {
 }
 
 .v-application {
+  font-family: var(--font-main);
   --v-medium-emphasis-opacity: 0.9 !important;
 }
 
