@@ -105,6 +105,7 @@
 </template>
 
 <script setup lang="ts">
+import { watch } from 'vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import { useErpStore, type OrderRow } from './useErpStore'
 import { assignmentSummary, useAssignmentStore } from './useAssignmentStore'
@@ -130,12 +131,30 @@ function statusMeta(status: DeliveryStatus) {
 }
 
 async function setStatus(row: OrderRow, status: DeliveryStatus): Promise<void> {
+  if (status === 'in_progress') {
+    // Повторный выбор «В работе» пересобирает фиксацию: маршрут на карте
+    // появится даже у заявки, взятой в работу без подбора.
+    if (!(await assignment.assign(row.order.id))) return
+    if (row.order.delivery_status === 'in_progress') return
+  }
   if (row.order.delivery_status === status) return
-  // «В работе» — сначала подбираем оптимальные маршрут и машину:
-  // без подходящего варианта заявка в работу не уходит.
-  if (status === 'in_progress' && !(await assignment.assign(row.order.id))) return
   void erp.updateOrder(row.order.id, { delivery_status: status })
 }
+
+/**
+ * Заявки «В работе» без фиксации получают подобранный маршрут автоматически:
+ * так пунктирная линия появляется и у заявок, взятых в работу до подбора.
+ */
+watch(
+  () =>
+    erp.orderRows
+      .filter((row) => row.order.delivery_status === 'in_progress')
+      .map((row) => row.order.id),
+  (orderIds) => {
+    void assignment.syncMissing(orderIds)
+  },
+  { immediate: true },
+)
 
 /** Строка с подобранным вариантом у заявки, взятой «В работе». */
 function assignmentNote(row: OrderRow): string {

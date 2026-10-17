@@ -31,6 +31,8 @@ export const useAssignmentStore = defineStore('assignment', () => {
 
   const assignments = ref<Record<number, AssignmentInfo>>({})
   const pending = ref<Set<number>>(new Set())
+  /** Заявки, для которых автоподтяжка фиксации уже выполнялась в этой сессии. */
+  const synced = ref<Set<number>>(new Set())
 
   function forOrder(orderId: number): AssignmentInfo | undefined {
     return assignments.value[orderId]
@@ -48,8 +50,11 @@ export const useAssignmentStore = defineStore('assignment', () => {
     return pending.value.has(orderId)
   }
 
-  /** Оптимальный вариант для заявки; `null` — подбор не удался. */
-  async function assign(orderId: number): Promise<AssignmentInfo | null> {
+  /**
+   * Оптимальный вариант для заявки; `null` — подбор не удался.
+   * `silent` нужен для массовых действий и автоподтяжки: тост покажет вызывающий.
+   */
+  async function assign(orderId: number, silent = false): Promise<AssignmentInfo | null> {
     const pin = auth.accessPin
     if (!pin || pending.value.has(orderId)) return assignments.value[orderId] ?? null
 
@@ -57,20 +62,53 @@ export const useAssignmentStore = defineStore('assignment', () => {
     try {
       const assignment = await assignOrder(orderId, pin)
       assignments.value = { ...assignments.value, [orderId]: assignment }
-      notifications.push('success', `Оптимально: ${assignmentSummary(assignment)}`)
+      if (!silent) notifications.push('success', `Оптимально: ${assignmentSummary(assignment)}`)
       return assignment
     } catch (error) {
-      notifications.push('error', describeApiError(error))
+      if (!silent) notifications.push('error', describeApiError(error))
       return null
     } finally {
       pending.value.delete(orderId)
     }
   }
 
+  /** Фиксация для нескольких заявок: тост выдаёт вызывающий, ошибки не спамят. */
+  async function assignMany(orderIds: number[]): Promise<number> {
+    let done = 0
+    for (const orderId of orderIds) {
+      if (await assign(orderId, true)) done += 1
+    }
+    return done
+  }
+
+  /**
+   * Дотягивает фиксацию для заявок «В работе», у которых её нет: маршрут
+   * появляется на карте, даже если статус поставили до подбора.
+   */
+  async function syncMissing(inProgressOrderIds: number[]): Promise<void> {
+    const missing = inProgressOrderIds.filter(
+      (orderId) => !assignments.value[orderId] && !synced.value.has(orderId),
+    )
+    if (missing.length === 0) return
+    for (const orderId of missing) synced.value.add(orderId)
+    await assignMany(missing)
+  }
+
   function clear(): void {
     assignments.value = {}
     pending.value = new Set()
+    synced.value = new Set()
   }
 
-  return { assignments, pending, forOrder, hydrate, isPending, assign, clear }
+  return {
+    assignments,
+    pending,
+    forOrder,
+    hydrate,
+    isPending,
+    assign,
+    assignMany,
+    syncMissing,
+    clear,
+  }
 })
