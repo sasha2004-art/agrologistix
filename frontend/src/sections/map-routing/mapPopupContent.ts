@@ -1,11 +1,12 @@
 /**
  * HTML-содержимое карточки объекта: адрес, статус и список заявок. Разметка
  * собирается строками, потому что Mapbox Popup принимает HTML, а не Vue-компонент.
- * Карточка открывается только по нажатию на маркер.
+ * Карточка выпадает при наведении на маркер, а нажатие её закрепляет.
  *
- * Полная карточка перечисляет заявки покупателя кнопками: подробности по каждой
- * заявке раскрываются нажатием и живут в DOM popup, поэтому обработчики
- * навешиваются делегированием на контейнер (`bindOrderToggles`).
+ * Полная карточка перечисляет заявки покупателя строками выпадающего списка:
+ * подробности раскрываются при наведении на строку (CSS) и закрепляются нажатием.
+ * Состояние живёт в DOM popup, а клики обрабатываются делегированием на контейнер
+ * (`bindOrderToggles`).
  */
 
 import type { Popup } from 'mapbox-gl'
@@ -76,7 +77,7 @@ function orderBlockHtml(order: MapPointOrder): string {
     `<span class="mdi mdi-chevron-down map-popup__order-chevron" aria-hidden="true"></span>` +
     `</button>` +
     `<div class="map-popup__order-details" id="${detailsId}" ` +
-    `data-order-details="${order.orderId}" hidden>${orderDetailsHtml(order)}</div>` +
+    `data-order-details="${order.orderId}">${orderDetailsHtml(order)}</div>` +
     `</div>`
   )
 }
@@ -107,15 +108,15 @@ export function popupHtml(point: MapPoint): string {
 }
 
 /**
- * Возвращает раскрытые блоки заявок к состоянию из `expanded`: `setHTML`
- * пересобирает разметку popup и сбрасывает подсказки, открытые пользователем.
+ * Возвращает закреплённые блоки заявок к состоянию из `expanded`: `setHTML`
+ * пересобирает разметку popup и сбрасывает раскрытые пользователем строки.
  */
 export function restoreOrderState(container: HTMLElement | undefined, expanded: Set<number>): void {
   if (!container) return
   for (const details of container.querySelectorAll<HTMLElement>('[data-order-details]')) {
     const orderId = Number(details.dataset.orderDetails)
     const open = expanded.has(orderId)
-    details.hidden = !open
+    details.classList.toggle('map-popup__order-details--open', open)
     const button = container.querySelector<HTMLButtonElement>(`[data-order-toggle="${orderId}"]`)
     button?.setAttribute('aria-expanded', String(open))
     button?.classList.toggle('map-popup__order-btn--open', open)
