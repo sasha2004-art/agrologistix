@@ -1,6 +1,13 @@
+import json
+
 from fastapi.testclient import TestClient
 
 AUTH = {"X-Access-Pin": "123456"}
+JSON_HEADERS = {**AUTH, "Content-Type": "application/json"}
+
+
+def post_raw_json(client: TestClient, path: str, payload: str):
+    return client.post(path, headers=JSON_HEADERS, content=payload.encode())
 
 
 def state(client: TestClient) -> dict:
@@ -29,6 +36,70 @@ def test_create_product_appears_in_state(client: TestClient) -> None:
 
     products = state(client)["products"]
     assert any(item["id"] == created["id"] for item in products)
+
+
+def test_create_product_normalizes_code_and_rejects_case_insensitive_duplicate(
+    client: TestClient,
+) -> None:
+    first = client.post(
+        "/api/v1/erp/products",
+        headers=AUTH,
+        json={
+            "code": "  BlueBerry  ",
+            "name": "  Голубика  ",
+            "base_spoilage_rate": 0.09,
+            "optimal_temp_c": 4.0,
+            "base_cost_rub": 420.0,
+        },
+    )
+
+    assert first.status_code == 201
+    assert first.json()["code"] == "blueberry"
+    assert first.json()["name"] == "Голубика"
+
+    duplicate = client.post(
+        "/api/v1/erp/products",
+        headers=AUTH,
+        json={
+            "code": "BLUEBERRY",
+            "name": "Дубль",
+            "base_spoilage_rate": 0.05,
+            "optimal_temp_c": 5.0,
+            "base_cost_rub": 100.0,
+        },
+    )
+
+    assert duplicate.status_code == 409
+
+
+def test_create_product_rejects_non_finite_values_and_blank_fields(client: TestClient) -> None:
+    for payload in (
+        {
+            "code": "inf-cost",
+            "name": "Товар",
+            "base_spoilage_rate": 0.04,
+            "optimal_temp_c": 5.0,
+            "base_cost_rub": float("inf"),
+        },
+        {
+            "code": "blank-name",
+            "name": "   ",
+            "base_spoilage_rate": 0.04,
+            "optimal_temp_c": 5.0,
+            "base_cost_rub": 10.0,
+        },
+        {
+            "code": "  ",
+            "name": "Товар",
+            "base_spoilage_rate": 0.04,
+            "optimal_temp_c": 5.0,
+            "base_cost_rub": 10.0,
+        },
+    ):
+        response = post_raw_json(
+            client, "/api/v1/erp/products", json.dumps(payload, allow_nan=True)
+        )
+        assert response.status_code == 422
 
 
 def test_create_product_rejects_duplicate_code(client: TestClient) -> None:
@@ -83,6 +154,17 @@ def test_create_client_validates_coordinates(client: TestClient) -> None:
     assert response.json()["code"] == "validation_error"
 
 
+def test_create_client_rejects_non_finite_coordinates_and_blank_names(
+    client: TestClient,
+) -> None:
+    for payload in (
+        {"name": "магазин", "lat": float("inf"), "lon": 36.4},
+        {"name": "   ", "lat": 54.95, "lon": 36.4},
+    ):
+        response = post_raw_json(client, "/api/v1/erp/clients", json.dumps(payload, allow_nan=True))
+        assert response.status_code == 422
+
+
 def test_create_truck_appears_in_fleet(client: TestClient) -> None:
     warehouse_id = state(client)["warehouses"][0]["id"]
 
@@ -125,6 +207,26 @@ def test_create_truck_rejects_unknown_warehouse(client: TestClient) -> None:
 
     assert response.status_code == 404
     assert "Склад" in response.json()["detail"]
+
+
+def test_create_truck_rejects_non_finite_costs_and_blank_name(client: TestClient) -> None:
+    warehouse_id = state(client)["warehouses"][0]["id"]
+    payload = {
+        "name": "Машина",
+        "plate_number": "Е777КХ40",
+        "warehouse_id": warehouse_id,
+        "capacity_kg": 1500.0,
+        "cruise_speed_kmh": 70.0,
+        "cost_per_km_rub": float("inf"),
+        "fixed_trip_cost_rub": 900.0,
+    }
+    assert (
+        post_raw_json(client, "/api/v1/erp/trucks", json.dumps(payload, allow_nan=True)).status_code
+        == 422
+    )
+    payload["cost_per_km_rub"] = 22.0
+    payload["name"] = "   "
+    assert client.post("/api/v1/erp/trucks", headers=AUTH, json=payload).status_code == 422
 
 
 def test_create_truck_rejects_duplicate_plate(client: TestClient) -> None:

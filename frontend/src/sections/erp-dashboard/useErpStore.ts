@@ -12,6 +12,7 @@ import {
   describeApiError,
   fetchErpState,
   patchOrder,
+  patchProduct,
   patchStock,
   patchTruck,
 } from '@/shared/api/httpClient'
@@ -30,6 +31,7 @@ import type {
   DeliveryStatus,
   ERPState,
   Product,
+  ProductPatch,
   TruckPatch,
   Warehouse,
   WarehouseStock,
@@ -364,6 +366,13 @@ export const useErpStore = defineStore('erp', () => {
     })
   }
 
+  function updateProduct(productId: number, patch: ProductPatch): Promise<boolean> {
+    const name = productById.value.get(productId)?.name ?? productId
+    return runMutation(`product:${productId}`, `Цена товара «${name}» обновлена`, async (pin) => {
+      await patchProduct(productId, patch, pin)
+    })
+  }
+
   function updateTruck(truckId: number, patch: TruckPatch): Promise<boolean> {
     return runMutation(`truck:${truckId}`, `Машина №${truckId} обновлена`, async (accessPin) => {
       const updated = await patchTruck(truckId, patch, accessPin)
@@ -378,13 +387,6 @@ export const useErpStore = defineStore('erp', () => {
     })
   }
 
-  /**
-   * Массовая отметка заказов доставленными: по одному PATCH на заказ — бэкенд
-   * списывает сток по стопам последнего плана. Затем один перезапрос состояния,
-   * одно уведомление и пометка плана устаревшим, а не по тосту на заказ.
-   * На ошибке (обычно 409: остаток склада изменился после расчёта) останавливаемся:
-   * продолжать списание по устаревшему плану нельзя, тосты сообщат, сколько успело.
-   */
   /** Массовая смена этапа: один PATCH на заказ, сток списывает backend по плану. */
   async function setOrdersStatus(
     orderIds: number[],
@@ -489,6 +491,7 @@ export const useErpStore = defineStore('erp', () => {
     isPending,
     runMutation,
     updateOrder,
+    updateProduct,
     updateTruck,
     updateStock,
     setOrdersStatus,

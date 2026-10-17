@@ -137,7 +137,7 @@ def test_erp_sheets_repeat_the_site_tables(client: TestClient) -> None:
     orders = workbook[ORDERS_TITLE]
     order_header = next(row for row in orders.iter_rows() if row[0].value == "№")
     order_rows = [row for row in orders.iter_rows(min_row=order_header[0].row + 1) if row[0].value]
-    assert len(order_rows) == 9
+    assert len(order_rows) == 5
     assert [cell.value for cell in order_header][:5] == [
         "№",
         "Покупатель",

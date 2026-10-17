@@ -8,6 +8,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
 
 from app.core.database import get_session
@@ -66,6 +67,16 @@ def _require[EntityT: SQLModel](
     return entity
 
 
+def _commit_new(session: Session, detail: str) -> None:
+    """Map uniqueness races and foreign-key races to the documented 409."""
+
+    try:
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise _conflict(detail) from error
+
+
 def _conflict(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
@@ -95,7 +106,7 @@ def create_product(
         base_cost_rub=payload.base_cost_rub,
     )
     session.add(product)
-    session.commit()
+    _commit_new(session, f"Товар с кодом «{code}» уже есть в библиотеке")
     session.refresh(product)
     return ProductResponse.model_validate(product)
 
@@ -113,14 +124,14 @@ def create_client(
     session: SessionDependency,
 ) -> ClientResponse:
     client = Client(
-        name=payload.name.strip(),
+        name=payload.name,
         lat=payload.lat,
         lon=payload.lon,
         road_type=payload.road_type.value,
-        address=payload.address.strip(),
+        address=payload.address,
     )
     session.add(client)
-    session.commit()
+    _commit_new(session, "Магазин не создан: проверьте переданные данные")
     session.refresh(client)
     return ClientResponse.model_validate(client)
 
@@ -147,7 +158,7 @@ def create_truck(
         raise _conflict(f"Машина с номером «{plate}» уже есть в автопарке")
 
     truck = Truck(
-        name=payload.name.strip(),
+        name=payload.name,
         plate_number=plate,
         warehouse_id=payload.warehouse_id,
         capacity_kg=payload.capacity_kg,
@@ -160,7 +171,7 @@ def create_truck(
         status=payload.status.value,
     )
     session.add(truck)
-    session.commit()
+    _commit_new(session, f"Машина с номером «{plate}» уже есть в автопарке")
     session.refresh(truck)
     return TruckResponse.model_validate(truck)
 
@@ -190,7 +201,7 @@ def create_order(
         delivery_status=DeliveryStatus.PENDING.value,
     )
     session.add(order)
-    session.commit()
+    _commit_new(session, "Заказ не создан: проверьте магазин и товар")
     session.refresh(order)
     return ClientOrderResponse.model_validate(order)
 
@@ -207,8 +218,10 @@ def create_stock(
     _context: AccessContext,
     session: SessionDependency,
 ) -> WarehouseStockResponse:
-    _require(session, Warehouse, payload.warehouse_id, "Склад")
+    warehouse = _require(session, Warehouse, payload.warehouse_id, "Склад")
     _require(session, Product, payload.product_id, "Товар")
+    if not warehouse.is_active:
+        raise _conflict(f"Склад «{warehouse.name}» выключен: партию нельзя добавить")
 
     existing = session.exec(
         select(WarehouseStock).where(
@@ -228,6 +241,9 @@ def create_stock(
         initial_freshness=payload.initial_freshness,
     )
     session.add(stock)
-    session.commit()
+    _commit_new(
+        session,
+        "Партия этого товара на складе уже есть — измените остаток вместо новой строки",
+    )
     session.refresh(stock)
     return WarehouseStockResponse.model_validate(stock)

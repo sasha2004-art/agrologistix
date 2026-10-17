@@ -24,6 +24,7 @@ from app.schemas.erp_schemas import (
     ERPStateResponse,
     FixedAssignmentResponse,
     OrderAssignmentResponse,
+    ProductPatch,
     ProductResponse,
     TruckPatch,
     TruckResponse,
@@ -241,6 +242,29 @@ def read_erp_state(_context: AccessContext, session: SessionDependency) -> ERPSt
         trucks=[TruckResponse.model_validate(item) for item in trucks],
         fixed_assignments=fixed_assignments,
     )
+
+
+@router.patch(
+    "/products/{product_id}",
+    response_model=ProductResponse,
+    responses={
+        status.HTTP_400_BAD_REQUEST: _BAD_REQUEST_RESPONSE,
+        status.HTTP_404_NOT_FOUND: _NOT_FOUND_RESPONSE,
+    },
+    summary="Update the reference cost per kilogram of a product",
+)
+def patch_product(
+    product_id: int,
+    payload: ProductPatch,
+    _context: AccessContext,
+    session: SessionDependency,
+) -> ProductResponse:
+    product = _get_or_404(session, Product, product_id, "Товар")
+    product.base_cost_rub = payload.base_cost_rub
+    session.add(product)
+    session.commit()
+    session.refresh(product)
+    return ProductResponse.model_validate(product)
 
 
 @router.patch(

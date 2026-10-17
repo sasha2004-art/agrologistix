@@ -20,6 +20,7 @@ import type {
   ERPState,
   Product,
   ProductCreate,
+  ProductPatch,
   TruckCreate,
   WarehouseStockCreate,
   Loaded,
@@ -180,6 +181,18 @@ export function patchOrder(
   accessPin: string,
 ): Promise<ClientOrder> {
   return request<ClientOrder>(`/erp/orders/${orderId}`, {
+    method: 'PATCH',
+    access_pin: accessPin,
+    body: JSON.stringify(patch),
+  })
+}
+
+export function patchProduct(
+  productId: number,
+  patch: ProductPatch,
+  accessPin: string,
+): Promise<Product> {
+  return request<Product>(`/erp/products/${productId}`, {
     method: 'PATCH',
     access_pin: accessPin,
     body: JSON.stringify(patch),
