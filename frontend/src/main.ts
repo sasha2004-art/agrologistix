@@ -5,5 +5,6 @@ import router from './router'
 import { vuetify } from './shared/plugins/vuetify'
 import './shared/styles/base.scss'
 import './shared/styles/map.scss'
+import './shared/styles/print.scss'
 
 createApp(App).use(createPinia()).use(router).use(vuetify).mount('#app')

@@ -117,10 +117,11 @@ export const useSolverStore = defineStore('solver', () => {
     return result
   })
 
-  /** Краткая сводка сравнения для кнопки: «+30,2 % TCO». */
+  /** Краткая сводка сравнения для чипа: «+30,2 % TCO», «без изменений TCO». */
   const tcoDeltaLabel = computed(() => {
     const pct = comparison.value?.total_tco_rub.delta_pct ?? null
     if (pct === null) return 'Δ TCO'
+    if (Math.abs(pct) < 0.05) return 'без изменений TCO'
     const sign = pct > 0 ? '+' : '−'
     return `${sign}${Math.abs(pct).toFixed(1).replace('.', ',')} % TCO`
   })

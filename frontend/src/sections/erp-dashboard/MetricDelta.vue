@@ -14,7 +14,7 @@ const props = withDefaults(
   defineProps<{
     delta?: MetricDelta | null
     /** Единица измерения: влияет только на формат абсолютного значения. */
-    unit?: 'rub' | 'kg' | 'percent'
+    unit?: 'rub' | 'kg' | 'percent' | 'count'
     /** true — рост метрики это улучшение (прибыль, свежесть), false — ухудшение (затраты, недовоз). */
     higherIsBetter?: boolean
   }>(),
@@ -27,6 +27,7 @@ const absoluteText = computed(() => {
   const value = Math.abs(props.delta?.delta ?? 0)
   if (props.unit === 'kg') return formatKg(value)
   if (props.unit === 'percent') return `${formatDecimal(value)} п.п.`
+  if (props.unit === 'count') return formatNumber(value)
   return formatRub(value)
 })
 

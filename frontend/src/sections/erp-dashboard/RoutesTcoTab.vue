@@ -73,6 +73,30 @@
       </v-btn>
     </div>
 
+    <div v-if="solver.hasBaseline" class="export-row">
+      <v-btn
+        variant="tonal"
+        color="primary"
+        prepend-icon="mdi-file-excel-outline"
+        :loading="exporting"
+        :disabled="exporting || !activeRunId"
+        @click="exportXlsx"
+      >
+        Скачать XLSX
+      </v-btn>
+      <v-btn variant="tonal" color="primary" prepend-icon="mdi-printer" @click="printSheet">
+        Печать / PDF
+      </v-btn>
+      <v-chip
+        class="soft-chip"
+        size="small"
+        prepend-icon="mdi-truck-outline"
+        :title="routesInSheetText"
+      >
+        В лист: {{ solver.routes.length }} рейс(а) · {{ solver.plannedStops.length }} стоп(ов)
+      </v-chip>
+    </div>
+
     <v-alert
       v-if="solver.hasBaseline && solver.scenarioStale"
       type="info"
@@ -165,6 +189,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { describeApiError, downloadRouteSheet } from '@/shared/api/httpClient'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import ComparisonDialog from './ComparisonDialog.vue'
 import RoutePlanTable from './RoutePlanTable.vue'
@@ -172,11 +197,46 @@ import SolverWarningsPanel from './SolverWarningsPanel.vue'
 import TcoMetricsPanel from './TcoMetricsPanel.vue'
 import { useErpStore } from './useErpStore'
 import { useSolverStore } from './useSolverStore'
+import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
+import { useNotificationStore } from '@/shared/stores/useNotificationStore'
 import { formatDateTime } from '@/shared/utils/format'
+import { triggerDownload } from '@/shared/utils/download'
 
 const erp = useErpStore()
 const solver = useSolverStore()
+const auth = useAuthStore()
+const notifications = useNotificationStore()
 const comparisonOpen = ref(false)
+const exporting = ref(false)
+
+/** Прогон, который уйдёт в файл и на печать: тот, что сейчас на экране. */
+const activeRunId = computed(() => solver.activePlan?.run_id ?? null)
+
+/** Подсказка к чипу: какие именно рейсы попадут в маршрутный лист. */
+const routesInSheetText = computed(() =>
+  solver.routes.map((route) => `${route.truck_name} (${route.stops.length})`).join(', '),
+)
+
+/** Печать текущего вида: браузер показывает только печатный лист (print.scss). */
+function printSheet(): void {
+  window.print()
+}
+
+async function exportXlsx(): Promise<void> {
+  const runId = activeRunId.value
+  const pin = auth.accessPin
+  if (!runId || !pin || exporting.value) return
+  exporting.value = true
+  try {
+    const { blob, filename } = await downloadRouteSheet(runId, pin)
+    triggerDownload(blob, filename)
+    notifications.push('success', `Маршрутный лист сохранён: ${filename}`)
+  } catch (error) {
+    notifications.push('error', describeApiError(error))
+  } finally {
+    exporting.value = false
+  }
+}
 
 const calculatedAtText = computed(() =>
   solver.calculatedAt ? `Рассчитано ${formatDateTime(solver.calculatedAt)}` : 'План получен',
@@ -245,6 +305,13 @@ function reload(): void {
 .run-stack {
   display: grid;
   gap: 16px;
+}
+
+.export-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .run-error {

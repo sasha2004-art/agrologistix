@@ -55,7 +55,7 @@ import { computed, watch } from 'vue'
 import MetricDelta from './MetricDelta.vue'
 import { useSolverStore } from './useSolverStore'
 import type { MetricDelta as MetricDeltaValue } from '@/shared/types/domain'
-import { formatKg, formatPercent, formatRub } from '@/shared/utils/format'
+import { formatKg, formatNumber, formatPercent, formatRub } from '@/shared/utils/format'
 
 const open = defineModel<boolean>({ default: false })
 const solver = useSolverStore()
@@ -68,7 +68,7 @@ interface Row {
   before: string
   after: string
   delta: MetricDeltaValue
-  unit: 'rub' | 'kg' | 'percent'
+  unit: 'rub' | 'kg' | 'percent' | 'count'
   higherIsBetter: boolean
 }
 
@@ -146,6 +146,33 @@ const rows = computed<Row[]>(() => {
       after: formatKg(c.unmet_kg.after),
       delta: c.unmet_kg,
       unit: 'kg',
+      higherIsBetter: false,
+    },
+    {
+      key: 'total_trips',
+      label: 'Рейсов (консолидация)',
+      before: formatNumber(c.total_trips.before),
+      after: formatNumber(c.total_trips.after),
+      delta: c.total_trips,
+      unit: 'count',
+      higherIsBetter: false,
+    },
+    {
+      key: 'avg_load_factor_pct',
+      label: 'Средняя загрузка машин',
+      before: formatPercent(c.avg_load_factor_pct.before),
+      after: formatPercent(c.avg_load_factor_pct.after),
+      delta: c.avg_load_factor_pct,
+      unit: 'percent',
+      higherIsBetter: true,
+    },
+    {
+      key: 'split_clients',
+      label: 'Разделённых клиентов',
+      before: formatNumber(c.split_clients.before),
+      after: formatNumber(c.split_clients.after),
+      delta: c.split_clients,
+      unit: 'count',
       higherIsBetter: false,
     },
   ]

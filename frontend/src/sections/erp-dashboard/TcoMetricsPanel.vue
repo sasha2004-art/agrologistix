@@ -33,7 +33,7 @@ import { computed } from 'vue'
 import MetricDelta from './MetricDelta.vue'
 import { useSolverStore } from './useSolverStore'
 import type { ComparisonDelta, Metrics } from '@/shared/types/domain'
-import { formatKg, formatPercent, formatRub } from '@/shared/utils/format'
+import { formatKg, formatNumber, formatPercent, formatRub } from '@/shared/utils/format'
 import { freshnessLevel, freshnessLabel } from '@/shared/utils/freshness'
 
 const EMPTY_METRICS: Metrics = {
@@ -123,6 +123,15 @@ const cards = computed<Card[]>(() => {
       unit: 'percent',
       higherIsBetter: true,
       modifier: freshness.value,
+    },
+    {
+      // Консолидация: сколько рейсов вышло и насколько полно загружены машины.
+      label: 'Загрузка рейсов',
+      value: formatPercent(m.avg_load_factor_pct),
+      hint: `${formatNumber(m.total_trips)} рейс(а) · разделённых клиентов: ${formatNumber(m.split_clients)}`,
+      delta: c?.avg_load_factor_pct ?? null,
+      unit: 'percent',
+      higherIsBetter: true,
     },
   ]
 })
