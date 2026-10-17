@@ -72,13 +72,17 @@ export const useAssignmentStore = defineStore('assignment', () => {
     }
   }
 
-  /** Фиксация для нескольких заявок: тост выдаёт вызывающий, ошибки не спамят. */
-  async function assignMany(orderIds: number[]): Promise<number> {
-    let done = 0
+  /**
+   * Фиксация для нескольких заявок: тост выдаёт вызывающий, ошибки не спамят.
+   * Возвращаются только успешно закреплённые заявки: переводить в «В работе»
+   * заявку без маршрута нельзя — backend спишет её как отгруженную целиком.
+   */
+  async function assignMany(orderIds: number[]): Promise<number[]> {
+    const assigned: number[] = []
     for (const orderId of orderIds) {
-      if (await assign(orderId, true)) done += 1
+      if (await assign(orderId, true)) assigned.push(orderId)
     }
-    return done
+    return assigned
   }
 
   /**
@@ -90,6 +94,8 @@ export const useAssignmentStore = defineStore('assignment', () => {
       (orderId) => !assignments.value[orderId] && !synced.value.has(orderId),
     )
     if (missing.length === 0) return
+    // Одна попытка на заявку за сессию: повтор каждую секунду спамил бы 409,
+    // а подобрать маршрут для уже отгруженной заявки всё равно нельзя.
     for (const orderId of missing) synced.value.add(orderId)
     await assignMany(missing)
   }
