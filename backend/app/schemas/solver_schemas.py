@@ -52,12 +52,20 @@ class RouteResponse(APIModel):
 
 
 class Metrics(APIModel):
+    """Публичные метрики плана: доставка и потери урожая, без штрафов.
+
+    Недовоз измеряется килограммами и процентом от заказанного
+    (``unmet_kg`` / ``unmet_pct``), испорченный в пути груз — процентом
+    ``spoilage_pct``. Внутренний вес недовоза MILP наружу не отдаётся.
+    """
+
     total_tco_rub: float = Field(ge=0.0)
     total_trip_cost_rub: float = Field(ge=0.0)
     total_spoilage_loss_rub: float = Field(ge=0.0)
-    total_unmet_penalty_rub: float = Field(ge=0.0)
     expected_net_profit_rub: float
     avg_freshness_pct: float = Field(ge=0.0, le=100.0)
+    spoilage_pct: float = Field(ge=0.0, le=100.0)
+    unmet_pct: float = Field(ge=0.0, le=100.0)
     shipped_kg: float = Field(ge=0.0)
     unmet_kg: float = Field(ge=0.0)
     # Route consolidation telemetry.

@@ -215,7 +215,6 @@ def _write_summary(sheet: Worksheet, report: ExportRun) -> None:
         ("Общие затраты, ₽", run.total_tco_rub),
         ("Затраты на доставку, ₽", run.total_trip_cost_rub),
         ("Потери урожая, ₽", run.total_spoilage_loss_rub),
-        ("Штраф за недопоставку, ₽", run.total_unmet_penalty_rub),
         ("Прибыль, ₽", run.expected_net_profit_rub),
         ("Сохранность урожая, %", run.avg_freshness_pct),
         ("Привезли, кг", run.total_shipped_kg),

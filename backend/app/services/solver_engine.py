@@ -89,14 +89,22 @@ def _collect_metrics(
             client_trucks.setdefault(stop.client_id, set()).add(route.truck_id)
 
     unmet_kg = sum(allocation.unmet.values())
+    # Internal MILP weight of undelivered cargo: kept for ``simulation_run``
+    # telemetry, but not part of the public TCO (see ``PlannedMetrics``).
     unmet_penalty_rub = sum(
         kilograms * orders_by_id[order_id].penalty_per_kg
         for order_id, kilograms in allocation.unmet.items()
         if order_id in orders_by_id
     )
-    total_tco_rub = trip_cost + spoilage_loss_rub + unmet_penalty_rub
+    requested_kg = sum(order.requested_kg for order in orders)
+    # Расчёт везёт только фактически отгруженный груз: TCO — это доставка и
+    # порча, а недовоз отвечает на вопрос «сколько не довезли» в процентах.
+    total_tco_rub = trip_cost + spoilage_loss_rub
     avg_freshness_pct = (weighted_freshness / shipped_kg * 100.0) if shipped_kg > 0 else 0.0
     load_factor_pct = (shipped_kg / used_capacity_kg * 100.0) if used_capacity_kg > 0 else 0.0
+    # Доля груза, испорченного в пути: 100 % минус средняя сохранность.
+    spoilage_pct = 100.0 - avg_freshness_pct if shipped_kg > 0 else 0.0
+    unmet_pct = (unmet_kg / requested_kg * 100.0) if requested_kg > 0 else 0.0
 
     return PlannedMetrics(
         total_tco_rub=round(total_tco_rub, 2),
@@ -105,6 +113,8 @@ def _collect_metrics(
         total_unmet_penalty_rub=round(unmet_penalty_rub, 2),
         expected_net_profit_rub=round(revenue_rub - total_tco_rub, 2),
         avg_freshness_pct=round(min(100.0, max(0.0, avg_freshness_pct)), 2),
+        spoilage_pct=round(min(100.0, max(0.0, spoilage_pct)), 2),
+        unmet_pct=round(min(100.0, max(0.0, unmet_pct)), 2),
         shipped_kg=round(shipped_kg, 3),
         unmet_kg=round(unmet_kg, 3),
         total_trips=len(trucks_used),
