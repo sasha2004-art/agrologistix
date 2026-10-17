@@ -102,25 +102,33 @@ const failureText = ref<string | null>(null)
 
 const accessToken = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN ?? '').trim()
 
-/** Данные плана по заявке: попап клиента показывает ETA, свежесть и вес. */
+/**
+ * Данные плана по заявке: карточка заказа показывает рейс, ETA, свежесть и вес.
+ * Одна заявка может дробиться между рейсами, поэтому стопов может быть несколько.
+ */
 const planByOrder = computed(() => {
-  const map = new Map<number, ClientPlanInfo>()
+  const map = new Map<number, ClientPlanInfo[]>()
   for (const item of solver.plannedStops) {
     if (item.stop.order_id == null) continue
-    map.set(item.stop.order_id, {
+    const stops = map.get(item.stop.order_id) ?? []
+    stops.push({
       orderId: item.stop.order_id,
       truckName: item.truckName,
       color: item.color,
       etaMinutes: item.stop.eta_minutes,
       expectedFreshness: item.stop.expected_freshness,
       shippedKg: item.stop.shipped_kg,
+      sequenceOrder: item.stop.sequence_order,
+      distanceKm: item.stop.distance_km,
+      tripLegCostRub: item.stop.trip_leg_cost_rub,
     })
+    map.set(item.stop.order_id, stops)
   }
   return map
 })
 
 const points = computed<MapPoint[]>(() =>
-  buildMapPoints(erp.warehouses, erp.clients, erp.orders, planByOrder.value),
+  buildMapPoints(erp.warehouses, erp.clients, erp.orders, erp.products, planByOrder.value),
 )
 const showMap = computed(() => accessToken.length > 0 && !mapFailed.value)
 const fallbackReason = computed(() => {
