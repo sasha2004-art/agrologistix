@@ -20,6 +20,7 @@
         v-for="warning in solver.warnings"
         :key="warning.code + (warning.order_id ?? '')"
         class="warning-item"
+        :class="`warning-item--${warning.severity}`"
       >
         <!-- Иконка несёт короткий заголовок, а текст-деталь приходит от сервера. -->
         <v-icon
@@ -123,7 +124,22 @@ function truckName(truckId: number): string {
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  padding-left: 8px;
   font-size: 13px;
+  /* Полоска слева: уровень предупреждения виден без чтения текста. */
+  border-left: 3px solid transparent;
+}
+
+.warning-item--error {
+  border-left-color: #be123c;
+}
+
+.warning-item--warning {
+  border-left-color: #f59e0b;
+}
+
+.warning-item--info {
+  border-left-color: #0369a1;
 }
 
 .warning-text {

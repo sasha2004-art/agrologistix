@@ -38,7 +38,14 @@
             :class="`row-${freshnessLevel(stop.expected_freshness)}`"
           >
             <td class="text-right mono">{{ stop.sequence_order }}</td>
-            <td>{{ clientName(stop.client_id) }}</td>
+            <td>
+              {{ clientName(stop.client_id) }}
+              <!-- Грунтовка влияет на время в пути и свежесть: показываем прямо в плане. -->
+              <span v-if="isDirt(stop.client_id)" class="dirt-note">
+                <v-icon icon="mdi-road-variant" size="13" color="warning" aria-hidden="true" />
+                грунтовка
+              </span>
+            </td>
             <td>{{ productName(stop.product_id) }}</td>
             <td class="text-right mono">{{ formatKg(stop.shipped_kg) }}</td>
             <td class="text-right mono">{{ formatKm(stop.distance_km) }}</td>
@@ -87,6 +94,11 @@ function clientName(clientId: number): string {
 
 function productName(productId: number): string {
   return erp.productById.get(productId)?.name ?? `Продукт №${productId}`
+}
+
+/** Клиент с подъездом по грунтовке — это замедление рейса и потеря свежести. */
+function isDirt(clientId: number): boolean {
+  return erp.clientById.get(clientId)?.road_type === 'dirt'
 }
 </script>
 
@@ -138,5 +150,15 @@ function productName(productId: number): string {
 
 .row-error {
   background: rgba(190, 18, 60, 0.12);
+}
+
+.dirt-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  font-size: 11px;
+  color: #8a5a12;
+  white-space: nowrap;
 }
 </style>
