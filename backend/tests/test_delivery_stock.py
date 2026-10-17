@@ -109,7 +109,7 @@ def test_partial_plan_keeps_leftover_demand_and_reports_delivered_kg(
                 WarehouseStock.warehouse_id == truck.warehouse_id,
             )
         ).one()
-        stock.available_kg = 500.0
+        stock.available_kg = 250.0
         run = SimulationRun()
         session.add(run)
         session.commit()
@@ -123,7 +123,7 @@ def test_partial_plan_keeps_leftover_demand_and_reports_delivered_kg(
                 client_id=order.client_id,
                 product_id=order.product_id,
                 sequence_order=1,
-                shipped_kg=500.0,
+                shipped_kg=250.0,
             )
         )
         session.commit()
@@ -146,12 +146,12 @@ def test_partial_plan_keeps_leftover_demand_and_reports_delivered_kg(
 
     assert response.status_code == 200
     assert response.json()["delivery_status"] == "pending"
-    assert response.json()["delivered_kg"] == pytest.approx(500.0)
+    assert response.json()["delivered_kg"] == pytest.approx(250.0)
 
     with _database_session(client) as session:
         reloaded = session.get(ClientOrder, order_id)
         assert reloaded is not None
-        assert remaining_demand_kg(reloaded) == pytest.approx(requested_kg - 500.0)
+        assert remaining_demand_kg(reloaded) == pytest.approx(requested_kg - 250.0)
         stock_total = sum(
             item.available_kg
             for item in session.exec(
@@ -165,12 +165,12 @@ def test_partial_plan_keeps_leftover_demand_and_reports_delivered_kg(
             )
         ).one()
 
-    assert stock_before - stock_total == pytest.approx(500.0)
+    assert stock_before - stock_total == pytest.approx(250.0)
     assert consumed_stock.available_kg == pytest.approx(0.0)
 
     plan = client.post(OPTIMIZE_URL, headers=AUTH, json={}).json()
     replanned = _planned_kg_by_warehouse(plan["routes"], order_id)
-    assert 500.0 + sum(replanned.values()) <= requested_kg + EPSILON
+    assert 250.0 + sum(replanned.values()) <= requested_kg + EPSILON
 
 
 def test_partial_delivery_can_be_rolled_back_with_pending_status(client: TestClient) -> None:
@@ -347,7 +347,7 @@ def test_delivery_uses_the_latest_plan_and_truncates_it_to_the_leftover(
             )
         )
         # The latest plan ships 1000 kg from warehouse 1 and 1000 kg from 2;
-        # the order was already partially delivered (500 kg left), so only the
+        # the order was already partially delivered (250 kg left), so only the
         # first warehouse entry is written off and the loop stops early.
         session.add(
             RouteStop(
@@ -366,7 +366,7 @@ def test_delivery_uses_the_latest_plan_and_truncates_it_to_the_leftover(
                 **{key: value for key, value in base_stop.items() if key != "sequence_order"},
             )
         )
-        order.delivered_kg = order.requested_kg - 500.0
+        order.delivered_kg = order.requested_kg - 250.0
         session.add(order)
         session.commit()
         requested_kg = order.requested_kg
@@ -391,9 +391,9 @@ def test_delivery_uses_the_latest_plan_and_truncates_it_to_the_leftover(
 
     by_warehouse = {entry.stock_id: entry.shipped_kg for entry in journal}
     assert len(by_warehouse) == 1
-    assert sum(by_warehouse.values()) == pytest.approx(500.0)
+    assert sum(by_warehouse.values()) == pytest.approx(250.0)
     warehouse_one = next(stock for stock in stocks if stock.warehouse_id == 1)
-    assert warehouse_one.available_kg == pytest.approx(9000.0 - 500.0)
+    assert warehouse_one.available_kg == pytest.approx(4500.0 - 250.0)
 
 
 def test_delivery_ignores_stops_of_another_product(client: TestClient) -> None:

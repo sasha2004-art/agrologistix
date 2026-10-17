@@ -57,7 +57,7 @@ def test_one_shop_is_served_by_one_truck_on_the_seed(client: TestClient) -> None
     payload = _baseline(client)
     visited = _client_trucks(payload)
 
-    assert payload["metrics"]["shipped_kg"] == 8350.0
+    assert payload["metrics"]["shipped_kg"] == 4175.0
     assert payload["metrics"]["unmet_kg"] == 0.0
     assert payload["metrics"]["split_clients"] == 0
     assert all(len(truck_ids) == 1 for truck_ids in visited.values())

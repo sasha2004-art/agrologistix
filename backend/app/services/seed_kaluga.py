@@ -43,21 +43,21 @@ PRODUCT_SEED: tuple[dict[str, object], ...] = (
         "name": "Клубника садовая",
         "base_spoilage_rate": 0.08,
         "optimal_temp_c": 4.0,
-        "base_cost_rub": 180.0,
+        "base_cost_rub": 90.0,
     },
     {
         "code": "tomato",
         "name": "Томаты тепличные",
         "base_spoilage_rate": 0.035,
         "optimal_temp_c": 10.0,
-        "base_cost_rub": 95.0,
+        "base_cost_rub": 47.5,
     },
     {
         "code": "cucumber",
         "name": "Огурцы короткоплодные",
         "base_spoilage_rate": 0.02,
         "optimal_temp_c": 10.0,
-        "base_cost_rub": 70.0,
+        "base_cost_rub": 35.0,
     },
 )
 
@@ -67,12 +67,12 @@ PRODUCT_SEED: tuple[dict[str, object], ...] = (
 # harvested lots (0.90-0.97), while the Detchino site keeps older batches, so
 # strawberries and cucumbers there are noticeably closer to spoiling.
 STOCK_SEED: tuple[tuple[str, str, float, float], ...] = (
-    ("Хаб Обнинск", "strawberry", 9000.0, 0.97),
-    ("Хаб Обнинск", "tomato", 22000.0, 0.93),
-    ("Хаб Обнинск", "cucumber", 14000.0, 0.90),
-    ("Склад Детчино", "strawberry", 5000.0, 0.82),
-    ("Склад Детчино", "tomato", 12000.0, 0.95),
-    ("Склад Детчино", "cucumber", 7000.0, 0.78),
+    ("Хаб Обнинск", "strawberry", 4500.0, 0.97),
+    ("Хаб Обнинск", "tomato", 11000.0, 0.93),
+    ("Хаб Обнинск", "cucumber", 7000.0, 0.90),
+    ("Склад Детчино", "strawberry", 2500.0, 0.82),
+    ("Склад Детчино", "tomato", 6000.0, 0.95),
+    ("Склад Детчино", "cucumber", 3500.0, 0.78),
 )
 
 CLIENT_SEED: tuple[dict[str, object], ...] = (
@@ -116,15 +116,15 @@ CLIENT_SEED: tuple[dict[str, object], ...] = (
 # Demand matches a daily delivery per point: a retail chain and a market buy
 # tonnes, a farm cooperative and an eco base buy hundreds of kilograms.
 ORDER_SEED: tuple[tuple[str, str, float, float, float], ...] = (
-    ("ВкусВилл", "strawberry", 800.0, 320.0, 120.0),
-    ("ВкусВилл", "tomato", 2400.0, 160.0, 80.0),
-    ("Агро-Рынок", "tomato", 1200.0, 150.0, 70.0),
-    ("Агро-Рынок", "cucumber", 700.0, 110.0, 50.0),
-    ("Кооператив Боровск", "strawberry", 300.0, 300.0, 150.0),
-    ("Кооператив Боровск", "cucumber", 500.0, 105.0, 45.0),
-    ("Пятёрочка", "tomato", 1500.0, 155.0, 75.0),
-    ("Пятёрочка", "strawberry", 350.0, 310.0, 140.0),
-    ("Эко-база", "cucumber", 600.0, 115.0, 55.0),
+    ("ВкусВилл", "strawberry", 400.0, 160.0, 60.0),
+    ("ВкусВилл", "tomato", 1200.0, 80.0, 40.0),
+    ("Агро-Рынок", "tomato", 600.0, 75.0, 35.0),
+    ("Агро-Рынок", "cucumber", 350.0, 55.0, 25.0),
+    ("Кооператив Боровск", "strawberry", 150.0, 150.0, 75.0),
+    ("Кооператив Боровск", "cucumber", 250.0, 52.5, 22.5),
+    ("Пятёрочка", "tomato", 750.0, 77.5, 37.5),
+    ("Пятёрочка", "strawberry", 175.0, 155.0, 70.0),
+    ("Эко-база", "cucumber", 300.0, 57.5, 27.5),
 )
 
 TRUCK_SEED: tuple[dict[str, object], ...] = (
@@ -132,10 +132,10 @@ TRUCK_SEED: tuple[dict[str, object], ...] = (
         "name": "Volvo FH16",
         "plate_number": "А001АА40",
         "warehouse": "Хаб Обнинск",
-        "capacity_kg": 20000.0,
+        "capacity_kg": 10000.0,
         "cruise_speed_kmh": 75.0,
-        "cost_per_km_rub": 58.0,
-        "fixed_trip_cost_rub": 8500.0,
+        "cost_per_km_rub": 29.0,
+        "fixed_trip_cost_rub": 4250.0,
         "has_reefer": True,
         "has_insulation": False,
         "can_use_dirt": False,
@@ -144,10 +144,10 @@ TRUCK_SEED: tuple[dict[str, object], ...] = (
         "name": "ГАЗон NEXT",
         "plate_number": "В202ВВ40",
         "warehouse": "Хаб Обнинск",
-        "capacity_kg": 6000.0,
+        "capacity_kg": 3000.0,
         "cruise_speed_kmh": 62.0,
-        "cost_per_km_rub": 32.0,
-        "fixed_trip_cost_rub": 3800.0,
+        "cost_per_km_rub": 16.0,
+        "fixed_trip_cost_rub": 1900.0,
         "has_reefer": True,
         "has_insulation": False,
         "can_use_dirt": True,
@@ -156,10 +156,10 @@ TRUCK_SEED: tuple[dict[str, object], ...] = (
         "name": "КАМАЗ Компас",
         "plate_number": "С303СС40",
         "warehouse": "Склад Детчино",
-        "capacity_kg": 10000.0,
+        "capacity_kg": 5000.0,
         "cruise_speed_kmh": 70.0,
-        "cost_per_km_rub": 40.0,
-        "fixed_trip_cost_rub": 4600.0,
+        "cost_per_km_rub": 20.0,
+        "fixed_trip_cost_rub": 2300.0,
         "has_reefer": False,
         # Изотермический кузов без холодильной установки: в жару порча
         # начинается на +6 °C позже, чем у обычного тента.

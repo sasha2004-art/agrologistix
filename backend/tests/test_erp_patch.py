@@ -142,6 +142,6 @@ def test_reset_demo_restores_patched_state(client: TestClient) -> None:
     state = read_state(client)
     order = next(item for item in state["orders"] if item["id"] == 1)
     truck = next(item for item in state["trucks"] if item["id"] == 1)
-    assert order["purchase_price_rub"] == 320.0
+    assert order["purchase_price_rub"] == 160.0
     assert order["delivery_status"] == "pending"
     assert truck["status"] == "active"
