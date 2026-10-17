@@ -75,13 +75,11 @@ import MapFallbackPanel from './MapFallbackPanel.vue'
 import {
   DEFAULT_ZOOM,
   OBNINSK_CENTER,
-  applyPoint,
   buildMapPoints,
   createMarkerManager,
   ensureRouteLayers,
   setRouteGeometry,
   type MapPoint,
-  type MarkerHandle,
   type MarkerManager,
 } from './useMapboxMarkers'
 import { useErpStore } from '@/sections/erp-dashboard/useErpStore'
@@ -177,9 +175,7 @@ onMounted(() => {
     if (!map) return
     mapReady.value = true
     ensureRouteLayers(map)
-    markers = createMarkerManager(map, {
-      onHover: handleMarkerHover,
-    })
+    markers = createMarkerManager(map)
     markers.sync(points.value)
     drawRoutes()
   })
@@ -193,16 +189,6 @@ onMounted(() => {
     failWith(`Mapbox недоступен: ${event.error?.message ?? 'ошибка загрузки стиля'}`)
   })
 })
-
-/**
- * Маркеры живут только от общего стора: наведение дорисовывает актуальную точку
- * перед показом краткой подсказки (сеть тянет фоновый опрос раз в секунду
- * в useErpStore.startAutoSync).
- */
-function handleMarkerHover(handle: MarkerHandle): void {
-  const fresh = points.value.find((point) => point.id === handle.point.id)
-  if (fresh) applyPoint(handle, fresh)
-}
 
 watch(
   points,

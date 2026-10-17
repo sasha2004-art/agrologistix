@@ -1,7 +1,7 @@
 /**
- * HTML-содержимое карточек карты: краткая подсказка при наведении и полная
- * карточка по клику. Разметка собирается строками, потому что Mapbox Popup
- * принимает HTML, а не Vue-компонент.
+ * HTML-содержимое карточки объекта: адрес, статус и список заявок. Разметка
+ * собирается строками, потому что Mapbox Popup принимает HTML, а не Vue-компонент.
+ * Карточка открывается только по нажатию на маркер.
  *
  * Полная карточка перечисляет заявки покупателя кнопками: подробности по каждой
  * заявке раскрываются нажатием и живут в DOM popup, поэтому обработчики
@@ -105,35 +105,6 @@ export function popupHtml(point: MapPoint): string {
   }
 
   return `<div class="map-popup"><strong>${escapeHtml(point.name)}</strong>${rows.join('')}</div>`
-}
-
-/**
- * Краткая подсказка при наведении: имя точки и пара ключевых фактов.
- * Полная карточка (адрес, заявки, данные рейса) открывается кликом.
- */
-export function hoverHtml(point: MapPoint): string {
-  const rows: string[] = []
-  if (point.kind === 'warehouse') {
-    rows.push('<div class="map-tooltip__row">Склад</div>')
-    if (point.address) rows.push(`<div class="map-tooltip__row">${escapeHtml(point.address)}</div>`)
-  } else {
-    const traits = ['Покупатель', statusLabel(point.deliveryStatus)].filter(Boolean).join(' · ')
-    rows.push(`<div class="map-tooltip__row">${escapeHtml(traits)}</div>`)
-    if (point.orderCount > 0) {
-      rows.push(
-        `<div class="map-tooltip__row">Заказов: ${point.orderCount} · ${Math.round(point.requestedKg)} кг</div>`,
-      )
-    }
-  }
-  if (point.plan) {
-    rows.push(
-      `<div class="map-tooltip__row map-tooltip__plan">` +
-        `<span class="map-tooltip__swatch" style="background:${escapeHtml(point.plan.color)}"></span>` +
-        `${escapeHtml(point.plan.truckName)} · ${Math.round(point.plan.shippedKg)} кг` +
-        `</div>`,
-    )
-  }
-  return `<div class="map-tooltip"><strong>${escapeHtml(point.name)}</strong>${rows.join('')}</div>`
 }
 
 /**

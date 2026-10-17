@@ -2,13 +2,13 @@
  * Маркеры и слои карты Калужской области (Day 5).
  *
  * Маркеры создаются как DOM-элементы (кнопки) с текстовыми aria-label и popup,
- * поэтому тип точки и статус доставки передаются не только цветом. Наведение
- * показывает краткую подсказку, клик — полную карточку точки: сборка данных
- * лежит в `mapPoints.ts`, разметка карточек — в `mapPopupContent.ts`.
+ * поэтому тип точки и статус доставки передаются не только цветом. Карточка
+ * объекта открывается только по нажатию на маркер: сборка данных лежит
+ * в `mapPoints.ts`, разметка карточки — в `mapPopupContent.ts`.
  */
 
 import mapboxgl from 'mapbox-gl'
-import { bindOrderToggles, hoverHtml, popupHtml, restoreOrderState } from './mapPopupContent'
+import { bindOrderToggles, popupHtml, restoreOrderState } from './mapPopupContent'
 import { roadLabel, statusLabel, type MapPoint } from './mapPoints'
 import type { Route } from '@/shared/types/domain'
 
@@ -90,11 +90,6 @@ export function applyPoint(handle: MarkerHandle, point: MapPoint): void {
   restoreOrderState(handle.popup.getElement(), handle.expandedOrders)
 }
 
-export interface MarkerManagerOptions {
-  /** Вызывается при наведении: точка, текущие данные и ручка для обновления. */
-  onHover?: (handle: MarkerHandle) => void
-}
-
 export interface MarkerManager {
   /** Пересоздаёт маркеры (первый рендер, reset-demo). */
   sync(points: MapPoint[]): void
@@ -103,32 +98,13 @@ export interface MarkerManager {
   destroy(): void
 }
 
-export function createMarkerManager(
-  map: mapboxgl.Map,
-  options: MarkerManagerOptions = {},
-): MarkerManager {
+export function createMarkerManager(map: mapboxgl.Map): MarkerManager {
   let markers: mapboxgl.Marker[] = []
   let handles: MarkerHandle[] = []
   let activePopup: mapboxgl.Popup | null = null
-  // Одна общая подсказка на карту: при наведении переезжает к активной точке.
-  const hoverTip = new mapboxgl.Popup({
-    offset: 26,
-    closeButton: false,
-    closeOnClick: false,
-    className: 'map-hover-tip',
-  })
-
-  const showHoverTip = (point: MapPoint): void => {
-    hoverTip.setLngLat(point.coordinates).setHTML(hoverHtml(point))
-    if (!hoverTip.isOpen()) hoverTip.addTo(map)
-  }
-  const hideHoverTip = (): void => {
-    hoverTip.remove()
-  }
 
   const syncRef = (points: MapPoint[]): void => {
     for (const marker of markers) marker.remove()
-    hideHoverTip()
     if (activePopup) {
       activePopup.remove()
       activePopup = null
@@ -149,23 +125,11 @@ export function createMarkerManager(
       const handle: MarkerHandle = { point, element, popup, expandedOrders }
       fresh.push(handle)
 
-      element.addEventListener('mouseenter', () => {
-        options.onHover?.(handle)
-        // Если полная карточка уже открыта кликом, подсказка только дублировала бы её.
-        if (popup.isOpen()) return
-        showHoverTip(handle.point)
-      })
-      element.addEventListener('mouseleave', hideHoverTip)
       element.addEventListener('click', () => {
-        hideHoverTip()
+        // Карточка открывается только нажатием: наведение не показывает ничего.
         if (activePopup && activePopup !== popup) activePopup.remove()
         activePopup = popup
       })
-      element.addEventListener('focus', () => {
-        options.onHover?.(handle)
-        if (!popup.isOpen()) showHoverTip(handle.point)
-      })
-      element.addEventListener('blur', hideHoverTip)
       return marker
     })
     handles = fresh
@@ -190,7 +154,6 @@ export function createMarkerManager(
       for (const marker of markers) marker.remove()
       markers = []
       handles = []
-      hideHoverTip()
       if (activePopup) {
         activePopup.remove()
         activePopup = null
