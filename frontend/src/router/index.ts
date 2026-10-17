@@ -1,10 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 
+/**
+ * В приложении только два экрана: вход и рабочий стол.
+ *
+ * Ни лендинга, ни других страниц нет: любой адрес, кроме дашборда, ведёт на
+ * форму входа, а дашборд открывается только с подтверждённым ключом.
+ */
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'landing', component: () => import('@/sections/landing/LandingPage.vue') },
     {
       path: '/login',
       name: 'login',
@@ -16,7 +21,6 @@ const router = createRouter({
       component: () => import('@/sections/erp-dashboard/DashboardLayout.vue'),
       meta: { requiresAuth: true },
     },
-    // Любой неизвестный адрес ведёт на форму входа, а не в пустоту.
     { path: '/:pathMatch(.*)*', redirect: { name: 'login' } },
   ],
 })
@@ -31,6 +35,7 @@ router.beforeEach(async (to) => {
     return true
   }
 
+  // Неавторизованные остаются на входе; авторизованных вход сразу пускает в работу.
   if (to.name === 'login' && auth.isAuthenticated && (await auth.verifySession())) {
     return { name: 'dashboard' }
   }
