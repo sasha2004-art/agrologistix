@@ -32,6 +32,11 @@ printf '==> Installing the HTTP bootstrap config on %s\n' "${REMOTE}"
 rsync -az -e "${SSH_CMD}" \
     "${ROOT_DIR}/deploy/nginx/agrologistix-http-bootstrap.conf" \
     "${REMOTE}:/etc/nginx/sites-available/agrologistix-http-bootstrap.conf"
+# The server config references limit_req zones, so the http-context file with
+# the zone declarations must exist before the first nginx -t.
+rsync -az -e "${SSH_CMD}" \
+    "${ROOT_DIR}/deploy/nginx/agrologistix-limits.conf" \
+    "${REMOTE}:/etc/nginx/conf.d/agrologistix-limits.conf"
 
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "bash -s" <<REMOTE_BOOTSTRAP
 set -euo pipefail

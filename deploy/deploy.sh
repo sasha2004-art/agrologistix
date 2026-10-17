@@ -72,6 +72,9 @@ rsync -az -e "${SSH_CMD}" deploy/agrologistix-backend.service \
     "${REMOTE}:/etc/systemd/system/${DEPLOY_SERVICE}"
 rsync -az -e "${SSH_CMD}" deploy/nginx/agrologistix.conf \
     "${REMOTE}:/etc/nginx/sites-available/agrologistix.conf"
+# Rate-limit zones live in the http context, so they go into conf.d.
+rsync -az -e "${SSH_CMD}" deploy/nginx/agrologistix-limits.conf \
+    "${REMOTE}:/etc/nginx/conf.d/agrologistix-limits.conf"
 rsync -az -e "${SSH_CMD}" deploy/sync-backend-env.sh \
     "${REMOTE}:${DEPLOY_APP_DIR}/sync-backend-env.sh"
 

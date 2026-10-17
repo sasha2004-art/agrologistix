@@ -4,12 +4,22 @@ from pathlib import Path
 import pytest
 from app.core.config import Settings
 from app.core.database import create_database_engine, init_database
+from app.core.rate_limit import LIMITER
 from app.main import create_app
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 USER_PIN = "123456"
 ADMIN_PIN = "654321"
+
+
+@pytest.fixture(autouse=True)
+def reset_login_limiter() -> Iterator[None]:
+    """Keep failed-PIN counters from leaking between tests."""
+
+    LIMITER.clear()
+    yield
+    LIMITER.clear()
 
 
 @pytest.fixture
