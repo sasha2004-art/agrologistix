@@ -198,15 +198,16 @@ export function overrideWeather(mode: WeatherMode, accessPin: string): Promise<W
   })
 }
 
-export function optimize(
-  requestBody: SolverRequest,
-  accessPin: string,
-): Promise<Loaded<SolverResponse>> {
-  return requestWithFallback<SolverResponse>(
-    '/solver/optimize',
-    { method: 'POST', access_pin: accessPin, body: JSON.stringify(requestBody) },
-    () => mockData.mockSolverResponse,
-  )
+/**
+ * Расчёт плана: без mock-fallback — выдуманный план хуже явной ошибки,
+ * потому что на его основе диспетчер принимает решения.
+ */
+export function optimize(requestBody: SolverRequest, accessPin: string): Promise<SolverResponse> {
+  return request<SolverResponse>('/solver/optimize', {
+    method: 'POST',
+    access_pin: accessPin,
+    body: JSON.stringify(requestBody),
+  })
 }
 
 /** Человекочитаемое сообщение об ошибке для v-alert. */

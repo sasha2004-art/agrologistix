@@ -17,6 +17,8 @@ import {
 } from '@/shared/api/httpClient'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 import { useNotificationStore } from '@/shared/stores/useNotificationStore'
+import { formatKg, formatPercent } from '@/shared/utils/format'
+import { freshnessLevel } from '@/shared/utils/freshness'
 import type {
   Client,
   ClientOrder,
@@ -181,6 +183,16 @@ export const useErpStore = defineStore('erp', () => {
       })
     }
 
+    // Часть парка сломана: расчёт пройдёт, но часть груза придётся распределить иначе.
+    if (isReady.value && brokenTrucks.value.length > 0 && activeTrucks.value.length > 0) {
+      const names = brokenTrucks.value.map((truck) => truck.name).join(', ')
+      alerts.push({
+        id: 'broken-trucks',
+        severity: 'info',
+        message: `Сломано машин: ${brokenTrucks.value.length} (${names}) — в расчёте не участвуют.`,
+      })
+    }
+
     if (isReady.value && dirtClients.value.length > 0 && dirtCapableTrucks.value.length === 0) {
       alerts.push({
         id: 'no-dirt-capable-truck',
@@ -205,6 +217,23 @@ export const useErpStore = defineStore('erp', () => {
         (stockByProduct.get(stock.product_id) ?? 0) + stock.available_kg,
       )
     }
+    // Партия может испортиться ещё на складе: свежесть ниже порога — риск порчи.
+    for (const stock of stocks.value) {
+      const level = freshnessLevel(stock.initial_freshness)
+      if (level === 'ok') continue
+      const warehouse = warehouseById.value.get(stock.warehouse_id)
+      const product = productById.value.get(stock.product_id)
+      alerts.push({
+        id: `low-freshness-${stock.id}`,
+        severity: level === 'error' ? 'error' : 'warning',
+        message: `${product?.name ?? `Продукт №${stock.product_id}`} на складе «${
+          warehouse?.name ?? `№${stock.warehouse_id}`
+        }»: свежесть партии ${formatPercent(stock.initial_freshness * 100)}, остаток ${formatKg(
+          stock.available_kg,
+        )} — груз рискует испортиться.`,
+      })
+    }
+
     for (const row of pendingOrders.value) {
       const outstanding = remainingKg(row.order)
       const available = stockByProduct.get(row.order.product_id) ?? 0
