@@ -129,7 +129,7 @@ curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"delivery_stat
 складов, откуда их повёз план:
 
 ```bash
-BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize)
+BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize)
 STOCK_BEFORE=$(curl -s -H "$U" $B/erp/state | python3 -c "import sys,json;print(sum(s['available_kg'] for s in json.load(sys.stdin)['stocks']))")
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"delivery_status":"delivered"}' $B/erp/orders/1
 STOCK_AFTER=$(curl -s -H "$U" $B/erp/state | python3 -c "import sys,json;print(sum(s['available_kg'] for s in json.load(sys.stdin)['stocks']))")
@@ -137,7 +137,7 @@ python3 -c "print('списано:', $STOCK_BEFORE - $STOCK_AFTER)"
 ```
 
 Ожидается, что списанный объём равен сумме `shipped_kg` остановок заявки 1 в
-baseline, а `delivered_kg` в ответе — тому же числу. Повторный `what_if` не должен
+baseline, а `delivered_kg` в ответе — тому же числу. Повторный расчёт не должен
 распределять уже вывезенный товар: склада на него больше нет, а остаток спроса
 заявки (`requested_kg - delivered_kg`) остаётся в плане.
 
@@ -278,7 +278,7 @@ curl -s -o /dev/null -w '%{http_code}\n' $B/weather/current                     
 ### F2. Сверка TCO с ответом API
 
 ```bash
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize \
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["metrics"])'
 ```
 
@@ -333,7 +333,7 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heatwav
 ```bash
 curl -s -X POST -H "$A" $B/system/reset-demo
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heavy_rain"}' $B/weather/override
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize
 ```
 
 Ожидаемые метрики:
@@ -374,7 +374,7 @@ curl -s -X POST -H "$A" $B/system/reset-demo
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heavy_rain"}' $B/weather/override
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/1
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/3
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize
 ```
 
 Ожидается:
@@ -393,7 +393,7 @@ curl -s -X POST -H "$A" $B/system/reset-demo
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heavy_rain"}' $B/weather/override
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/2
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/3
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize
 ```
 
 Ожидается:
@@ -411,7 +411,7 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 curl -s -X POST -H "$A" $B/system/reset-demo
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heavy_rain"}' $B/weather/override
 for t in 1 2 3; do curl -s -o /dev/null -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/$t; done
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize
 ```
 
 Ожидается (без ошибок сервера):
@@ -427,7 +427,7 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 ```bash
 curl -s -X POST -H "$A" $B/system/reset-demo
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heatwave_35c"}' $B/weather/override
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize
 ```
 
 Ожидается: `shipped_kg = 11000.0`, `unmet_kg = 0.0`, `avg_freshness_pct = 89.44`,
@@ -443,7 +443,7 @@ curl -s -X POST -H "$A" $B/system/reset-demo
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heatwave_35c"}' $B/weather/override
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/1
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/2
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize
 ```
 
 Ожидается:
@@ -468,7 +468,7 @@ curl -s -X POST -H "$A" $B/system/reset-demo
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heatwave_35c"}' $B/weather/override
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/1
 curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/3
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize \
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize \
  | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['metrics'],[(s['order_id'],round(s['eta_minutes'],2),round(s['expected_freshness'],4)) for r in d['routes'] for s in r['stops']])"
 ```
 
@@ -498,19 +498,19 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 ### 8.1 Ответ и структура
 
 ```bash
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize | python3 -m json.tool | head -40
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize | python3 -m json.tool | head -40
 ```
 
-Ожидается `200` с полями `run_id` (число ≥ 1), `parent_run_id: null`,
-`routes[]` (с `geometry[]` из `{lat, lon}` и `stops[]` с `sequence_order`,
-`shipped_kg`, `distance_km`, `eta_minutes`, `expected_freshness`,
-`trip_leg_cost_rub`, `stop_status: "planned"`), `metrics{}`, `warnings[]`,
-`comparison: null`.
+Ожидается `200` с полями `run_id` (число ≥ 1), `routes[]` (с `geometry[]` из
+`{lat, lon}` и `stops[]` с `sequence_order`, `shipped_kg`, `distance_km`,
+`eta_minutes`, `expected_freshness`, `trip_leg_cost_rub`, `stop_status: "planned"`),
+`metrics{}` и `warnings[]`. Полей `parent_run_id` и `comparison` в ответе нет:
+план всегда строится от текущего состояния ERP, без сравнения с прошлым прогоном.
 
 ### 8.2 Согласованность метрик
 
 ```bash
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize \
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize \
  | python3 -c "import sys,json;m=json.load(sys.stdin)['metrics'];print(m['total_tco_rub'], m['total_trip_cost_rub']+m['total_spoilage_loss_rub']+m['total_unmet_penalty_rub'], m['shipped_kg']+m['unmet_kg'])"
 ```
 
@@ -519,8 +519,8 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 ### 8.3 Новый прогон на каждый расчёт
 
 ```bash
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])"
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])"
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])"
+curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])"
 ```
 
 Ожидается: два разных `run_id`, второй больше первого (предыдущий не перезаписывается).
@@ -528,7 +528,7 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 ### 8.4 Производительность
 
 ```bash
-curl -s -o /dev/null -w '%{time_total}s\n' -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize
+curl -s -o /dev/null -w '%{time_total}s\n' -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize
 ```
 
 Ожидается: на сервере (localhost) **0.07–0.15 с**; первый запрос после рестарта
@@ -537,17 +537,19 @@ curl -s -o /dev/null -w '%{time_total}s\n' -H "$U" -X POST -H 'Content-Type: app
 
 ### 8.5 Ошибки
 
+Пустое тело `{}` — валидный запрос: у расчёта больше нет полей режима.
+Отклоняются только неизвестные поля и запросы без PIN.
+
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize                 # 422
-curl -s -o /dev/null -w '%{http_code}\n' -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline","x":1}' $B/solver/optimize  # 422
-curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize               # 401
+curl -s -o /dev/null -w '%{http_code}\n' -H "$U" -X POST -H 'Content-Type: application/json' -d '{"unexpected":1}' $B/solver/optimize  # 422
+curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize               # 401
 ```
 
 ### 8.6 Персистенция (на сервере)
 
 ```bash
 sqlite3 /opt/agrologistix/data/app.db \
-  "select id, parent_run_id, weather_mode, temp_c, total_shipped_kg, total_unmet_kg from simulation_run order by id desc limit 3;
+  "select id, weather_mode, temp_c, total_shipped_kg, total_unmet_kg from simulation_run order by id desc limit 3;
    select run_id, count(*) from route_stop group by run_id order by run_id desc limit 3;"
 ```
 
@@ -603,199 +605,33 @@ TCO ≈ `403 213 ₽`, «Штраф за недовоз» подсвечен, н
 рассчитать план (500)» и кнопка «Повторить расчёт», предыдущий план не
 подменяется выдуманными данными.
 
----
+**UI-6. Изменение ERP помечает план устаревшим**
 
-## Day 9 — «Что, если» и сравнение «Было / Стало»
-
-### 9.1 Сначала сохраните базовый расчёт
-
-```bash
-BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize)
-RID=$(echo "$BASE" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
-echo "baseline run_id=$RID"
-```
-
-### 9.2 Ошибки режима what_if
+1. Посчитайте план на вкладке «Маршруты и TCO».
+2. На вкладке «Склады и заявки» измените цену любой заявки или отметьте её
+   доставленной; на «Автопарке» переведите машину в `broken`.
+3. Вернитесь на «Маршруты и TCO»: план остался на экране, но появился блок
+   «Исходные данные изменились — пересчитайте план поставок». Автоматического
+   пересчёта нет — запустите его кнопкой «Пересчитать план»; блок исчезает.
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"what_if"}' $B/solver/optimize        # 422 (нужен baseline_run_id)
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"what_if","baseline_run_id":9999}' $B/solver/optimize                   # 404
+sqlite3 backend/data/app.db "select id, weather_mode from simulation_run order by id;"
 ```
 
-Ожидается `422` (`fields.baseline_run_id`) и `404`:
-
-```json
-{"code":"not_found","detail":"Simulation run with id 9999 was not found"}
-```
-
-### 9.3 Без изменений — нулевая дельта
-
-```bash
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what_if\",\"baseline_run_id\":$RID}" $B/solver/optimize \
- | python3 -c "import sys,json;c=json.load(sys.stdin)['comparison'];print(c['total_tco_rub'], c['shipped_kg'])"
-```
-
-Ожидается: `delta = 0.0` по всем метрикам с ненулевой базой;
-для `unmet_kg`/`unmet_penalty` при базе `0` → `delta_pct: null`.
-
-### 9.4 Полный сценарий PRD: delivered → broken → price → what_if
-
-```bash
-curl -s -X POST -H "$A" $B/system/reset-demo
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heavy_rain"}' $B/weather/override
-BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize)
-RID=$(echo "$BASE" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
-
-curl -s -o /dev/null -w 'delivered: %{http_code}\n' -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"delivery_status":"delivered"}' $B/erp/orders/1
-curl -s -o /dev/null -w 'broken:    %{http_code}\n' -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/2
-curl -s -o /dev/null -w 'price:     %{http_code}\n' -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"purchase_price_rub":500}' $B/erp/orders/2
-
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what_if\",\"baseline_run_id\":$RID}" $B/solver/optimize \
- | python3 -c "import sys,json;d=json.load(sys.stdin);print(json.dumps(d['comparison'],ensure_ascii=False,indent=1))"
-```
-
-Ожидается `200` на три PATCH и сравнение:
-
-| Метрика | Было | Стало | Δ | Δ% |
-|---|---|---|---|---|
-| `total_tco_rub` | 246114.53 | 329361.80 | +83 247.27 | +33.82 |
-| `total_trip_cost_rub` | 28852.49 | 23800.95 | −5 051.54 | −17.51 |
-| `total_spoilage_loss_rub` | 217262.04 | 305560.85 | +88 298.81 | +40.64 |
-| `expected_net_profit_rub` | 1799385.47 | 1916138.20 | +116 752.73 | +6.49 |
-| `avg_freshness_pct` | 89.60 | 84.45 | −5.15 | −5.75 |
-| `shipped_kg` | 11000.00 | 9500.00 | −1 500.00 | −13.64 |
-| `total_unmet_penalty_rub` | 0.00 | 0.00 | 0.00 | `null` |
-| `unmet_kg` | 0.00 | 0.00 | 0.00 | `null` |
-
-Дополнительно проверьте в том же ответе:
-
-* `parent_run_id` равен `$RID`, `run_id` — новое число (больше базового);
-* заявки 1 нет среди `routes[].stops[].order_id`;
-* `truck_id=2` отсутствует среди маршрутов;
-* `warnings` содержит `broken_trucks_excluded`.
-
-Инвариант списания: сумма `delivered_kg` по доставленным заявкам плюс текущие
-`available_kg` складов равна исходному остатку после `reset-demo` — то есть
-вывезенный товар больше не может попасть в новый план.
-
-### 9.5 Несколько заявок одного клиента
-
-Клиент 1 (ВкусВилл) имеет заявки 1 и 2. Доставьте только первую:
-
-```bash
-curl -s -X POST -H "$A" $B/system/reset-demo
-BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize)
-RID=$(echo "$BASE" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
-curl -s -o /dev/null -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"delivery_status":"delivered"}' $B/erp/orders/1
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what_if\",\"baseline_run_id\":$RID}" $B/solver/optimize \
- | python3 -c "import sys,json;s={x['order_id'] for r in json.load(sys.stdin)['routes'] for x in r['stops']};print(sorted(s))"
-```
-
-Ожидается: в списке **нет** `1`, но присутствует `2` (вторая заявка того же
-клиента не отменяется). `shipped_kg = 9500` (минус 1500 кг доставленной заявки).
-
-### 9.6 Полная потеря транспорта в what_if
-
-```bash
-curl -s -X POST -H "$A" $B/system/reset-demo
-BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize)
-RID=$(echo "$BASE" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
-for t in 1 2 3; do curl -s -o /dev/null -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/$t; done
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what_if\",\"baseline_run_id\":$RID}" $B/solver/optimize \
- | python3 -c "import sys,json;d=json.load(sys.stdin);c=d['comparison'];print('routes:',d['routes'],'unmet:',c['unmet_kg'])"
-```
-
-Ожидается: `routes: []`, `unmet_kg.before = 0.0`, `after = 11000.0`,
-`delta_pct: null` (деление на ноль не выполняется), warnings:
-`broken_trucks_excluded`, `no_active_trucks`, `unmet_demand`, `dirt_unreachable` ×3.
-
-### 9.7 Жара + сломанные рефрижераторы в what_if
-
-```bash
-curl -s -X POST -H "$A" $B/system/reset-demo
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heavy_rain"}' $B/weather/override
-BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize)
-RID=$(echo "$BASE" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
-curl -s -o /dev/null -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/1
-curl -s -o /dev/null -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"broken"}' $B/erp/trucks/2
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heatwave_35c"}' $B/weather/override
-curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what_if\",\"baseline_run_id\":$RID}" $B/solver/optimize \
- | python3 -c "import sys,json;d=json.load(sys.stdin);c=d['comparison'];print(c['avg_freshness_pct'],c['total_spoilage_loss_rub'],c['unmet_kg'],[w['code'] for w in d['warnings']])"
-```
-
-Ожидается: `avg_freshness_pct.delta < 0`, `total_spoilage_loss_rub.delta > 0`,
-`unmet_kg.after = 1000.0`, warnings включают `heat_without_reefer`.
-
-### 9.8 Базовый план неизменяем
-
-После выполнения 9.4/9.5 снова запросите базовый `run_id` через БД:
-
-```bash
-sqlite3 /opt/agrologistix/data/app.db "select id, parent_run_id, total_tco_rub from simulation_run;"
-```
-
-Ожидается: строка базового прогона не изменилась (`parent_run_id` = null,
-метрики те же), а новый прогон ссылается на неё через `parent_run_id`.
-
-### 9.9 Интерфейс сценария (frontend)
-
-Проверяется в браузере. Перед сценарием: `reset-demo`.
-
-**UI-1. Автопересчёт после PATCH**
-
-1. Вкладка «Маршруты и TCO» → «Рассчитать поставки» — база построена, кнопки
-   «Сценарий «что, если»» и «Было / Стало» ещё нет.
-2. Вкладка «Склады и заявки» → доставить любую заявку кнопкой статуса.
-3. Вернуться на «Маршруты и TCO»: сценарий пересчитался автоматически (в шапке
-   появился чип «−35,8 % TCO», кнопка «Было / Стало» доступна).
-4. Повторить с поломкой машины («Автопарк») и сменой цены заявки — каждый PATCH
-   добавляет новый прогон `parent_run_id = база` и обновляет чип дельты.
-
-```bash
-sqlite3 backend/data/app.db "select id, parent_run_id from simulation_run order by id;"
-```
-
-Ожидается: несколько строк с одним и тем же `parent_run_id` базового прогона.
-
-**UI-2. Один клиент — несколько заявок**
-
-У клиента «РЦ «ВкусВилл» Калуга» две заявки. После доставки заявки №1 в таблице
-она становится «Доставлено», а заявка №2 остаётся «В работе» — статус меняется на
-уровне `order_id`, а не клиента. В сценарии заявка №2 остаётся в плане.
-
-**UI-3. Окно «Было / Стало»**
-
-Кнопка «Было / Стало» открывает диалог: заголовок «прогон №N ← база №M»
-(N ≠ M), таблица из 11 метрик с колонками «Было», «Стало», «Изменение»
-(включая метрики консолидации: рейсы, средняя загрузка, разделённые клиенты).
-Дельта показывает знак, абсолютное значение и процент:
-`−82 986 ₽ (35,8 %)`. Цвет дельты — зелёный для улучшения, красный для
-ухудшения (рост TCO, падение прибыли и свежести).
-
-**UI-4. Базовый план неизменяем**
-
-Переключатель «Базовый план / Сценарий» меняет заголовок TCO
-(«TCO: Базовый план» / «TCO: Сценарий «что, если»») и набор рейсов на карте;
-цвет одной и той же машины одинаков в обоих планах. Числа базового прогона
-в БД не меняются.
-
-**UI-5. Новый базовый план сбрасывает сравнение**
-
-«Пересчитать базу» → чип дельты и кнопка «Было / Стало» исчезают,
-вид возвращается на «Базовый план».
+Ожидается: новый прогон появляется только после нажатия кнопки, а не после PATCH.
 
 ---
 
 ## Day 10 — XLSX-экспорт маршрутного листа
 
-Экспорт работает и для базового расчёта, и для «Что, если»: данные берутся
-только из сохранённого прогона (`simulation_run` + `route_stop`), поэтому файл
-не зависит от текущего состояния ERP.
+Экспорт работает для любого сохранённого прогона: данные берутся только из
+`simulation_run` + `route_stop`, поэтому файл не зависит от текущего состояния
+ERP.
 
 ### 10.1 Скачивание XLSX базового расчёта
 
 ```bash
-BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize)
+BASE=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize)
 RID=$(echo "$BASE" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
 curl -s -D /tmp/export-headers.txt -o /tmp/route-sheet.xlsx -H "$U" $B/export/run/$RID/xlsx
 grep -i 'HTTP/\|content-type\|content-disposition\|content-length' /tmp/export-headers.txt
@@ -830,16 +666,19 @@ PY
 
 Сумма `shipped_kg` по листам рейсов совпадает с `metrics.shipped_kg` расчёта.
 
-### 10.3 XLSX для «Что, если»
+### 10.3 XLSX после изменения ERP
+
+Доставьте заявку и посчитайте план заново: сервер построит его по актуальным
+остаткам, а экспорт возьмёт именно этот прогон.
 
 ```bash
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"delivery_status":"delivered"}' $B/erp/orders/1
-WIF=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what_if\",\"baseline_run_id\":$RID}" $B/solver/optimize)
-WID=$(echo "$WIF" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
-curl -s -H "$U" -o /tmp/route-sheet-wif.xlsx $B/export/run/$WID/xlsx
+NEW=$(curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize)
+NID=$(echo "$NEW" | python3 -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
+curl -s -H "$U" -o /tmp/route-sheet-replan.xlsx $B/export/run/$NID/xlsx
 uv run --directory backend python - <<'PY'
 from openpyxl import load_workbook
-book = load_workbook('/tmp/route-sheet-wif.xlsx')
+book = load_workbook('/tmp/route-sheet-replan.xlsx')
 summary = book['Сводка']
 header = next(row for row in summary.iter_rows() if row[0].value == 'Показатель')
 print(book.sheetnames, [cell.value for cell in header])
@@ -847,8 +686,8 @@ PY
 ```
 
 Ожидается `['Сводка', 'Рейс 1 ...', ...]` и строка заголовков
-`['Показатель', 'Значение', 'Было (№<базовый>)', 'Δ']`: в сводке есть сравнение
-«Было / Стало» с базовым расчётом.
+`['Показатель', 'Значение']` — колонок сравнения «Было / Стало» в сводке нет;
+заявка `1` не появляется в листах рейсов нового расчёта.
 
 ### 10.4 Негативные сценарии
 
@@ -888,13 +727,13 @@ print([r[0:2] for r in wb['Сводка'].iter_rows(min_row=3, max_row=6, values
 ```
 
 Ожидается 3 листа: `Сводка`, `Рейс 1 <госномер>`, `Рейс 2 …`.
-В сводке: `Тип расчёта = Базовый`, `Базовый расчёт = —`.
+В сводке — `Рейсов = 2` и метрики сохранённого прогона.
 
-**UI-3. Экспорт сценария**
+**UI-3. Экспорт после повторного расчёта**
 
-Посчитайте сценарий кнопкой «Сценарий «что, если»», переключитесь на него
-переключателем и снова скачайте XLSX — в новом файле
-`Тип расчёта = Что, если`, `Базовый расчёт = №<номер базы>`.
+После PATCH и кнопки «Пересчитать план» скачайте XLSX ещё раз — в новом файле
+те же листы рейсов, но без доставленной заявки: экспорт всегда берёт последний
+сохранённый прогон.
 
 **UI-4. Печать / PDF**
 
