@@ -1,0 +1,61 @@
+/*
+ * Таблицы в стиле Excel для всех v-table дашборда.
+ *
+ * Класс навешивается прямо на v-table: жёсткая сетка ячеек, закреплённая
+ * шапка, зебра и подсветка строки под курсором. Стили глобальные (вне
+ * @layer vuetify-components), поэтому перебивают тему без !important.
+ */
+
+.excel-table {
+  max-width: 100%;
+  border: 1px solid #b3aac9;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.excel-table > .v-table__wrapper > table {
+  border-collapse: collapse;
+}
+
+/* Сетка ячеек и фиксированная высота строки — как строки листа Excel. */
+.excel-table > .v-table__wrapper > table > thead > tr > th,
+.excel-table > .v-table__wrapper > table > tbody > tr > td {
+  height: 30px;
+  padding: 2px 10px;
+  border-right: 1px solid #d8d2e6;
+  border-bottom: 1px solid #d8d2e6;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.excel-table > .v-table__wrapper > table > thead > tr > th:last-child,
+.excel-table > .v-table__wrapper > table > tbody > tr > td:last-child {
+  border-right: none;
+}
+
+/* Шапка листа: серый фон и жирный шрифт, при скролле остаётся сверху. */
+.excel-table > .v-table__wrapper > table > thead > tr > th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #e8ecf2;
+  border-bottom: 2px solid #b3aac9;
+  font-weight: 600;
+  color: #2e1065;
+}
+
+/* Зебра и подсветка строки — полупрозрачным слоем, чтобы не затирать
+   цветовые метки строк (например, низкую сохранность в таблице плана). */
+.excel-table > .v-table__wrapper > table > tbody > tr:nth-child(even) {
+  background-image: linear-gradient(0deg, rgba(60, 80, 130, 0.09), rgba(60, 80, 130, 0.09));
+}
+
+.excel-table > .v-table__wrapper > table > tbody > tr:hover {
+  background-image: linear-gradient(0deg, rgba(33, 118, 220, 0.18), rgba(33, 118, 220, 0.18));
+}
+
+/* Цифры в колонках не «пляшут»: моноширинный шрифт + одинаковые разряды. */
+.excel-table .mono {
+  font-variant-numeric: tabular-nums;
+}
