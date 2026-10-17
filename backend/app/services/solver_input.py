@@ -157,6 +157,7 @@ async def build_solver_input(
                 cost_per_km_rub=truck.cost_per_km_rub,
                 fixed_trip_cost_rub=truck.fixed_trip_cost_rub,
                 has_reefer=truck.has_reefer,
+                has_insulation=truck.has_insulation,
                 can_use_dirt=truck.can_use_dirt,
                 status=TruckStatus(truck.status),
             )

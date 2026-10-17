@@ -25,6 +25,8 @@ def test_erp_state_returns_full_demo_dataset(client: TestClient) -> None:
     assert len(payload["trucks"]) == 3
     assert {client["road_type"] for client in payload["clients"]} == {"asphalt", "dirt"}
     assert payload["products"][0]["code"] == "strawberry"
+    assert all("has_insulation" in truck for truck in payload["trucks"])
+    assert any(truck["has_insulation"] for truck in payload["trucks"])
 
 
 def test_reset_demo_is_forbidden_for_dispatcher(client: TestClient) -> None:

@@ -16,7 +16,7 @@ AgroLogistix — B2B-платформа оперативного планиро�
 
 1. входит по 6-значному PIN-коду;
 2. правит мини-ERP: остатки складов, заявки (цена, статус доставки), автопарк
-   (в строю / сломана), погодный пресет;
+   (в строю / не в работе), погодный пресет;
 3. нажимает «Рассчитать поставки»;
 4. получает план: рейсы по машинам с порядком остановок, полилинии на карте,
    свежесть груза в каждой точке, финансовые метрики TCO (доставка и потери),
@@ -173,7 +173,7 @@ SQLite работает в режиме `PRAGMA journal_mode=WAL`.
 | `warehouse_stock` | Партия: `warehouse_id` + `product_id` (unique), `available_kg ≥ 0`, `initial_freshness ∈ [0.5, 1]` |
 | `client` | B2B-точка: `lat`, `lon`, `road_type ∈ {asphalt, dirt}`, `address` |
 | `client_order` | Заявка: `requested_kg > 0`, `purchase_price_rub > 0`, `unmet_penalty_rub ≥ 0`, `delivered_kg ≥ 0`, `delivery_status ∈ {pending, delivered}` |
-| `truck` | Машина: `plate_number` (unique), `warehouse_id`, `capacity_kg`, `cruise_speed_kmh`, `cost_per_km_rub`, `fixed_trip_cost_rub`, `has_reefer`, `can_use_dirt`, `status ∈ {active, broken}` |
+| `truck` | Машина: `plate_number` (unique), `warehouse_id`, `capacity_kg`, `cruise_speed_kmh`, `cost_per_km_rub`, `fixed_trip_cost_rub`, `has_reefer`, `has_insulation` (изотермический кузов), `can_use_dirt`, `status ∈ {active, broken}` |
 | `simulation_run` | Неизменяемый слепок расчёта: время, погодный режим, температура/осадки и все метрики TCO |
 | `route_stop` | Остановка прогона: заявка, машина, склад, клиент, продукт, порядок, кг, плечо, ETA, свежесть, стоимость плеча, `stop_status ∈ {planned, delivered}` |
 | `delivered_order_stock` | Журнал списания: `order_id`, `stock_id`, `shipped_kg` — нужен для отката доставки |
@@ -196,7 +196,7 @@ SQLite работает в режиме `PRAGMA journal_mode=WAL`.
 * автопарк: Volvo FH16 (20 000 кг, 75 км/ч, 58 ₽/км, 8500 ₽, реф,
   без грунта, Обнинск), ГАЗон NEXT (6000 кг, 62 км/ч, 32 ₽/км, 3800 ₽,
   реф, грунт, Обнинск), КАМАЗ Компас (10 000 кг, 70 км/ч, 40 ₽/км, 4600 ₽,
-  без рефа, грунт, Детчино).
+  без рефа, **утеплённый кузов**, грунт, Детчино).
 
 Полный список значений — константы `WAREHOUSE_SEED`, `PRODUCT_SEED`, `STOCK_SEED`,
 `CLIENT_SEED`, `ORDER_SEED`, `TRUCK_SEED`.
@@ -231,10 +231,15 @@ $$
 $$
 k_{\text{temp}} =
 \begin{cases}
-1.0, & \text{есть рефрижератор или } T \le +22\,^\circ\text{C} \\
-e^{\,0.08 \cdot (T - 22)}, & \text{без рефрижератора и } T > +22\,^\circ\text{C}
+1.0, & \text{есть рефрижератор или } T \le T_{\text{limit}} \\
+e^{\,0.08 \cdot (T - T_{\text{limit}})}, & \text{без рефрижератора и } T > T_{\text{limit}}
 \end{cases}
 $$
+
+где $T_{\text{limit}} = +22\,^\circ\text{C}$ для обычного кузова и
+$T_{\text{limit}} = +28\,^\circ\text{C}$ для утеплённого (изотермического):
+изоляция даёт бонус $+6\,^\circ\text{C}$ за счёт тепловой инерции кузова.
+Рефрижератор порога не имеет — он держит $k_{\text{temp}} = 1.0$.
 
 Коэффициент `0.08` — Q10-подобный: $e^{0.08 \cdot 10} \approx 2.23$, то есть порча
 примерно удваивается на каждые +10 °C выше порога. Потери в рублях:
@@ -397,11 +402,11 @@ TCO** (маршруты перестраиваются, метрики пере�
 
 | Код | Severity | Условие |
 | :--- | :--- | :--- |
-| `broken_trucks_excluded` | info | часть машин в статусе `broken` исключена |
+| `broken_trucks_excluded` | info | часть машин не в работе (`broken`) исключена |
 | `no_active_trucks` | error | активных машин нет, весь спрос уходит в недовоз |
 | `unmet_demand` | warning / error | есть недовоз; error при доле ≥ 50 % спроса |
 | `dirt_unreachable` | error | грунтовая заявка, а машины с `can_use_dirt` нет (по каждой заявке) |
-| `heat_without_reefer` | warning | $T > +22°$ и рейс без рефрижератора |
+| `heat_without_reefer` | warning | $T$ выше порога кузова ($+22°$, с утеплением $+28°$) и рейс без рефрижератора |
 | `stock_shortage` | warning | суммарный сток продукта меньше суммарного спроса |
 | `freshness_risk` | warning | свежесть остановки ниже порога `SOLVER_MIN_STOP_FRESHNESS` |
 | `trip_limit_exceeded` | warning | сработал лимит остановок или смены |
@@ -551,7 +556,7 @@ JSON — `snake_case` с `extra="forbid"`: неизвестное поле в т
 частично закрытые — только остатком спроса, поэтому вывезенный товар не
 распределяется повторно.
 
-### 10.3 Сломанная машина, сток, погода
+### 10.3 Машина не в работе, сток, погода
 
 * `PATCH /erp/trucks/{id}` со `status: broken` исключает машину из расчёта
   (warning `broken_trucks_excluded`).
@@ -599,7 +604,7 @@ print). Скрываются карта, шапка и панели, остаё�
 | :--- | :--- |
 | `landing/` | публичный лендинг с единственной кнопкой входа |
 | `pin-auth/` | экран 6-точечного PIN, индикатор, auth-store (роль + PIN в `sessionStorage`) |
-| `erp-dashboard/` | каркас дашборда, вкладки складов/заявок/автопарка, погодная панель, таблица рейсов, предупреждения, печатный лист, сторы `useErpStore` / `useSolverStore` / `useWeatherStore` |
+| `erp-dashboard/` | каркас дашборда, вкладки складов/заявок/автопарка (оснащение иконками, статус «в строю / не в работе»), погодная панель, таблица рейсов, предупреждения, печатный лист, сторы `useErpStore` / `useSolverStore` / `useWeatherStore` |
 | `map-routing/` | Mapbox GL canvas, маркеры складов/клиентов, полилинии маршрутов, легенда, fallback-панель |
 
 **Роутинг:** `/` (лендинг), `/login`, `/dashboard` (`meta.requiresAuth`),
