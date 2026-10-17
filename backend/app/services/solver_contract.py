@@ -120,6 +120,10 @@ class SolverInput:
     frozen_order_ids: tuple[int, ...] = field(default_factory=tuple)
     # Price of splitting one client over several trucks (soft grouping mode).
     client_split_penalty_rub: float = 0.0
+    # Trip limits: stops per truck, shift length and a freshness floor.
+    max_stops_per_trip: int = 5
+    max_trip_hours: float = 9.0
+    min_stop_freshness: float = 0.70
 
 
 @dataclass(frozen=True, slots=True)

@@ -181,4 +181,7 @@ async def build_solver_input(
         ),
         frozen_order_ids=frozen_order_ids,
         client_split_penalty_rub=settings.solver_client_split_penalty_rub,
+        max_stops_per_trip=settings.solver_max_stops_per_trip,
+        max_trip_hours=settings.solver_max_trip_hours,
+        min_stop_freshness=settings.solver_min_stop_freshness,
     )

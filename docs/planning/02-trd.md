@@ -70,6 +70,7 @@ graph TD
    * Системный админ-PIN (например, `999999`) дополнительно возвращает флаг `is_admin: true` и разрешает вызов `POST /api/v1/system/reset-demo`.
 2. **Infeasible-сценарии (дефицит транспорта):** В целевую функцию МИЛП для каждой заявки вводится slack-переменная недовоза $V_{\text{unmet}} \ge 0$ с высоким штрафом $\text{Penalty}_o$. Благодаря этому задача математически **всегда разрешима (Always Feasible)**: при поломке всех фур солвер вернёт валидный ответ с `unmet_kg > 0` и подсветит дефицит в UI.
 3. **Вычисления вне Event Loop:** Математический расчёт солвера оборачивается в `await asyncio.to_thread(run_solver, payload)`, чтобы не блокировать асинхронный цикл FastAPI.
+4. **Лимиты рейса и свежесть:** солвер ограничивает число остановок на рейс, а после маршрутизации режет точки, не влезающие в смену, возвращая их в недовоз с предупреждением `trip_limit_exceeded`. Свежесть ниже `SOLVER_MIN_STOP_FRESHNESS` не выбрасывает груз из плана (потери уже в TCO), а даёт предупреждение `freshness_risk` по конкретной заявке.
 
 ## 6. Переменные окружения (`.env.example`)
 
@@ -81,6 +82,11 @@ ADMIN_ACCESS_PIN=999999
 SQLITE_DB_PATH=/opt/agrologistix/data/app.db
 EXTERNAL_API_TIMEOUT_SEC=1.5
 SOLVER_TIME_LIMIT_SEC=1.0
+# План 09-route-consolidation.md: консолидация и лимиты рейсов
+SOLVER_CLIENT_SPLIT_PENALTY_RUB=5000
+SOLVER_MAX_STOPS_PER_TRIP=5
+SOLVER_MAX_TRIP_HOURS=9.0
+SOLVER_MIN_STOP_FRESHNESS=0.70
 
 # External Keys
 MAPBOX_SECRET_TOKEN=pk.eyJ1IjoiZXhhbXBsZSIsImEiOiJjb...

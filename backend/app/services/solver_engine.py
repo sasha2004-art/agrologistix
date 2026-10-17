@@ -8,6 +8,7 @@ when the MILP hits that limit.
 """
 
 import asyncio
+from dataclasses import replace
 from time import perf_counter
 
 from app.schemas.enums import TruckStatus, WarningSeverity
@@ -28,6 +29,7 @@ from app.services.solver_contract import (
     SolverWeather,
     truck_can_serve_order,
 )
+from app.services.solver_limits import enforce_trip_limits
 from app.services.solver_routing import LegIndex, LoadedOrder, RouteBuildContext, build_route
 
 __all__ = [
@@ -253,6 +255,24 @@ def run_solver(
             )
         )
 
+    # Travel time and freshness depend on the stop order, so the end-of-shift
+    # and freshness floors are enforced after routing. Dropped stops become
+    # unmet demand with structured warnings (the improve stage may re-route
+    # them later).
+    orders_by_id = _orders_by_id(orders)
+    limits = enforce_trip_limits(
+        solver_input,
+        tuple(routes),
+        orders_by_id,
+        unmet_kg_before=sum(allocation.unmet.values()),
+    )
+    if limits.rejected:
+        merged_unmet = dict(allocation.unmet)
+        for order_id, kilograms in limits.rejected.items():
+            merged_unmet[order_id] = merged_unmet.get(order_id, 0.0) + kilograms
+        allocation = replace(allocation, unmet=merged_unmet)
+    routes = list(limits.routes)
+
     metrics = _collect_metrics(
         routes,
         allocation,
@@ -267,6 +287,7 @@ def run_solver(
         active_trucks,
         metrics,
     )
+    warnings.extend(limits.warnings)
 
     return SolverOutcome(
         routes=tuple(routes),

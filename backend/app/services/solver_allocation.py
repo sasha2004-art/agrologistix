@@ -143,11 +143,12 @@ def _milp_allocate(
     client_count = len(clients)
     client_position = {client_id: position for position, client_id in enumerate(clients)}
 
-    # x[truck, order] | u[order] | y[truck] | z[truck, client] | s[client]
+    # x[truck, order] | u[order] | y[truck] | z[truck, client] | s[client] | w[truck, order]
     variable_count = truck_count * order_count + order_count + truck_count
     z_offset = variable_count
     split_offset = z_offset + truck_count * client_count
-    variable_count = split_offset + client_count
+    w_offset = split_offset + client_count
+    variable_count = w_offset + truck_count * order_count
 
     def x_index(truck_position: int, order_position: int) -> int:
         return truck_position * order_count + order_position
@@ -163,6 +164,9 @@ def _milp_allocate(
 
     def s_index(client_pos: int) -> int:
         return split_offset + client_pos
+
+    def w_index(truck_position: int, order_position: int) -> int:
+        return w_offset + truck_position * order_count + order_position
 
     cost = np.zeros(variable_count)
     lower = np.zeros(variable_count)
@@ -206,6 +210,11 @@ def _milp_allocate(
         else:
             cost[s_index(client_pos)] = split_penalty_rub
             upper[s_index(client_pos)] = float(truck_count)
+
+    for truck_position in range(truck_count):
+        for order_position in range(order_count):
+            upper[w_index(truck_position, order_position)] = 1.0
+            integrality[w_index(truck_position, order_position)] = 1
 
     rows: list[np.ndarray] = []
     row_lower: list[float] = []
@@ -263,6 +272,26 @@ def _milp_allocate(
         # mode pays ``split_penalty_rub`` for every extra visiting truck.
         row_lower.append(1.0 if strict_grouping else -np.inf)
         row_upper.append(1.0)
+
+    # Stopping time fits into one shift: a truck visits at most
+    # ``max_stops_per_trip`` points and only loads an order it actually visits.
+    max_stops = solver_input.max_stops_per_trip
+    for truck_position in range(truck_count):
+        row = np.zeros(variable_count)
+        for order_position in range(order_count):
+            row[w_index(truck_position, order_position)] = 1.0
+        rows.append(row)
+        row_lower.append(-np.inf)
+        row_upper.append(float(max_stops))
+
+    for order_position, order in enumerate(orders):
+        for truck_position in range(truck_count):
+            row = np.zeros(variable_count)
+            row[x_index(truck_position, order_position)] = 1.0
+            row[w_index(truck_position, order_position)] = -order.requested_kg
+            rows.append(row)
+            row_lower.append(-np.inf)
+            row_upper.append(0.0)
 
     result = milp(
         c=cost,
