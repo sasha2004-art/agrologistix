@@ -29,6 +29,7 @@ from app.services.solver_contract import (
     SolverWeather,
     truck_can_serve_order,
 )
+from app.services.solver_improve import improve_allocation
 from app.services.solver_limits import enforce_trip_limits
 from app.services.solver_routing import LegIndex, LoadedOrder, RouteBuildContext, build_route
 
@@ -228,6 +229,9 @@ def run_solver(
         time_limit_sec,
         split_penalty_rub=solver_input.client_split_penalty_rub,
     )
+    # The MILP draft is priced with proxy costs; the local search rebuilds the
+    # real routes and keeps the plan only when the true TCO gets better.
+    allocation = improve_allocation(solver_input, allocation, orders, active_trucks, index)
 
     products = {product.product_id: product for product in solver_input.products}
     stocks = {(stock.warehouse_id, stock.product_id): stock for stock in solver_input.stocks}

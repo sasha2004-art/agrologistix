@@ -124,6 +124,9 @@ class SolverInput:
     max_stops_per_trip: int = 5
     max_trip_hours: float = 9.0
     min_stop_freshness: float = 0.70
+    # Local search budget after the MILP draft.
+    improve_time_budget_sec: float = 0.7
+    improve_max_evaluations: int = 400
 
 
 @dataclass(frozen=True, slots=True)

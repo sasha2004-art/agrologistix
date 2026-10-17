@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     solver_max_stops_per_trip: int = Field(default=5, ge=1, le=50)
     solver_max_trip_hours: float = Field(default=9.0, gt=0.0)
     solver_min_stop_freshness: float = Field(default=0.70, gt=0.0, le=1.0)
+    # Local search over the real route TCO after the MILP draft.
+    solver_improve_time_budget_sec: float = Field(default=0.7, gt=0.0)
+    solver_improve_max_evaluations: int = Field(default=400, ge=0, le=10_000)
     weather_latitude: float = Field(default=55.11, ge=-90.0, le=90.0)
     weather_longitude: float = Field(default=36.61, ge=-180.0, le=180.0)
     weather_cache_ttl_sec: int = Field(default=900, gt=0)

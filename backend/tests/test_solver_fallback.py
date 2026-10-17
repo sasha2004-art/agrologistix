@@ -47,7 +47,7 @@ def test_milp_without_solution_falls_back_to_greedy(monkeypatch: pytest.MonkeyPa
 
     outcome = run_solver(solver_input)
 
-    assert outcome.allocation_method == "greedy"
+    assert outcome.allocation_method.startswith("greedy")
     assert outcome.metrics.shipped_kg == pytest.approx(800.0, abs=0.01)
     assert outcome.metrics.unmet_kg == pytest.approx(200.0, abs=0.01)
 
@@ -61,7 +61,7 @@ def test_milp_exception_falls_back_to_greedy(monkeypatch: pytest.MonkeyPatch) ->
 
     outcome = run_solver(solver_input)
 
-    assert outcome.allocation_method == "greedy"
+    assert outcome.allocation_method.startswith("greedy")
     assert outcome.metrics.shipped_kg == pytest.approx(600.0, abs=0.01)
     assert outcome.metrics.unmet_kg == pytest.approx(0.0, abs=0.01)
 
@@ -77,7 +77,7 @@ def test_greedy_serves_the_most_valuable_order_first(monkeypatch: pytest.MonkeyP
     shipped_orders = {
         stop.order_id for route in outcome.routes for stop in route.stops if stop.shipped_kg > 0
     }
-    assert outcome.allocation_method == "greedy"
+    assert outcome.allocation_method.startswith("greedy")
     assert shipped_orders == {2}
     assert outcome.metrics.unmet_kg == pytest.approx(500.0, abs=0.01)
 
@@ -92,7 +92,7 @@ def test_greedy_fallback_respects_stock_and_capacity(monkeypatch: pytest.MonkeyP
 
     outcome = run_solver(solver_input)
 
-    assert outcome.allocation_method == "greedy"
+    assert outcome.allocation_method.startswith("greedy")
     assert outcome.metrics.shipped_kg <= 1200.0 + 1e-6
     for route in outcome.routes:
         assert sum(stop.shipped_kg for stop in route.stops) <= 1000.0 + 1e-6
@@ -139,7 +139,7 @@ def test_greedy_skips_trucks_without_stock(monkeypatch: pytest.MonkeyPatch) -> N
 
     outcome = run_solver(solver_input)
 
-    assert outcome.allocation_method == "greedy"
+    assert outcome.allocation_method.startswith("greedy")
     assert outcome.routes == ()
     assert outcome.metrics.unmet_kg == pytest.approx(400.0, abs=0.01)
 

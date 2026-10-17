@@ -58,6 +58,31 @@ def test_warehouse_stock_constraint() -> None:
     assert outcome.metrics.unmet_kg == pytest.approx(400.0, abs=0.01)
 
 
+def test_stock_is_shared_between_trucks_of_the_same_base() -> None:
+    """Two trucks of one warehouse cannot each take the full batch."""
+
+    solver_input = _make_input(
+        orders=[
+            _order(1, client_id=1, kg=900.0),
+            _order(2, client_id=2, kg=900.0, point=BOROVSK),
+        ],
+        trucks=[_truck(1, capacity=5000.0), _truck(2, capacity=5000.0)],
+        stocks=[_stock(warehouse_id=1, product_id=1, kg=1000.0)],
+        warehouses=[_warehouse(1), _warehouse(2, DETCHINO)],
+    )
+
+    outcome = run_solver(solver_input)
+
+    assert outcome.metrics.shipped_kg == pytest.approx(1000.0, abs=0.01)
+    assert outcome.metrics.unmet_kg == pytest.approx(800.0, abs=0.01)
+    shipped_by_stock: dict[tuple[int, int], float] = {}
+    for route in outcome.routes:
+        for stop in route.stops:
+            key = (stop.warehouse_id, stop.product_id)
+            shipped_by_stock[key] = shipped_by_stock.get(key, 0.0) + stop.shipped_kg
+    assert all(kilograms <= 1000.0 + 0.01 for kilograms in shipped_by_stock.values())
+
+
 def test_stock_constraint_is_per_warehouse_and_product() -> None:
     solver_input = _make_input(
         orders=[_order(1, kg=600.0, product_id=1)],
@@ -188,7 +213,7 @@ def test_tiny_time_limit_still_returns_a_valid_plan() -> None:
 
     outcome = run_solver(solver_input, time_limit_sec=0.01)
 
-    assert outcome.allocation_method in {"milp", "greedy"}
+    assert outcome.allocation_method.split("+")[0] in {"milp", "greedy"}
     assert outcome.metrics.shipped_kg <= 1200.0 + 1e-6
     assert outcome.metrics.shipped_kg + outcome.metrics.unmet_kg == pytest.approx(1800.0, abs=0.05)
 

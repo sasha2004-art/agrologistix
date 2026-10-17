@@ -184,4 +184,6 @@ async def build_solver_input(
         max_stops_per_trip=settings.solver_max_stops_per_trip,
         max_trip_hours=settings.solver_max_trip_hours,
         min_stop_freshness=settings.solver_min_stop_freshness,
+        improve_time_budget_sec=settings.solver_improve_time_budget_sec,
+        improve_max_evaluations=settings.solver_improve_max_evaluations,
     )
