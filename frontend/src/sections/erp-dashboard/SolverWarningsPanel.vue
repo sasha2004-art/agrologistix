@@ -43,35 +43,49 @@
       </li>
     </ul>
 
-    <div v-if="solver.riskyStops.length > 0" class="warnings-risky">
-      <p class="risky-title">
-        <v-icon icon="mdi-thermometer-low" color="warning" size="18" />
-        Точки с низкой сохранностью ({{ solver.riskyStops.length }} из
-        {{ solver.plannedStops.length }})
-      </p>
-      <ul class="warnings-list">
-        <li
+    <v-table
+      v-if="solver.riskyStops.length > 0"
+      density="comfortable"
+      class="excel-table risky-table"
+    >
+      <thead>
+        <tr>
+          <th scope="col">
+            <span class="risky-head">
+              <v-icon icon="mdi-thermometer-low" color="warning" size="16" aria-hidden="true" />
+              Точки с низкой сохранностью ({{ solver.riskyStops.length }} из
+              {{ solver.plannedStops.length }})
+            </span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
           v-for="item in solver.riskyStops"
           :key="item.stop.order_id ?? item.stop.client_id"
-          class="warning-item"
+          :class="`row-${item.freshness}`"
         >
-          <span class="risky-dot" :style="{ background: item.color }" aria-hidden="true" />
-          <span class="warning-text">
-            {{ clientName(item.stop.client_id) }} · заказ №{{ item.stop.order_id ?? '—' }} ·
-            {{ truckName(item.truckId) }} · в пути {{ formatMinutes(item.stop.eta_minutes) }} ·
-            сохранность {{ formatFreshness(item.stop.expected_freshness) }}
-          </span>
-          <v-chip
-            class="soft-chip"
-            size="x-small"
-            :color="item.freshness === 'error' ? 'error' : 'warning'"
-            variant="text"
-          >
-            {{ freshnessLabel(item.stop.expected_freshness) }}
-          </v-chip>
-        </li>
-      </ul>
-    </div>
+          <td>
+            <span class="risky-row">
+              <span class="risky-dot" :style="{ background: item.color }" aria-hidden="true" />
+              <span class="risky-text">
+                {{ clientName(item.stop.client_id) }} · заказ №{{ item.stop.order_id ?? '—' }} ·
+                {{ truckName(item.truckId) }} · в пути {{ formatMinutes(item.stop.eta_minutes) }} ·
+                сохранность {{ formatFreshness(item.stop.expected_freshness) }}
+              </span>
+              <v-chip
+                class="soft-chip"
+                size="x-small"
+                :color="item.freshness === 'error' ? 'error' : 'warning'"
+                variant="text"
+              >
+                {{ freshnessLabel(item.stop.expected_freshness) }}
+              </v-chip>
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </v-table>
   </section>
 </template>
 
@@ -150,26 +164,45 @@ function truckName(truckId: number): string {
   flex: 0 0 auto;
 }
 
-.warnings-risky {
-  display: grid;
-  gap: 8px;
-  padding-top: 4px;
+/* Эксельные строки низкой сохранности: таблица из одной колонки.
+   Текст в ней длинный, поэтому переносим его, в отличие от остальных таблиц. */
+.risky-table {
+  margin-top: 4px;
 }
 
-.risky-title {
-  display: flex;
+.risky-table :deep(td) {
+  white-space: normal;
+}
+
+.risky-head {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
+}
+
+.risky-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.risky-text {
+  flex: 1 1 auto;
+}
+
+/* Подсветка строк по свежести: значение — в ячейке, цвет — дополняет его. */
+.row-warning {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.row-error {
+  background: rgba(190, 18, 60, 0.12);
 }
 
 .risky-dot {
   flex: 0 0 auto;
   width: 10px;
   height: 10px;
-  margin-top: 4px;
   border-radius: 50%;
 }
 </style>
