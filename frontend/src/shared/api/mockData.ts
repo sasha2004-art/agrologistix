@@ -132,7 +132,8 @@ export const mockErpState: ERPState = {
       requested_kg: 1200,
       purchase_price_rub: 150,
       unmet_penalty_rub: 70,
-      delivered_kg: 0,
+      // Partial delivery: 500 kg shipped, 700 kg still outstanding.
+      delivered_kg: 500,
       delivery_status: 'pending',
     },
     {

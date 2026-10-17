@@ -67,7 +67,16 @@
               <span class="cell-note">{{ row.client.address }}</span>
             </td>
             <td>{{ row.product.name }}</td>
-            <td class="text-right mono">{{ formatKg(row.order.requested_kg) }}</td>
+            <td class="text-right mono">
+              {{ formatKg(row.order.requested_kg) }}
+              <span
+                v-if="partialDelivery(row.order.delivered_kg, row.order.requested_kg)"
+                class="cell-note"
+              >
+                отгружено {{ formatKg(row.order.delivered_kg) }}, остаток
+                {{ formatKg(row.order.requested_kg - row.order.delivered_kg) }}
+              </span>
+            </td>
             <td class="text-right">
               <EditableNumberField
                 :model-value="row.order.purchase_price_rub"
@@ -139,6 +148,11 @@ function savePrice(row: OrderRow, value: number): void {
 function toggleDelivered(row: OrderRow): void {
   const next: DeliveryStatus = row.order.delivery_status === 'delivered' ? 'pending' : 'delivered'
   void erp.updateOrder(row.order.id, { delivery_status: next })
+}
+
+/** A partially shipped order keeps the leftover demand after PATCH delivered. */
+function partialDelivery(deliveredKg: number, requestedKg: number): boolean {
+  return deliveredKg > 0 && deliveredKg < requestedKg
 }
 </script>
 
