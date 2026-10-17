@@ -1,50 +1,28 @@
 <template>
-  <section class="tco" aria-label="Метрики TCO рассчитанного плана">
+  <section class="tco" aria-label="Метрики TCO плана">
     <div class="tco-head">
-      <h3 class="tco-title">TCO рассчитанного плана</h3>
+      <h3 class="tco-title">TCO: {{ solver.activeLabel }}</h3>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-calculator-variant-outline">
         {{ solver.routes.length }} рейс(а) · {{ solver.plannedStops.length }} стоп(ов)
       </v-chip>
     </div>
 
     <div class="tco-grid">
-      <div class="tco-card neu-inset">
-        <span class="tco-label">Совокупные затраты</span>
-        <span class="tco-value mono">{{ formatRub(metrics.total_tco_rub) }}</span>
-        <span class="tco-hint">рейсы + порча + штрафы</span>
-      </div>
-
-      <div class="tco-card neu-inset">
-        <span class="tco-label">Стоимость рейсов</span>
-        <span class="tco-value mono">{{ formatRub(metrics.total_trip_cost_rub) }}</span>
-        <span class="tco-hint">топливо, время, фикс</span>
-      </div>
-
-      <div class="tco-card neu-inset">
-        <span class="tco-label">Потери от порчи</span>
-        <span class="tco-value mono">{{ formatRub(metrics.total_spoilage_loss_rub) }}</span>
-        <span class="tco-hint">по свежести на выгрузке</span>
-      </div>
-
       <div
+        v-for="card in cards"
+        :key="card.label"
         class="tco-card neu-inset"
-        :class="{ 'tco-card--alert': metrics.total_unmet_penalty_rub > 0 }"
+        :class="card.modifier ? `tco-card--${card.modifier}` : ''"
       >
-        <span class="tco-label">Штраф за недовоз</span>
-        <span class="tco-value mono">{{ formatRub(metrics.total_unmet_penalty_rub) }}</span>
-        <span class="tco-hint">{{ formatKg(metrics.unmet_kg) }} не закрыто</span>
-      </div>
-
-      <div class="tco-card neu-inset">
-        <span class="tco-label">Ожидаемая прибыль</span>
-        <span class="tco-value mono">{{ formatRub(metrics.expected_net_profit_rub) }}</span>
-        <span class="tco-hint">{{ formatKg(metrics.shipped_kg) }} отгружено</span>
-      </div>
-
-      <div class="tco-card neu-inset" :class="`tco-card--${freshness}`">
-        <span class="tco-label">Средняя свежесть</span>
-        <span class="tco-value mono">{{ formatPercent(metrics.avg_freshness_pct) }}</span>
-        <span class="tco-hint">{{ freshnessText }}</span>
+        <span class="tco-label">{{ card.label }}</span>
+        <span class="tco-value mono">{{ card.value }}</span>
+        <span class="tco-hint">{{ card.hint }}</span>
+        <MetricDelta
+          v-if="showDelta"
+          :delta="card.delta"
+          :unit="card.unit"
+          :higher-is-better="card.higherIsBetter"
+        />
       </div>
     </div>
   </section>
@@ -52,11 +30,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import MetricDelta from './MetricDelta.vue'
 import { useSolverStore } from './useSolverStore'
+import type { ComparisonDelta, Metrics } from '@/shared/types/domain'
 import { formatKg, formatPercent, formatRub } from '@/shared/utils/format'
 import { freshnessLevel, freshnessLabel } from '@/shared/utils/freshness'
 
-const EMPTY_METRICS = {
+const EMPTY_METRICS: Metrics = {
   total_tco_rub: 0,
   total_trip_cost_rub: 0,
   total_spoilage_loss_rub: 0,
@@ -67,14 +47,82 @@ const EMPTY_METRICS = {
   unmet_kg: 0,
 }
 
+interface Card {
+  label: string
+  value: string
+  hint: string
+  delta: ComparisonDelta[keyof ComparisonDelta] | null
+  unit: 'rub' | 'kg' | 'percent'
+  higherIsBetter: boolean
+  modifier?: string
+}
+
 const solver = useSolverStore()
 
-/** Панель показывается только при наличии плана, но тип метрик всё равно сузим. */
-const metrics = computed(() => solver.metrics ?? EMPTY_METRICS)
-const freshness = computed(() => freshnessLevel((solver.metrics?.avg_freshness_pct ?? 100) / 100))
-const freshnessText = computed(() =>
-  freshnessLabel((solver.metrics?.avg_freshness_pct ?? 100) / 100),
-)
+const metrics = computed<Metrics>(() => solver.metrics ?? EMPTY_METRICS)
+const comparison = computed(() => solver.comparison)
+/** Дельты показываем только в сценарии: в базовом плане сравнивать не с чем. */
+const showDelta = computed(() => solver.view === 'scenario' && comparison.value !== null)
+
+const freshnessFraction = computed(() => metrics.value.avg_freshness_pct / 100)
+const freshness = computed(() => freshnessLevel(freshnessFraction.value))
+
+const cards = computed<Card[]>(() => {
+  const m = metrics.value
+  const c = comparison.value
+  return [
+    {
+      label: 'Совокупные затраты',
+      value: formatRub(m.total_tco_rub),
+      hint: 'рейсы + порча + штрафы',
+      delta: c?.total_tco_rub ?? null,
+      unit: 'rub',
+      higherIsBetter: false,
+    },
+    {
+      label: 'Стоимость рейсов',
+      value: formatRub(m.total_trip_cost_rub),
+      hint: 'топливо, время, фикс',
+      delta: c?.total_trip_cost_rub ?? null,
+      unit: 'rub',
+      higherIsBetter: false,
+    },
+    {
+      label: 'Потери от порчи',
+      value: formatRub(m.total_spoilage_loss_rub),
+      hint: 'по свежести на выгрузке',
+      delta: c?.total_spoilage_loss_rub ?? null,
+      unit: 'rub',
+      higherIsBetter: false,
+    },
+    {
+      label: 'Штраф за недовоз',
+      value: formatRub(m.total_unmet_penalty_rub),
+      hint: `${formatKg(m.unmet_kg)} не закрыто`,
+      delta: c?.total_unmet_penalty_rub ?? null,
+      unit: 'rub',
+      higherIsBetter: false,
+      modifier: m.unmet_kg > 0 ? 'alert' : undefined,
+    },
+    {
+      label: 'Ожидаемая прибыль',
+      value: formatRub(m.expected_net_profit_rub),
+      hint: `${formatKg(m.shipped_kg)} отгружено`,
+      delta: c?.expected_net_profit_rub ?? null,
+      unit: 'rub',
+      higherIsBetter: true,
+    },
+    {
+      label: 'Средняя свежесть',
+      value: formatPercent(m.avg_freshness_pct),
+      hint: freshnessLabel(freshnessFraction.value),
+      delta: c?.avg_freshness_pct ?? null,
+      unit: 'percent',
+      higherIsBetter: true,
+      modifier: freshness.value,
+    },
+  ]
+})
 </script>
 
 <style scoped lang="scss">
@@ -88,6 +136,7 @@ const freshnessText = computed(() =>
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .tco-title {
@@ -97,7 +146,7 @@ const freshnessText = computed(() =>
 
 .tco-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   gap: 10px;
 }
 

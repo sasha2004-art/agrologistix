@@ -19,6 +19,7 @@ import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 import { useNotificationStore } from '@/shared/stores/useNotificationStore'
 import { formatKg, formatPercent } from '@/shared/utils/format'
 import { freshnessLevel } from '@/shared/utils/freshness'
+import { useSolverStore } from './useSolverStore'
 import type {
   Client,
   ClientOrder,
@@ -73,6 +74,7 @@ export function remainingKg(order: ClientOrder): number {
 export const useErpStore = defineStore('erp', () => {
   const auth = useAuthStore()
   const notifications = useNotificationStore()
+  const solver = useSolverStore()
 
   const state = ref<ERPState | null>(null)
   const status = ref<ErpLoadStatus>('idle')
@@ -355,6 +357,9 @@ export const useErpStore = defineStore('erp', () => {
       await mutate(accessPin)
       notifications.push('success', notice)
       await loadState({ force: true, silent: true })
+      // Изменение ERP делает посчитанный сценарий устаревшим: стор солвера
+      // сам пересчитает «что, если» относительно сохранённого базового плана.
+      solver.afterMutation()
       return true
     } catch (error) {
       notifications.push('error', describeApiError(error))
