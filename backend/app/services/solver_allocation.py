@@ -27,6 +27,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, milp
 
+from app.schemas.enums import RoadType
 from app.services.freshness_math import (
     CargoProfile,
     freshness_after_hours,
@@ -286,7 +287,8 @@ def allocate_loads(
     unreachable = frozenset(
         order.order_id
         for order in orders
-        if not any(truck_can_serve_order(truck, order) for truck in usable_trucks)
+        if order.road_type is RoadType.DIRT
+        and not any(truck_can_serve_order(truck, order) for truck in usable_trucks)
     )
 
     method = "milp"
