@@ -3,6 +3,11 @@
 Проверка backend-функциональности вручную через `curl`. Все ожидаемые значения
 получены на seed-данных из `POST /api/v1/system/reset-demo`.
 
+> **Важно про расстояния.** Контрольные числа ниже сняты без
+> `MAPBOX_SECRET_TOKEN` — в этом режиме расстояния считаются по haversine×1.3.
+> Если в `.env` задан ключ Mapbox, дистанции, ETA, свежесть и TCO будут
+> отличаться (холодный расчёт дольше на время запросов Directions).
+
 ## 0. Подготовка
 
 ### Запуск локально
@@ -63,6 +68,18 @@ curl -s -X POST -H "$A" $B/system/reset-demo
 `3` КАМАЗ Компас Тент (10 000 кг, 70 км/ч, **без рефа**, грунт).
 Склады: `1` Обнинск-Северный (55.0968, 36.6103), `2` Детчино-Агро (54.8083, 36.2333).
 Суммарный спрос: **11 000 кг**.
+
+Партии на складах имеют разную начальную свежесть `initial_freshness`
+(от 0.78 до 0.97) — как в реальной холодовой цепочке:
+
+| Склад | Клубника | Томаты | Огурцы |
+|---|---|---|---|
+| Обнинск-Северный | 0.97 | 0.93 | 0.90 |
+| Детчино-Агро | 0.82 | 0.95 | 0.78 |
+
+Свежесть в точке доставки = `initial_freshness · exp(-λ_p · t_факт · k_temp)`,
+поэтому солвер сравнивает не только расстояние, но и остаточный срок годности
+партии: дешёвый рейс с подпорченной партией может проиграть более дорогому.
 
 ---
 
@@ -256,13 +273,14 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 Ожидаемые метрики:
 
 ```json
-{"total_tco_rub":228663.43,"total_trip_cost_rub":17816.35,"total_spoilage_loss_rub":210847.08,
- "total_unmet_penalty_rub":0.0,"expected_net_profit_rub":1816836.57,"avg_freshness_pct":91.98,
+{"total_tco_rub":255643.40,"total_trip_cost_rub":31781.20,"total_spoilage_loss_rub":223862.20,
+ "total_unmet_penalty_rub":0.0,"expected_net_profit_rub":1789856.60,"avg_freshness_pct":89.19,
  "shipped_kg":11000.0,"unmet_kg":0.0}
 ```
 
-Маршруты: 2 — ГАЗон (`truck_id=2`, 6 стопов, 6 000 кг) и КАМАЗ (`truck_id=3`,
-4 стопа, 5 000 кг). `warnings`: пусто. Все 11 000 кг доставлены.
+Маршруты: 3 — еврофура (`truck_id=1`, 3 стопа, 4 000 кг), ГАЗон
+(`truck_id=2`, 4 стопа, 3 800 кг) и КАМАЗ (`truck_id=3`, 2 стопа, 3 200 кг).
+`warnings`: пусто. Все 11 000 кг доставлены.
 
 Проверки математики в этом ответе:
 
@@ -285,8 +303,10 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 Ожидается:
 
 * `shipped_kg = 6000.0`, `unmet_kg = 5000.0`;
-* единственный маршрут `truck_id=2`, ровно 6 000 кг (≤ `capacity_kg`);
-* `total_unmet_penalty_rub = 440724.9 - 7947.71 - 135277.19 = 297500.0`;
+* единственный маршрут `truck_id=2`, 5 стопов, ровно 6 000 кг (≤ `capacity_kg`);
+* `total_unmet_penalty_rub = 297500.0` — сумма штрафов за 5 000 кг недовоза;
+* `total_tco_rub = 496919.76`, `total_spoilage_loss_rub = 191472.05`,
+  `avg_freshness_pct = 87.15`;
 * `warnings`: `broken_trucks_excluded`, `unmet_demand`.
 
 ### S3. Грунтовка недоступна (осталась только еврофура без допуска)
@@ -331,9 +351,10 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"heatwav
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baseline"}' $B/solver/optimize
 ```
 
-Ожидается: `shipped_kg = 11000.0`, `unmet_kg = 0.0`, `avg_freshness_pct = 96.09`,
-`total_spoilage_loss_rub = 97721.72`, `total_tco_rub = 120489.64`,
-маршруты — только рефрижераторы (`truck_id` 1 и 2). `warnings`: пусто.
+Ожидается: `shipped_kg = 11000.0`, `unmet_kg = 0.0`, `avg_freshness_pct = 89.41`,
+`total_spoilage_loss_rub = 212423.08`, `total_tco_rub = 235465.18`,
+маршруты — только рефрижераторы: `truck_id=1` (4 стопа, 5 000 кг) и
+`truck_id=2` (6 стопов, 6 000 кг). `warnings`: пусто.
 Мобиль без рефа (КАМАЗ) в жару не используется — порча дороже экономии.
 
 ### S6. Жара + все рефрижераторы сломаны (сценарий PRD)
@@ -348,13 +369,15 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 
 Ожидается:
 
-* `shipped_kg = 10000.0`, `unmet_kg = 1000.0`, `avg_freshness_pct = 77.3`;
-* `total_spoilage_loss_rub = 532303.82`, `total_tco_rub = 633520.34`;
+* `shipped_kg = 10000.0`, `unmet_kg = 1000.0`, `avg_freshness_pct = 69.06`;
+* `total_spoilage_loss_rub = 656307.70`, `total_tco_rub = 745524.22`,
+  `total_unmet_penalty_rub = 75000.0`;
 * один маршрут на КАМАЗе (`truck_id=3`), 9 стопов;
 * `warnings`: `broken_trucks_excluded`, `unmet_demand`, `heat_without_reefer`.
 
-Сравните с S5: порча выросла в 5.4 раза, свежесть упала с 96.09 % до 77.3 % —
-так система «выбирает математически наименьший убыток».
+Сравните с S5: порча выросла в 3.1 раза (212 423 → 656 308), свежесть
+упала с 89.41 % до 69.06 % — так система «выбирает математически
+наименьший убыток».
 
 ### S7. Множитель осадков (проверка t_actual)
 
@@ -380,9 +403,9 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{"mode":"baselin
 
 Отношение точно соответствует формуле `k_rain = 1 + 0.3 · min(1; мм / 10) = 1.3`
 при 12 мм. Дополнительно в этом сценарии (`heatwave_35c`, только ГАЗон-реф):
-`shipped_kg = 6000.0`, `unmet_kg = 5000.0`, `total_tco_rub = 411647.94`,
-`avg_freshness_pct = 93.59` (против 91.82 под ливнем — без замедления груз
-портится меньше).
+`shipped_kg = 6000.0`, `unmet_kg = 5000.0`, `total_tco_rub = 468899.72`,
+`avg_freshness_pct = 88.84` (против 87.15 под ливнем — без замедления груз
+портится меньше); порча в ливень 191 472 ₽ против 163 452 ₽ в жару.
 
 Множитель грунтовки `k_surface = 1.35` проверяется unit-тестами
 (`backend/tests/test_freshness_math.py`) и косвенно: ETA грунтовой точки
@@ -508,11 +531,11 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d "{\"mode\":\"what
 
 | Метрика | Было | Стало | Δ | Δ% |
 |---|---|---|---|---|
-| `total_tco_rub` | 228663.43 | 161843.10 | −66 820.33 | −29.22 |
-| `total_trip_cost_rub` | 17816.35 | 24132.21 | +6 315.86 | +35.45 |
-| `total_spoilage_loss_rub` | 210847.08 | 137710.89 | −73 136.19 | −34.69 |
-| `expected_net_profit_rub` | 1816836.57 | 2083656.90 | +266 820.33 | +14.69 |
-| `avg_freshness_pct` | 91.98 | 94.15 | +2.17 | +2.36 |
+| `total_tco_rub` | 255643.40 | 411266.00 | +155 622.60 | +60.87 |
+| `total_trip_cost_rub` | 31781.20 | 24975.37 | −6 805.83 | −21.41 |
+| `total_spoilage_loss_rub` | 223862.20 | 386290.63 | +162 428.43 | +72.56 |
+| `expected_net_profit_rub` | 1789856.60 | 1834234.00 | +44 377.40 | +2.48 |
+| `avg_freshness_pct` | 89.19 | 83.94 | −5.25 | −5.89 |
 | `shipped_kg` | 11000.00 | 9500.00 | −1 500.00 | −13.64 |
 | `total_unmet_penalty_rub` | 0.00 | 0.00 | 0.00 | `null` |
 | `unmet_kg` | 0.00 | 0.00 | 0.00 | `null` |
