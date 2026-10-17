@@ -140,29 +140,105 @@ export function popupHtml(point: MapPoint): string {
   return `<div class="map-popup"><strong>${escapeHtml(point.name)}</strong>${rows.join('')}</div>`
 }
 
+/** Ручка маркера, которую нужно обновить после свежих данных с сервера. */
+export interface MarkerHandle {
+  point: MapPoint
+  element: HTMLButtonElement
+  popup: mapboxgl.Popup
+}
+
+/** Обновляет подпись, цветовые классы и содержимое popup по свежей точке. */
+export function applyPoint(handle: MarkerHandle, point: MapPoint): void {
+  handle.point = point
+  handle.element.className = [
+    'map-marker',
+    `map-marker--${point.kind}`,
+    point.roadType ? `map-marker--${point.roadType}` : '',
+    point.deliveryStatus ? `map-marker--${point.deliveryStatus}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  handle.element.setAttribute('aria-label', markerLabel(point))
+  handle.element.title = markerLabel(point)
+  handle.element.innerHTML = `<span class="mdi ${markerIcon(point)}" aria-hidden="true"></span>`
+  handle.popup.setHTML(popupHtml(point))
+}
+
+export interface MarkerManagerOptions {
+  /** Вызывается при наведении: точка, текущие данные и ручка для обновления. */
+  onHover?: (handle: MarkerHandle) => void
+}
+
 export interface MarkerManager {
+  /** Пересоздаёт маркеры (первый рендер, reset-demo). */
   sync(points: MapPoint[]): void
+  /** Обновляет подписи и popup без пересоздания: открытый popup не теряется. */
+  applyAll(points: MapPoint[]): void
   destroy(): void
 }
 
-export function createMarkerManager(map: mapboxgl.Map): MarkerManager {
+export function createMarkerManager(
+  map: mapboxgl.Map,
+  options: MarkerManagerOptions = {},
+): MarkerManager {
   let markers: mapboxgl.Marker[] = []
+  let handles: MarkerHandle[] = []
+  let activePopup: mapboxgl.Popup | null = null
+
+  const syncRef = (points: MapPoint[]): void => {
+    for (const marker of markers) marker.remove()
+    if (activePopup) {
+      activePopup.remove()
+      activePopup = null
+    }
+
+    const fresh: MarkerHandle[] = []
+    markers = points.map((point) => {
+      const element = createMarkerElement(point)
+      const popup = new mapboxgl.Popup({ offset: 26, closeButton: false }).setHTML(popupHtml(point))
+      const marker = new mapboxgl.Marker({ element, anchor: 'bottom' })
+        .setLngLat(point.coordinates)
+        .setPopup(popup)
+        .addTo(map)
+
+      const handle: MarkerHandle = { point, element, popup }
+      fresh.push(handle)
+
+      element.addEventListener('mouseenter', () => {
+        if (activePopup && activePopup !== popup) activePopup.remove()
+        activePopup = popup
+        marker.togglePopup()
+        options.onHover?.(handle)
+      })
+      element.addEventListener('focus', () => options.onHover?.(handle))
+      return marker
+    })
+    handles = fresh
+  }
 
   return {
-    sync(points: MapPoint[]): void {
-      for (const marker of markers) marker.remove()
-      markers = points.map((point) =>
-        new mapboxgl.Marker({ element: createMarkerElement(point), anchor: 'bottom' })
-          .setLngLat(point.coordinates)
-          .setPopup(
-            new mapboxgl.Popup({ offset: 26, closeButton: false }).setHTML(popupHtml(point)),
-          )
-          .addTo(map),
-      )
+    sync: syncRef,
+    applyAll(points: MapPoint[]): void {
+      const sameSet =
+        points.length === handles.length &&
+        points.every((point) => handles.some((handle) => handle.point.id === point.id))
+      if (!sameSet) {
+        syncRef(points)
+        return
+      }
+      for (const handle of handles) {
+        const fresh = points.find((point) => point.id === handle.point.id)
+        if (fresh) applyPoint(handle, fresh)
+      }
     },
     destroy(): void {
       for (const marker of markers) marker.remove()
       markers = []
+      handles = []
+      if (activePopup) {
+        activePopup.remove()
+        activePopup = null
+      }
     },
   }
 }

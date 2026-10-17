@@ -8,13 +8,6 @@
           {{ mapReady ? 'Клик по маркеру — детали точки.' : 'Карта в режиме схемы.' }}
         </p>
       </div>
-      <v-chip
-        class="soft-chip"
-        size="small"
-        :prepend-icon="mapReady ? 'mdi-map-outline' : 'mdi-map-marker-path'"
-      >
-        {{ mapReady ? 'Mapbox' : 'Схема' }}
-      </v-chip>
     </header>
 
     <div class="map-area">
@@ -66,11 +59,13 @@ import MapFallbackPanel from './MapFallbackPanel.vue'
 import {
   DEFAULT_ZOOM,
   OBNINSK_CENTER,
+  applyPoint,
   buildMapPoints,
   createMarkerManager,
   ensureRouteLayers,
   setRouteGeometry,
   type MapPoint,
+  type MarkerHandle,
   type MarkerManager,
 } from './useMapboxMarkers'
 import { useErpStore } from '@/sections/erp-dashboard/useErpStore'
@@ -134,7 +129,11 @@ onMounted(() => {
     if (!map) return
     mapReady.value = true
     ensureRouteLayers(map)
-    markers = createMarkerManager(map)
+    markers = createMarkerManager(map, {
+      onHover: (handle) => {
+        void handleMarkerHover(handle)
+      },
+    })
     markers.sync(points.value)
     setRouteGeometry(map, props.routes ?? [])
   })
@@ -149,8 +148,27 @@ onMounted(() => {
   })
 })
 
+/**
+ * Данные маркера всегда подтверждаются сервером: при наведении тихо перечитываем
+ * ERP-state (не чаще раза в 3 секунды) и обновляем popup/подписи без пересоздания
+ * маркеров, чтобы открытый popup не исчезал.
+ */
+const HOVER_REFRESH_MS = 3000
+let lastHoverRefreshAt = 0
+
+async function handleMarkerHover(handle: MarkerHandle): Promise<void> {
+  const now = Date.now()
+  if (now - lastHoverRefreshAt > HOVER_REFRESH_MS) {
+    lastHoverRefreshAt = now
+    await erp.loadState({ force: true, silent: true })
+    markers?.applyAll(points.value)
+  }
+  const fresh = points.value.find((point) => point.id === handle.point.id)
+  if (fresh) applyPoint(handle, fresh)
+}
+
 watch(points, (next) => {
-  if (mapReady.value) markers?.sync(next)
+  if (mapReady.value) markers?.applyAll(next)
 })
 
 watch(
