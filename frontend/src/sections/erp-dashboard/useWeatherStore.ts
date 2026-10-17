@@ -22,7 +22,6 @@ export interface WeatherPresetOption {
   /** Понятное название для меню и печати. */
   title: string
   icon: string
-  hint: string
   /** true — ручная симуляция для примера, false — фактическая погода. */
   simulation: boolean
 }
@@ -33,7 +32,6 @@ export const WEATHER_PRESETS: WeatherPresetOption[] = [
     label: 'Фактическая',
     title: 'Фактическая погода',
     icon: 'mdi-weather-partly-cloudy',
-    hint: 'Данные Open-Meteo по Калужской области',
     simulation: false,
   },
   {
@@ -41,7 +39,6 @@ export const WEATHER_PRESETS: WeatherPresetOption[] = [
     label: 'Симуляция: жара',
     title: 'Симуляция: жара +35 °C',
     icon: 'mdi-weather-sunny-alert',
-    hint: 'Пример для расчёта: ускоренная порча без рефрижератора',
     simulation: true,
   },
   {
@@ -49,7 +46,6 @@ export const WEATHER_PRESETS: WeatherPresetOption[] = [
     label: 'Симуляция: дождь',
     title: 'Симуляция: сильный дождь',
     icon: 'mdi-weather-pouring',
-    hint: 'Пример для расчёта: замедление на грунтовках и порча',
     simulation: true,
   },
 ]
