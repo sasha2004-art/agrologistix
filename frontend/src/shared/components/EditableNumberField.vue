@@ -118,4 +118,18 @@ function reset(): void {
 .editable-number :deep(.v-field) {
   border-radius: var(--neu-radius-sm);
 }
+
+/* У outlined-поля уже есть своя рамка, поэтому кольцо фокуса рисуем по её
+   контуру. Глобальный :focus-visible на внутреннем <input> давал второе кольцо
+   со сдвигом внутрь поля — мимо рамки, поверх текста и за границей ячейки. */
+.editable-number :deep(.v-field__input:focus-visible) {
+  outline: none;
+}
+
+/* Vuetify сам ставит v-field--focused и для клавиатуры, и для мыши,
+   так что состояние фокуса читается одинаково. */
+.editable-number :deep(.v-field--focused) {
+  outline: 2px solid #6d28d9;
+  outline-offset: -2px;
+}
 </style>
