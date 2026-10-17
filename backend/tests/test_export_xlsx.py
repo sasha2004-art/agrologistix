@@ -22,6 +22,13 @@ EXPORT_URL = "/api/v1/export/run/{run_id}/xlsx"
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 SUMMARY_TITLE = "Сводка"
+ROUTES_TITLE = "Рейсы"
+ANALYSIS_TITLE = "Аналитика"
+NOTES_TITLE = "Замечания"
+
+
+def _route_sheet_names(workbook) -> list[str]:
+    return [name for name in workbook.sheetnames if name.startswith("Рейс ")]
 
 
 def _database_session(client: TestClient) -> Session:
@@ -52,8 +59,11 @@ def test_export_contains_summary_and_one_sheet_per_route(client: TestClient) -> 
     routes = baseline["routes"]
 
     assert workbook.sheetnames[0] == SUMMARY_TITLE
-    assert len(workbook.sheetnames) == len(routes) + 1
-    assert all(name.startswith("Рейс ") for name in workbook.sheetnames[1:])
+    assert workbook.sheetnames[1:4] == [ROUTES_TITLE, ANALYSIS_TITLE, NOTES_TITLE]
+    assert len(_route_sheet_names(workbook)) == len(routes)
+    assert len(workbook.sheetnames) == len(routes) + 4
+    # На сводке — диаграмма «стоимость доставки и потери урожая».
+    assert len(workbook[SUMMARY_TITLE]._charts) == 1
 
     summary = workbook[SUMMARY_TITLE]
     assert f"№{baseline['run_id']}" in str(summary["A1"].value)
@@ -70,7 +80,7 @@ def test_export_route_sheet_matches_planned_stops(client: TestClient) -> None:
     workbook = load_workbook(BytesIO(_export(client, baseline["run_id"])))
 
     first_route = baseline["routes"][0]
-    sheet = workbook[workbook.sheetnames[1]]
+    sheet = workbook[_route_sheet_names(workbook)[0]]
     header_row = next(row[0].row for row in sheet.iter_rows() if row[0].value == "№")
     headers = [cell.value for cell in sheet[header_row]]
     assert headers[:5] == ["№", "Заказ", "Покупатель", "Урожай", "Отгружено, кг"]
@@ -102,7 +112,8 @@ def test_export_of_run_without_routes_still_returns_workbook(client: TestClient)
 
     workbook = load_workbook(BytesIO(_export(client, baseline["run_id"])))
 
-    assert workbook.sheetnames == [SUMMARY_TITLE]
+    assert workbook.sheetnames == [SUMMARY_TITLE, ROUTES_TITLE, ANALYSIS_TITLE, NOTES_TITLE]
+    assert _route_sheet_names(workbook) == []
     assert baseline["metrics"]["unmet_kg"] > 0
 
 
@@ -155,8 +166,7 @@ def test_workbook_can_be_built_without_database_entities() -> None:
     workbook = build_workbook(ExportRun(run=run, routes=(route,)))
 
     assert workbook.sheetnames[0] == SUMMARY_TITLE
-    assert "Рейс 1" in workbook.sheetnames[1]
-    route_sheet = workbook[workbook.sheetnames[1]]
+    route_sheet = workbook[_route_sheet_names(workbook)[0]]
     header = next(row for row in route_sheet.iter_rows() if row[0].value == "№")
     assert [cell.value for cell in header][:2] == ["№", "Заказ"]
     row = next(row for row in route_sheet.iter_rows() if row[0].value == 1)
@@ -166,12 +176,61 @@ def test_workbook_can_be_built_without_database_entities() -> None:
     assert totals[8].value == pytest.approx(450.0)
 
 
-def test_workbook_of_a_run_without_routes_has_only_the_summary() -> None:
+def test_workbook_of_a_run_without_routes_has_no_route_sheets() -> None:
     run = SimulationRun(id=1, created_at=datetime(2026, 1, 1, tzinfo=UTC))
 
     workbook = build_workbook(ExportRun(run=run, routes=()))
 
-    assert workbook.sheetnames == [SUMMARY_TITLE]
+    assert workbook.sheetnames == [SUMMARY_TITLE, ROUTES_TITLE, ANALYSIS_TITLE, NOTES_TITLE]
+
+
+def test_analysis_sheet_totals_match_the_plan(client: TestClient) -> None:
+    baseline = _baseline(client)
+    workbook = load_workbook(BytesIO(_export(client, baseline["run_id"])))
+    sheet = workbook[ANALYSIS_TITLE]
+
+    total_row = next(row for row in sheet.iter_rows() if row[0].value == "Итого")
+    metrics = baseline["metrics"]
+    ordered_kg = metrics["shipped_kg"] + metrics["unmet_kg"]
+    assert total_row[10].value == pytest.approx(metrics["shipped_kg"], abs=0.05)
+    assert total_row[12].value == pytest.approx(
+        metrics["expected_net_profit_rub"] + metrics["total_tco_rub"], abs=0.05
+    )
+    # Потери в кг не превышают отгруженный объём и положительны на seed-данных.
+    assert 0.0 < total_row[17].value <= ordered_kg
+    # Потери — сумма по стопам, округлённая до копеек на каждом стопе.
+    assert total_row[18].value == pytest.approx(metrics["total_spoilage_loss_rub"], abs=1.0)
+    assert total_row[19].value == pytest.approx(metrics["total_trip_cost_rub"], abs=0.05)
+    assert total_row[20].value == pytest.approx(metrics["expected_net_profit_rub"], abs=0.05)
+
+
+def test_routes_sheet_reports_equipment_and_load(client: TestClient) -> None:
+    baseline = _baseline(client)
+    workbook = load_workbook(BytesIO(_export(client, baseline["run_id"])))
+    sheet = workbook[ROUTES_TITLE]
+
+    text_values = {str(cell.value) for row in sheet.iter_rows() for cell in row}
+    assert any("рефрижератор" in value or "без охлаждения" in value for value in text_values)
+    header_row = next(row[0].row for row in sheet.iter_rows() if row[0].value == "Рейс")
+    first_data_row = header_row + 1
+    assert sheet.cell(row=first_data_row, column=6).value > 0.0
+    assert 0.0 < sheet.cell(row=first_data_row, column=8).value <= 100.0
+
+
+def test_notes_sheet_flags_unmet_demand(client: TestClient) -> None:
+    with _database_session(client) as session:
+        for truck in session.exec(select(Truck)).all():
+            truck.status = "broken"
+            session.add(truck)
+        session.commit()
+
+    baseline = _baseline(client)
+    assert baseline["metrics"]["unmet_kg"] > 0
+
+    workbook = load_workbook(BytesIO(_export(client, baseline["run_id"])))
+    notes = workbook[NOTES_TITLE]
+    messages = [row[2].value for row in notes.iter_rows(min_row=4) if isinstance(row[2].value, str)]
+    assert any("Не привезли" in message for message in messages)
 
 
 def test_export_rejects_unknown_run_and_missing_pin(client: TestClient) -> None:
@@ -191,7 +250,7 @@ def test_export_writes_client_names_and_totals(client: TestClient) -> None:
     baseline = _baseline(client)
     workbook = load_workbook(BytesIO(_export(client, baseline["run_id"])))
 
-    sheet = workbook[workbook.sheetnames[1]]
+    sheet = workbook[_route_sheet_names(workbook)[0]]
     planned = baseline["routes"][0]
     text_values = {str(cell.value) for row in sheet.iter_rows() for cell in row}
     assert any(value.startswith("Рейс 1") for value in text_values)
