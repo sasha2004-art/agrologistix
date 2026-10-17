@@ -153,9 +153,6 @@ export const useErpStore = defineStore('erp', () => {
   const dirtCapableTrucks = computed(() =>
     trucks.value.filter((truck) => truck.can_use_dirt && truck.status === 'active'),
   )
-  const activeCapacityKg = computed(() =>
-    activeTrucks.value.reduce((sum, truck) => sum + truck.capacity_kg, 0),
-  )
 
   const dirtClients = computed(() => clients.value.filter((client) => client.road_type === 'dirt'))
 
@@ -427,7 +424,6 @@ export const useErpStore = defineStore('erp', () => {
     brokenTrucks,
     reeferTrucks,
     dirtCapableTrucks,
-    activeCapacityKg,
     dirtClients,
     panelStatus,
     riskAlerts,
