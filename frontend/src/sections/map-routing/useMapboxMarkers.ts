@@ -2,121 +2,22 @@
  * Маркеры и слои карты Калужской области (Day 5).
  *
  * Маркеры создаются как DOM-элементы (кнопки) с текстовыми aria-label и popup,
- * поэтому тип дороги и статус доставки передаются не только цветом.
- * Наведение показывает краткую подсказку, клик — полную карточку точки.
+ * поэтому тип точки и статус доставки передаются не только цветом. Карточка
+ * объекта открывается только по нажатию на маркер: сборка данных лежит
+ * в `mapPoints.ts`, разметка карточки — в `mapPopupContent.ts`.
  */
 
 import mapboxgl from 'mapbox-gl'
-import { formatFreshness, formatMinutes } from '@/shared/utils/format'
-import type {
-  Client,
-  ClientOrder,
-  DeliveryStatus,
-  RoadType,
-  Route,
-  Warehouse,
-} from '@/shared/types/domain'
+import { bindOrderToggles, popupHtml, restoreOrderState } from './mapPopupContent'
+import { roadLabel, statusLabel, type MapPoint } from './mapPoints'
+import type { Route } from '@/shared/types/domain'
+
+export { buildMapPoints } from './mapPoints'
+export type { ClientPlanInfo, MapPoint, MapPointOrder } from './mapPoints'
 
 /** Центр Калужской области — склад в Обнинске. */
 export const OBNINSK_CENTER: [number, number] = [36.6103, 55.0968]
 export const DEFAULT_ZOOM = 8.6
-
-export interface MapPoint {
-  id: string
-  kind: 'warehouse' | 'client'
-  name: string
-  address: string
-  coordinates: [number, number]
-  roadType: RoadType | null
-  deliveryStatus: DeliveryStatus | null
-  orderCount: number
-  requestedKg: number
-  /** Самый поздний стоп рассчитанного плана для этой точки (если план уже есть). */
-  plan: ClientPlanInfo | null
-  /** Сколько заявок клиента попало в план (может быть больше одного стопа). */
-  planStopsCount: number
-}
-
-/** Данные плана для точки клиента: попап показывает время в пути, сохранность и вес. */
-export interface ClientPlanInfo {
-  orderId: number | null
-  truckName: string
-  color: string
-  etaMinutes: number
-  expectedFreshness: number
-  shippedKg: number
-}
-
-export function roadLabel(roadType: RoadType | null): string {
-  if (roadType === 'dirt') return 'Грунтовка'
-  if (roadType === 'asphalt') return 'Асфальт'
-  return ''
-}
-
-export function statusLabel(status: DeliveryStatus | null): string {
-  if (status === 'delivered') return 'Доставлено'
-  if (status === 'pending') return 'В работе'
-  return ''
-}
-
-function clientStatus(orders: ClientOrder[]): DeliveryStatus | null {
-  if (orders.length === 0) return null
-  return orders.every((order) => order.delivery_status === 'delivered') ? 'delivered' : 'pending'
-}
-
-/** Точки карты: склады + клиенты с агрегированным статусом их заявок. */
-export function buildMapPoints(
-  warehouses: Warehouse[],
-  clients: Client[],
-  orders: ClientOrder[],
-  planByOrder: Map<number, ClientPlanInfo> = new Map(),
-): MapPoint[] {
-  const points: MapPoint[] = warehouses.map((warehouse) => ({
-    id: `warehouse-${warehouse.id}`,
-    kind: 'warehouse',
-    name: warehouse.name,
-    address: warehouse.address,
-    coordinates: [warehouse.lon, warehouse.lat],
-    roadType: null,
-    deliveryStatus: null,
-    orderCount: 0,
-    requestedKg: 0,
-    plan: null,
-    planStopsCount: 0,
-  }))
-
-  for (const client of clients) {
-    const own = orders.filter((order) => order.client_id === client.id)
-    const planned = own
-      .map((order) => planByOrder.get(order.id))
-      .filter((info): info is ClientPlanInfo => Boolean(info))
-    points.push({
-      id: `client-${client.id}`,
-      kind: 'client',
-      name: client.name,
-      address: client.address,
-      coordinates: [client.lon, client.lat],
-      roadType: client.road_type,
-      deliveryStatus: clientStatus(own),
-      orderCount: own.length,
-      requestedKg: own.reduce((sum, order) => sum + order.requested_kg, 0),
-      // Если у клиента несколько заказов в плане, показываем самый «поздний» по времени
-      // в пути, а остальные сворачиваем в счётчик, чтобы попап не распухал.
-      plan: planned.sort((a, b) => b.etaMinutes - a.etaMinutes)[0] ?? null,
-      planStopsCount: planned.length,
-    })
-  }
-
-  return points
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
 
 export function markerIcon(point: MapPoint): string {
   if (point.kind === 'warehouse') return 'mdi-warehouse'
@@ -160,73 +61,11 @@ export function createMarkerElement(point: MapPoint): HTMLButtonElement {
   element.classList.add(...markerModifiers(point))
   element.classList.add('map-marker')
   element.setAttribute('aria-label', markerLabel(point))
-  // Собственная подсказка при наведении заменяет нативный title,
-  // иначе браузер показывал бы вторую, всплывающую с задержкой.
+  // Нативный title убран: карточка открывается по клику, а браузерная подсказка
+  // всплывала бы с задержкой и дублировала aria-label.
   element.removeAttribute('title')
   element.innerHTML = `<span class="mdi ${markerIcon(point)}" aria-hidden="true"></span>`
   return element
-}
-
-export function popupHtml(point: MapPoint): string {
-  const rows: string[] = []
-  if (point.address) rows.push(`<div class="map-popup__row">${escapeHtml(point.address)}</div>`)
-  if (point.roadType)
-    rows.push(
-      `<div class="map-popup__row">Дорога: <strong>${roadLabel(point.roadType)}</strong></div>`,
-    )
-  if (point.deliveryStatus)
-    rows.push(
-      `<div class="map-popup__row">Статус: <strong>${statusLabel(point.deliveryStatus)}</strong></div>`,
-    )
-  if (point.orderCount > 0)
-    rows.push(
-      `<div class="map-popup__row">Заказов: ${point.orderCount} · ${Math.round(point.requestedKg)} кг</div>`,
-    )
-  if (point.plan) {
-    const extra = point.planStopsCount > 1 ? ` (+${point.planStopsCount - 1} остановок)` : ''
-    rows.push(
-      `<div class="map-popup__row map-popup__plan">` +
-        `<span class="map-popup__swatch" style="background:${escapeHtml(point.plan.color)}"></span>` +
-        `Машина: <strong>${escapeHtml(point.plan.truckName)}</strong>${extra} · в пути ${formatMinutes(
-          point.plan.etaMinutes,
-        )} · ` +
-        `сохранность ${formatFreshness(point.plan.expectedFreshness)} · ${Math.round(point.plan.shippedKg)} кг` +
-        `</div>`,
-    )
-  }
-
-  return `<div class="map-popup"><strong>${escapeHtml(point.name)}</strong>${rows.join('')}</div>`
-}
-
-/**
- * Краткая подсказка при наведении: имя точки и пара ключевых фактов.
- * Полная карточка (адрес, заказы, время в пути, сохранность) открывается кликом.
- */
-export function hoverHtml(point: MapPoint): string {
-  const rows: string[] = []
-  if (point.kind === 'warehouse') {
-    rows.push('<div class="map-tooltip__row">Склад</div>')
-    if (point.address) rows.push(`<div class="map-tooltip__row">${escapeHtml(point.address)}</div>`)
-  } else {
-    const traits = ['Покупатель', roadLabel(point.roadType), statusLabel(point.deliveryStatus)]
-      .filter(Boolean)
-      .join(' · ')
-    rows.push(`<div class="map-tooltip__row">${escapeHtml(traits)}</div>`)
-    if (point.orderCount > 0) {
-      rows.push(
-        `<div class="map-tooltip__row">Заказов: ${point.orderCount} · ${Math.round(point.requestedKg)} кг</div>`,
-      )
-    }
-  }
-  if (point.plan) {
-    rows.push(
-      `<div class="map-tooltip__row map-tooltip__plan">` +
-        `<span class="map-tooltip__swatch" style="background:${escapeHtml(point.plan.color)}"></span>` +
-        `${escapeHtml(point.plan.truckName)} · ${Math.round(point.plan.shippedKg)} кг` +
-        `</div>`,
-    )
-  }
-  return `<div class="map-tooltip"><strong>${escapeHtml(point.name)}</strong>${rows.join('')}</div>`
 }
 
 /** Ручка маркера, которую нужно обновить после свежих данных с сервера. */
@@ -234,6 +73,8 @@ export interface MarkerHandle {
   point: MapPoint
   element: HTMLButtonElement
   popup: mapboxgl.Popup
+  /** Раскрытые пользователем подробности заявок: переживают перерисовку popup. */
+  expandedOrders: Set<number>
 }
 
 /** Обновляет подпись, цветовые классы и содержимое popup по свежей точке. */
@@ -244,11 +85,9 @@ export function applyPoint(handle: MarkerHandle, point: MapPoint): void {
   handle.element.removeAttribute('title')
   handle.element.innerHTML = `<span class="mdi ${markerIcon(point)}" aria-hidden="true"></span>`
   handle.popup.setHTML(popupHtml(point))
-}
-
-export interface MarkerManagerOptions {
-  /** Вызывается при наведении: точка, текущие данные и ручка для обновления. */
-  onHover?: (handle: MarkerHandle) => void
+  // Разметка пересобрана: возвращаем раскрытые заявки, иначе они закрывались бы
+  // при каждом фоновом обновлении ERP раз в секунду.
+  restoreOrderState(handle.popup.getElement(), handle.expandedOrders)
 }
 
 export interface MarkerManager {
@@ -259,32 +98,13 @@ export interface MarkerManager {
   destroy(): void
 }
 
-export function createMarkerManager(
-  map: mapboxgl.Map,
-  options: MarkerManagerOptions = {},
-): MarkerManager {
+export function createMarkerManager(map: mapboxgl.Map): MarkerManager {
   let markers: mapboxgl.Marker[] = []
   let handles: MarkerHandle[] = []
   let activePopup: mapboxgl.Popup | null = null
-  // Одна общая подсказка на карту: при наведении переезжает к активной точке.
-  const hoverTip = new mapboxgl.Popup({
-    offset: 26,
-    closeButton: false,
-    closeOnClick: false,
-    className: 'map-hover-tip',
-  })
-
-  const showHoverTip = (point: MapPoint): void => {
-    hoverTip.setLngLat(point.coordinates).setHTML(hoverHtml(point))
-    if (!hoverTip.isOpen()) hoverTip.addTo(map)
-  }
-  const hideHoverTip = (): void => {
-    hoverTip.remove()
-  }
 
   const syncRef = (points: MapPoint[]): void => {
     for (const marker of markers) marker.remove()
-    hideHoverTip()
     if (activePopup) {
       activePopup.remove()
       activePopup = null
@@ -293,32 +113,23 @@ export function createMarkerManager(
     const fresh: MarkerHandle[] = []
     markers = points.map((point) => {
       const element = createMarkerElement(point)
+      const expandedOrders = new Set<number>()
       const popup = new mapboxgl.Popup({ offset: 26, closeButton: false }).setHTML(popupHtml(point))
+      // Кнопки заявок живут внутри popup: клики обрабатываются делегированием.
+      bindOrderToggles(popup, expandedOrders)
       const marker = new mapboxgl.Marker({ element, anchor: 'bottom' })
         .setLngLat(point.coordinates)
         .setPopup(popup)
         .addTo(map)
 
-      const handle: MarkerHandle = { point, element, popup }
+      const handle: MarkerHandle = { point, element, popup, expandedOrders }
       fresh.push(handle)
 
-      element.addEventListener('mouseenter', () => {
-        options.onHover?.(handle)
-        // Если полная карточка уже открыта кликом, подсказка только дублировала бы её.
-        if (popup.isOpen()) return
-        showHoverTip(handle.point)
-      })
-      element.addEventListener('mouseleave', hideHoverTip)
       element.addEventListener('click', () => {
-        hideHoverTip()
+        // Карточка открывается только нажатием: наведение не показывает ничего.
         if (activePopup && activePopup !== popup) activePopup.remove()
         activePopup = popup
       })
-      element.addEventListener('focus', () => {
-        options.onHover?.(handle)
-        if (!popup.isOpen()) showHoverTip(handle.point)
-      })
-      element.addEventListener('blur', hideHoverTip)
       return marker
     })
     handles = fresh
@@ -343,7 +154,6 @@ export function createMarkerManager(
       for (const marker of markers) marker.remove()
       markers = []
       handles = []
-      hideHoverTip()
       if (activePopup) {
         activePopup.remove()
         activePopup = null

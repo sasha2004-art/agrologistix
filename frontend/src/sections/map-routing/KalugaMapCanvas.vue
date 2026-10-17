@@ -67,13 +67,11 @@ import MapFallbackPanel from './MapFallbackPanel.vue'
 import {
   DEFAULT_ZOOM,
   OBNINSK_CENTER,
-  applyPoint,
   buildMapPoints,
   createMarkerManager,
   ensureRouteLayers,
   setRouteGeometry,
   type MapPoint,
-  type MarkerHandle,
   type MarkerManager,
 } from './useMapboxMarkers'
 import { useErpStore } from '@/sections/erp-dashboard/useErpStore'
@@ -94,25 +92,33 @@ const failureText = ref<string | null>(null)
 
 const accessToken = (import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN ?? '').trim()
 
-/** Данные плана по заявке: попап клиента показывает ETA, свежесть и вес. */
+/**
+ * Данные плана по заявке: карточка заказа показывает рейс, ETA, свежесть и вес.
+ * Одна заявка может дробиться между рейсами, поэтому стопов может быть несколько.
+ */
 const planByOrder = computed(() => {
-  const map = new Map<number, ClientPlanInfo>()
+  const map = new Map<number, ClientPlanInfo[]>()
   for (const item of solver.plannedStops) {
     if (item.stop.order_id == null) continue
-    map.set(item.stop.order_id, {
+    const stops = map.get(item.stop.order_id) ?? []
+    stops.push({
       orderId: item.stop.order_id,
       truckName: item.truckName,
       color: item.color,
       etaMinutes: item.stop.eta_minutes,
       expectedFreshness: item.stop.expected_freshness,
       shippedKg: item.stop.shipped_kg,
+      sequenceOrder: item.stop.sequence_order,
+      distanceKm: item.stop.distance_km,
+      tripLegCostRub: item.stop.trip_leg_cost_rub,
     })
+    map.set(item.stop.order_id, stops)
   }
   return map
 })
 
 const points = computed<MapPoint[]>(() =>
-  buildMapPoints(erp.warehouses, erp.clients, erp.orders, planByOrder.value),
+  buildMapPoints(erp.warehouses, erp.clients, erp.orders, erp.products, planByOrder.value),
 )
 const showMap = computed(() => accessToken.length > 0 && !mapFailed.value)
 const fallbackReason = computed(() => {
@@ -161,9 +167,7 @@ onMounted(() => {
     if (!map) return
     mapReady.value = true
     ensureRouteLayers(map)
-    markers = createMarkerManager(map, {
-      onHover: handleMarkerHover,
-    })
+    markers = createMarkerManager(map)
     markers.sync(points.value)
     drawRoutes()
   })
@@ -177,16 +181,6 @@ onMounted(() => {
     failWith(`Mapbox недоступен: ${event.error?.message ?? 'ошибка загрузки стиля'}`)
   })
 })
-
-/**
- * Маркеры живут только от общего стора: наведение дорисовывает актуальную точку
- * перед показом краткой подсказки (сеть тянет фоновый опрос раз в секунду
- * в useErpStore.startAutoSync).
- */
-function handleMarkerHover(handle: MarkerHandle): void {
-  const fresh = points.value.find((point) => point.id === handle.point.id)
-  if (fresh) applyPoint(handle, fresh)
-}
 
 watch(
   points,
