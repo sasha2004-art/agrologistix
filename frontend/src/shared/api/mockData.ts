@@ -242,6 +242,7 @@ export const mockErpState: ERPState = {
       status: 'active',
     },
   ],
+  fixed_assignments: [],
 }
 
 export const mockWeather: WeatherResponse = {

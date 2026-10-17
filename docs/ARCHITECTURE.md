@@ -179,6 +179,7 @@ SQLite работает в режиме `PRAGMA journal_mode=WAL`.
 | `route_stop` | Остановка прогона: заявка, машина, склад, клиент, продукт, порядок, кг, плечо, ETA, свежесть, стоимость плеча, `stop_status ∈ {planned, delivered}` |
 | `delivered_order_stock` | Журнал списания: `order_id`, `stock_id`, `shipped_kg` — нужен для отката доставки |
 | `route_cache` | Кэш дорожных плеч: `pair_key` (PK), `distance_km`, `base_duration_min`, полилиния `(lat, lon)`, `source ∈ {mapbox, fallback}`, `mapbox_checked_at` |
+| `fixed_assignment` | Зафиксированный маршрут заявки «В работе»: `order_id` (unique), `truck_id`, `warehouse_id`, `client_id`, `product_id`, `shipped_kg`, `distance_km`, `duration_min`, `expected_freshness`, `trip_cost_rub`, полилиния `geojson_geometry`, `created_at` |
 | `weather_override` | Singleton-строка с активным погодным пресетом |
 
 **Seed Калужской области** (`services/seed_kaluga.py`, идемпотентный при старте):
@@ -361,7 +362,20 @@ fallback: заявки сортируются по ценности клиент
 Матрица расстояний ищется в `LegIndex` по округлённым до 5 знаков координатам; для
 неизвестных пар мгновенно считается haversine-fallback.
 
-### 6.5 Мультистоп и консолидация рейсов
+### 6.5 Зафиксированные рейсы
+
+Заявки, взятые «В работе», имеют запись в `fixed_assignment` — выбранную логистом
+машину, склад, метрики и полилинию. Движок получает их в `SolverInput.fixed_routes`:
+
+* заявка фиксированного рейса не участвует в MILP и не попадает в недовоз;
+* машина фиксации исключается из активного парка, поэтому одна и та же машина
+  не везёт два рейса в одном плане;
+* готовый рейс добавляется в `outcome.routes` после лимитов смены и остановок
+  (он уже утверждён), а его груз, выручка и потери входят в метрики прогона;
+* при возврате заявки в «В плане» или закрытии она удаляется из `fixed_assignment`
+  и снова участвует в расчёте.
+
+### 6.6 Мультистоп и консолидация рейсов
 
 MILP-черновик считается по прокси-стоимостям, поэтому после него запускается
 `services/solver_improve.py` — детерминированный локальный поиск **по фактическому
@@ -471,7 +485,7 @@ TCO** (маршруты перестраиваются, метрики пере�
 | `GET /auth/session` | `X-Access-Pin` | Текущая сессия |
 | `GET /erp/state` | `X-Access-Pin` | Полное состояние ERP |
 | `PATCH /erp/orders/{id}` | `X-Access-Pin` | Цена и/или статус доставки заявки |
-| `POST /erp/orders/{id}/assign` | `X-Access-Pin` | Подбор оптимальной машины и маршрута для заявки |
+| `POST /erp/orders/{id}/assign` | `X-Access-Pin` | Подбор и фиксация оптимальной машины и маршрута заявки |
 | `PATCH /erp/trucks/{id}` | `X-Access-Pin` | `active` / `broken` |
 | `PATCH /erp/stocks/{id}` | `X-Access-Pin` | Остаток партии |
 | `GET /weather/current` | `X-Access-Pin` | Погода и активный режим |
@@ -515,7 +529,12 @@ SolverWarning:
 OrderAssignmentResponse:
   order_id, truck_id, truck_name, warehouse_id, warehouse_name,
   shipped_kg, distance_km, duration_min, trip_cost_rub,
-  spoilage_loss_rub, total_cost_rub, expected_freshness
+  spoilage_loss_rub, total_cost_rub, expected_freshness, geometry[]
+
+FixedAssignmentResponse (в составе ERPStateResponse.fixed_assignments):
+  order_id, truck_id, truck_name, warehouse_id, warehouse_name,
+  client_id, product_id, shipped_kg, distance_km, duration_min,
+  expected_freshness, trip_cost_rub, geometry[]
 ```
 
 JSON — `snake_case` с `extra="forbid"`: неизвестное поле в теле запроса даёт 422.
@@ -587,8 +606,16 @@ JSON — `snake_case` с `extra="forbid"`: неизвестное поле в т
 * стоимость рейса — `fixed_trip_cost_rub + distance_km · cost_per_km_rub`.
 
 Ответ `OrderAssignmentResponse` описывает выбранную машину, склад, плечо, время,
-стоимость рейса, потери и сохранность. Эндпоинт ничего не меняет в БД: списание
-стока выполняет `PATCH /erp/orders/{id}` со статусом `in_progress`.
+стоимость рейса, потери, сохранность и полилинию маршрута. Результат
+**фиксируется** в `fixed_assignment`: маршрут восстанавливается из
+`GET /erp/state` (поле `fixed_assignments`), рисуется пунктиром на карте и
+учитывается в следующих расчётах как готовый рейс (§6.5). Повторный вызов
+обновляет ту же фиксацию.
+
+Списание стока выполняет `PATCH /erp/orders/{id}` со статусом `in_progress`:
+если фиксация есть, килограммы списываются с её склада, иначе — по последнему
+плану. Возврат в «В плане» возвращает сток и снимает фиксацию; статус
+«Доставлено» закрывает заявку и тоже убирает фиксацию.
 
 ### 10.4 Машина не в работе, сток, погода
 
@@ -679,9 +706,9 @@ print). Скрываются карта, шапка и панели, остаё�
   устаревшим до повторного расчёта.
 * `useSolverStore` — статус, план, метрики, предупреждения, рейсы, сгруппированные
   стопы для карты/таблиц, `optimizePlan()`, `markPlanStale()`, `clear()`.
-* `useAssignmentStore` — подобранные машина и маршрут для заявок «В работе»:
-  вызов `POST /erp/orders/{id}/assign`, кэш ответа для таблицы заказов,
-  `clear()` при выходе.
+* `useAssignmentStore` — зафиксированные маршруты заявок «В работе»: вызов
+  `POST /erp/orders/{id}/assign`, `hydrate()` из `fixed_assignments` в `GET /erp/state`
+  (карта и подсказки восстанавливаются после перезагрузки), `clear()` при выходе.
 * `useWeatherStore` — текущая погода и переключение пресетов.
 * `useNotificationStore` — тосты об успехах и ошибках.
 
@@ -694,7 +721,9 @@ print). Скрываются карта, шапка и панели, остаё�
 
 **Карта:** центрируется на Обнинске `[36.61, 55.11]`, маркеры складов и клиентов
 (цвет по `road_type` и статусу доставки), полилинии рейсов из `geometry` с цветом
-по машине. Карточка объекта открывается только кликом по маркеру — наведение
+по машине и пунктирный слой фиксированных рейсов заявок «В работе»
+(`fixed-routes`, цвет `#0f766e`) с подписью в легенде. Карточка объекта
+открывается только кликом по маркеру — наведение
 ничего не показывает. В карточке адрес и список заявок: каждая заявка оформлена
 кнопкой, по нажатию раскрываются её
 подробности (урожай, заявлено, цена, доставлено, статус, машина, остановка,

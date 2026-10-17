@@ -14,7 +14,7 @@ from app.models.erp_models import (
     Warehouse,
     WarehouseStock,
 )
-from app.models.run_models import DeliveredOrderStock, RouteStop
+from app.models.run_models import DeliveredOrderStock, FixedAssignment, RouteStop
 from app.schemas.enums import DeliveryStatus
 from app.schemas.erp_schemas import (
     ClientOrderPatch,
@@ -22,6 +22,7 @@ from app.schemas.erp_schemas import (
     ClientResponse,
     DemoResetResponse,
     ERPStateResponse,
+    FixedAssignmentResponse,
     OrderAssignmentResponse,
     ProductResponse,
     TruckPatch,
@@ -31,7 +32,14 @@ from app.schemas.erp_schemas import (
     WarehouseStockResponse,
 )
 from app.schemas.error_schemas import APIErrorResponse
-from app.services.order_assignment import assign_order
+from app.schemas.solver_schemas import RoutePoint
+from app.services.order_assignment import (
+    assign_order,
+    assignment_geometry,
+    clear_fixed_assignment,
+    load_fixed_assignments,
+    save_fixed_assignment,
+)
 from app.services.seed_kaluga import reset_demo_database
 from app.services.weather_service import get_current_weather, reset_weather_cache
 
@@ -78,6 +86,19 @@ def _plan_consumption(
         consumed[warehouse_id] = take
         budget -= take
     return consumed
+
+
+def _fixed_consumption(
+    session: Session, order: ClientOrder, remaining_kg: float
+) -> dict[int, float]:
+    """Warehouse quantities of the fixed route chosen when the order went in progress."""
+
+    fixed = session.exec(
+        select(FixedAssignment).where(FixedAssignment.order_id == order.id)
+    ).first()
+    if fixed is None:
+        return {}
+    return {fixed.warehouse_id: min(remaining_kg, fixed.shipped_kg)}
 
 
 def _consume_stock(session: Session, order: ClientOrder, consumed: dict[int, float]) -> float:
@@ -128,7 +149,11 @@ def _apply_shipped_status(session: Session, order: ClientOrder, target_status: s
         order.delivery_status = target_status
         return
 
-    consumed = _plan_consumption(session, order, remaining_kg)
+    # У заявки «В работе» уже есть зафиксированный маршрут: списываем с его
+    # склада, а не с последнего плана. Иначе работаем как раньше — по плану.
+    consumed = _fixed_consumption(session, order, remaining_kg) or _plan_consumption(
+        session, order, remaining_kg
+    )
     if not consumed:
         order.delivered_kg = order.requested_kg
         order.delivery_status = target_status
@@ -157,6 +182,28 @@ def _restore_delivered_stock(session: Session, order: ClientOrder) -> None:
     order.delivered_kg = 0.0
 
 
+def _fixed_assignment_response(session: Session, fixed: FixedAssignment) -> FixedAssignmentResponse:
+    """Фиксация с именами машины и склада и полилинией для карты."""
+
+    truck = session.get(Truck, fixed.truck_id)
+    warehouse = session.get(Warehouse, fixed.warehouse_id)
+    return FixedAssignmentResponse(
+        order_id=fixed.order_id,
+        truck_id=fixed.truck_id,
+        truck_name=truck.name if truck else f"Машина {fixed.truck_id}",
+        warehouse_id=fixed.warehouse_id,
+        warehouse_name=warehouse.name if warehouse else f"Склад {fixed.warehouse_id}",
+        client_id=fixed.client_id,
+        product_id=fixed.product_id,
+        shipped_kg=fixed.shipped_kg,
+        distance_km=fixed.distance_km,
+        duration_min=fixed.duration_min,
+        expected_freshness=fixed.expected_freshness,
+        trip_cost_rub=fixed.trip_cost_rub,
+        geometry=[RoutePoint(lat=lat, lon=lon) for lat, lon in assignment_geometry(fixed)],
+    )
+
+
 def _get_or_404[EntityT: SQLModel](
     session: Session, model: type[EntityT], entity_id: int, label: str
 ) -> EntityT:
@@ -181,6 +228,9 @@ def read_erp_state(_context: AccessContext, session: SessionDependency) -> ERPSt
     clients = session.exec(select(Client).order_by(Client.id)).all()
     orders = session.exec(select(ClientOrder).order_by(ClientOrder.id)).all()
     trucks = session.exec(select(Truck).order_by(Truck.id)).all()
+    fixed_assignments = [
+        _fixed_assignment_response(session, item) for item in load_fixed_assignments(session)
+    ]
 
     return ERPStateResponse(
         warehouses=[WarehouseResponse.model_validate(item) for item in warehouses],
@@ -189,6 +239,7 @@ def read_erp_state(_context: AccessContext, session: SessionDependency) -> ERPSt
         clients=[ClientResponse.model_validate(item) for item in clients],
         orders=[ClientOrderResponse.model_validate(item) for item in orders],
         trucks=[TruckResponse.model_validate(item) for item in trucks],
+        fixed_assignments=fixed_assignments,
     )
 
 
@@ -216,13 +267,17 @@ def patch_client_order(
     if payload.delivery_status is not None:
         target_status = payload.delivery_status.value
         if target_status == DeliveryStatus.PENDING.value:
-            # Возврат в «В плане» отменяет отгрузку и возвращает сток на склады.
+            # Возврат в «В плане» отменяет отгрузку, возвращает сток и снимает фиксацию.
             if order.delivered_kg > 0.0:
                 _restore_delivered_stock(session, order)
+            clear_fixed_assignment(session, int(order.id or 0))
             order.delivery_status = DeliveryStatus.PENDING.value
         else:
             # «В работе» и «Доставлено» — обе стадии уже отгруженного груза.
             _apply_shipped_status(session, order, target_status)
+            if target_status == DeliveryStatus.DELIVERED.value:
+                # Закрытая заявка больше не участвует в плане: фиксация не нужна.
+                clear_fixed_assignment(session, int(order.id or 0))
         updated = True
 
     if not updated:
@@ -265,6 +320,9 @@ async def assign_client_order(
                 "допуск на грунт и состояние автопарка"
             ),
         )
+    # Маршрут фиксируется: он появится на карте и войдёт в следующий расчёт
+    # как готовый рейс, а машина не будет переиспользована.
+    save_fixed_assignment(session, assignment, order)
 
     return OrderAssignmentResponse(
         order_id=assignment.order_id,
@@ -279,6 +337,7 @@ async def assign_client_order(
         spoilage_loss_rub=assignment.spoilage_loss_rub,
         total_cost_rub=assignment.total_cost_rub,
         expected_freshness=assignment.expected_freshness,
+        geometry=[RoutePoint(lat=lat, lon=lon) for lat, lon in assignment.geometry],
     )
 
 

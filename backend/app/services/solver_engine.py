@@ -19,6 +19,7 @@ from app.services.solver_contract import (
     PlannedRoute,
     PlannedStop,
     PlannedWarning,
+    SolverFixedRoute,
     SolverInput,
     SolverLeg,
     SolverOrder,
@@ -227,6 +228,50 @@ def _collect_warnings(
     return warnings
 
 
+def _fixed_planned_routes(
+    fixed_routes: tuple[SolverFixedRoute, ...],
+    warehouses: dict[int, SolverWarehouse],
+) -> list[PlannedRoute]:
+    """Готовые рейсы фиксаций: один стоп, готовая геометрия и метрики."""
+
+    planned: list[PlannedRoute] = []
+    for fixed in fixed_routes:
+        warehouse = warehouses.get(fixed.warehouse_id)
+        origin = (
+            (warehouse.latitude, warehouse.longitude)
+            if warehouse is not None
+            else (fixed.order.latitude, fixed.order.longitude)
+        )
+        geometry = fixed.geometry or (origin, (fixed.order.latitude, fixed.order.longitude))
+        planned.append(
+            PlannedRoute(
+                truck_id=fixed.truck_id,
+                truck_name=fixed.truck_name,
+                warehouse_id=fixed.warehouse_id,
+                total_distance_km=round(fixed.distance_km, 3),
+                total_duration_min=round(fixed.duration_min, 2),
+                total_cost_rub=round(fixed.trip_cost_rub, 2),
+                geometry=tuple(geometry),
+                stops=(
+                    PlannedStop(
+                        order_id=fixed.order.order_id,
+                        truck_id=fixed.truck_id,
+                        warehouse_id=fixed.warehouse_id,
+                        client_id=fixed.order.client_id,
+                        product_id=fixed.order.product_id,
+                        sequence_order=1,
+                        shipped_kg=round(fixed.shipped_kg, 3),
+                        distance_km=round(fixed.distance_km, 3),
+                        eta_minutes=round(fixed.duration_min, 2),
+                        expected_freshness=round(fixed.expected_freshness, 6),
+                        trip_leg_cost_rub=round(fixed.trip_cost_rub, 2),
+                    ),
+                ),
+            )
+        )
+    return planned
+
+
 def run_solver(
     solver_input: SolverInput,
     time_limit_sec: float = DEFAULT_SOLVER_TIME_LIMIT_SEC,
@@ -234,9 +279,22 @@ def run_solver(
     """Build a plan: allocate loads, order stops, compute metrics and warnings."""
 
     started = perf_counter()
-    active_trucks = [truck for truck in solver_input.trucks if truck.status is TruckStatus.ACTIVE]
+    # Фиксированные маршруты — уже выбранные логистом рейсы: их заявки не
+    # перераспределяются, а машины не берутся в MILP повторно.
+    fixed_routes = solver_input.fixed_routes
+    fixed_truck_ids = {route.truck_id for route in fixed_routes}
+    fixed_order_ids = {route.order.order_id for route in fixed_routes}
+    active_trucks = [
+        truck
+        for truck in solver_input.trucks
+        if truck.status is TruckStatus.ACTIVE and truck.truck_id not in fixed_truck_ids
+    ]
     frozen = set(solver_input.frozen_order_ids)
-    orders = [order for order in solver_input.orders if order.order_id not in frozen]
+    orders = [
+        order
+        for order in solver_input.orders
+        if order.order_id not in frozen and order.order_id not in fixed_order_ids
+    ]
 
     index = LegIndex(solver_input.legs)
     allocation = allocate_loads(
@@ -294,12 +352,15 @@ def run_solver(
             merged_unmet[order_id] = merged_unmet.get(order_id, 0.0) + kilograms
         allocation = replace(allocation, unmet=merged_unmet)
     routes = list(limits.routes)
+    # Фиксированные рейсы добавляются после лимитов: они уже утверждены логистом.
+    routes.extend(_fixed_planned_routes(fixed_routes, warehouses))
 
+    metric_orders = [*orders, *(route.order for route in fixed_routes)]
     metrics = _collect_metrics(
         routes,
         allocation,
-        orders,
-        {truck.truck_id: truck.capacity_kg for truck in active_trucks},
+        metric_orders,
+        {truck.truck_id: truck.capacity_kg for truck in solver_input.trucks},
     )
     warnings = _collect_warnings(
         solver_input,

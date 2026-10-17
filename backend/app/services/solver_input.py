@@ -22,7 +22,9 @@ from app.models.erp_models import (
 )
 from app.schemas.enums import DeliveryStatus, RoadType, TruckStatus
 from app.services.distance_matrix import Coordinate, build_distance_matrix
+from app.services.order_assignment import assignment_geometry, load_fixed_assignments
 from app.services.solver_contract import (
+    SolverFixedRoute,
     SolverInput,
     SolverLeg,
     SolverOrder,
@@ -39,6 +41,52 @@ def remaining_demand_kg(order: ClientOrder) -> float:
     """Outstanding weight of an order after every recorded delivery."""
 
     return max(0.0, order.requested_kg - order.delivered_kg)
+
+
+def _fixed_routes(
+    session: Session,
+    orders: list[ClientOrder],
+    clients_by_id: dict[int, Client],
+    trucks: list[Truck],
+) -> tuple[SolverFixedRoute, ...]:
+    """Готовые рейсы из фиксаций: заявка «В работе» со своей машиной и складом."""
+
+    orders_by_id = {int(order.id or 0): order for order in orders}
+    trucks_by_id = {int(truck.id or 0): truck for truck in trucks}
+    routes: list[SolverFixedRoute] = []
+    for fixed in load_fixed_assignments(session):
+        order = orders_by_id.get(fixed.order_id)
+        client = clients_by_id.get(fixed.client_id)
+        if order is None or client is None:
+            continue
+        if order.delivery_status == DeliveryStatus.DELIVERED:
+            continue
+        truck = trucks_by_id.get(fixed.truck_id)
+        routes.append(
+            SolverFixedRoute(
+                truck_id=fixed.truck_id,
+                truck_name=truck.name if truck is not None else f"Машина {fixed.truck_id}",
+                warehouse_id=fixed.warehouse_id,
+                order=SolverOrder(
+                    order_id=fixed.order_id,
+                    client_id=fixed.client_id,
+                    product_id=fixed.product_id,
+                    requested_kg=fixed.shipped_kg,
+                    price_per_kg=order.purchase_price_rub,
+                    penalty_per_kg=order.unmet_penalty_rub,
+                    road_type=RoadType(client.road_type),
+                    latitude=client.lat,
+                    longitude=client.lon,
+                ),
+                shipped_kg=fixed.shipped_kg,
+                distance_km=fixed.distance_km,
+                duration_min=fixed.duration_min,
+                expected_freshness=fixed.expected_freshness,
+                trip_cost_rub=fixed.trip_cost_rub,
+                geometry=tuple(assignment_geometry(fixed)),
+            )
+        )
+    return tuple(routes)
 
 
 async def build_solver_input(
@@ -125,6 +173,7 @@ async def build_solver_input(
         if order.id is not None
         and order.delivery_status in (DeliveryStatus.IN_PROGRESS, DeliveryStatus.DELIVERED)
     )
+    fixed_routes = _fixed_routes(session, orders, clients_by_id, trucks)
 
     return SolverInput(
         products=tuple(
@@ -182,6 +231,7 @@ async def build_solver_input(
             if warehouse.id is not None
         ),
         frozen_order_ids=frozen_order_ids,
+        fixed_routes=fixed_routes,
         client_split_penalty_rub=settings.solver_client_split_penalty_rub,
         max_stops_per_trip=settings.solver_max_stops_per_trip,
         max_trip_hours=settings.solver_max_trip_hours,

@@ -26,6 +26,13 @@
           </span>
         </li>
       </ul>
+      <!-- Фиксированные рейсы заявок «В работе» рисуются пунктиром. -->
+      <ul v-if="hasFixedRoutes" class="legend-list legend-list--row">
+        <li class="legend-item">
+          <span class="legend-line legend-line--fixed" aria-hidden="true" />
+          Фиксированный рейс заявки «В работе»
+        </li>
+      </ul>
     </div>
   </aside>
 </template>
@@ -44,9 +51,13 @@ export interface RouteLegendItem {
   costRub: number
 }
 
-const props = withDefaults(defineProps<{ schedule?: RouteLegendItem[] }>(), {
-  schedule: () => [],
-})
+const props = withDefaults(
+  defineProps<{ schedule?: RouteLegendItem[]; hasFixedRoutes?: boolean }>(),
+  {
+    schedule: () => [],
+    hasFixedRoutes: false,
+  },
+)
 const hasRoutes = computed(() => props.schedule.length > 0)
 
 const pointLegend = [
@@ -158,6 +169,13 @@ const pointLegend = [
   width: 30px;
   height: 5px;
   border-radius: 3px;
+}
+
+/* Пунктир как на слое фиксированных рейсов заявок «В работе». */
+.legend-line--fixed {
+  height: 0;
+  border-top: 3px dashed #0f766e;
+  border-radius: 0;
 }
 
 .legend-route-text {

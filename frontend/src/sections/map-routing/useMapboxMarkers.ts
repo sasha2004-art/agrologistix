@@ -162,6 +162,39 @@ export function createMarkerManager(map: mapboxgl.Map): MarkerManager {
   }
 }
 
+export const FIXED_SOURCE_ID = 'fixed-routes'
+export const FIXED_LAYER_ID = 'fixed-routes-layer'
+/** Цвет пунктирных линий зафиксированных рейсов. */
+export const FIXED_ROUTE_COLOR = '#0f766e'
+
+/**
+ * Пунктирный слой фиксированных рейсов: заявки «В работе» держат ссылку на
+ * выбранную машину и маршрут, поэтому линии видны сразу после подбора.
+ */
+export function ensureFixedRouteLayers(map: mapboxgl.Map): void {
+  if (!map.getSource(FIXED_SOURCE_ID)) {
+    map.addSource(FIXED_SOURCE_ID, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+  }
+  if (!map.getLayer(FIXED_LAYER_ID)) {
+    map.addLayer({
+      id: FIXED_LAYER_ID,
+      type: 'line',
+      source: FIXED_SOURCE_ID,
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': FIXED_ROUTE_COLOR,
+        'line-width': 3,
+        'line-opacity': 0.85,
+        // Пунктир отличает фиксированный рейс от полилиний рассчитанного плана.
+        'line-dasharray': [2, 1.5],
+      },
+    })
+  }
+}
+
 export const ROUTE_SOURCE_ID = 'route-lines'
 export const ROUTE_LAYER_ID = 'route-lines-layer'
 
@@ -187,6 +220,28 @@ export function ensureRouteLayers(map: mapboxgl.Map): void {
       },
     })
   }
+}
+
+/** Геометрия фиксированных маршрутов: по пунктирной линии на каждую заявку. */
+export function setFixedRouteGeometry(
+  map: mapboxgl.Map,
+  assignments: { order_id: number; truck_name: string; geometry: { lat: number; lon: number }[] }[],
+): void {
+  const source = map.getSource(FIXED_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+  if (!source) return
+  source.setData({
+    type: 'FeatureCollection',
+    features: assignments
+      .filter((item) => item.geometry.length > 1)
+      .map((item) => ({
+        type: 'Feature' as const,
+        properties: { order_id: item.order_id, truck_name: item.truck_name },
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: item.geometry.map((point) => [point.lon, point.lat] as [number, number]),
+        },
+      })),
+  })
 }
 
 /** Геометрия рейсов из `SolverResponse`: одна линия на машину, цвет — из палитры UI. */

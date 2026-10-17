@@ -103,6 +103,27 @@ class SolverLeg:
 
 
 @dataclass(frozen=True, slots=True)
+class SolverFixedRoute:
+    """Готовый рейс из фиксации заявки «В работе».
+
+    Такой маршрут уже выбран логистом: движок не перераспределяет его заявку и
+    не берёт его машину повторно, но целиком включает рейс в план, метрики и
+    геометрию ответа.
+    """
+
+    truck_id: int
+    truck_name: str
+    warehouse_id: int
+    order: SolverOrder
+    shipped_kg: float
+    distance_km: float
+    duration_min: float
+    expected_freshness: float
+    trip_cost_rub: float
+    geometry: tuple[tuple[float, float], ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True, slots=True)
 class SolverWeather:
     temperature_c: float
     precipitation_mm: float
@@ -119,6 +140,8 @@ class SolverInput:
     weather: SolverWeather
     warehouses: tuple[SolverWarehouse, ...] = field(default_factory=tuple)
     frozen_order_ids: tuple[int, ...] = field(default_factory=tuple)
+    # Зафиксированные маршруты заявок «В работе»: входят в план готовыми рейсами.
+    fixed_routes: tuple[SolverFixedRoute, ...] = field(default_factory=tuple)
     # Price of splitting one client over several trucks (soft grouping mode).
     client_split_penalty_rub: float = 0.0
     # Trip limits: stops per truck, shift length and a freshness floor.

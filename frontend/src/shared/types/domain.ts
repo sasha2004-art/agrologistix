@@ -90,8 +90,8 @@ export interface Truck {
   status: TruckStatus
 }
 
-/** erp_schemas.OrderAssignmentResponse — оптимальная машина и маршрут для заявки. */
-export interface OrderAssignment {
+/** Общие поля подобранного и зафиксированного маршрута заявки. */
+export interface AssignmentInfo {
   order_id: number
   truck_id: number
   truck_name: string
@@ -101,9 +101,21 @@ export interface OrderAssignment {
   distance_km: number
   duration_min: number
   trip_cost_rub: number
+  expected_freshness: number
+  /** Полилиния для слоя фиксированных маршрутов на карте. */
+  geometry: RoutePoint[]
+}
+
+/** erp_schemas.OrderAssignmentResponse — оптимальная машина и маршрут для заявки. */
+export interface OrderAssignment extends AssignmentInfo {
   spoilage_loss_rub: number
   total_cost_rub: number
-  expected_freshness: number
+}
+
+/** erp_schemas.FixedAssignmentResponse — сохранённый маршрут заявки «В работе». */
+export interface FixedAssignment extends AssignmentInfo {
+  client_id: number
+  product_id: number
 }
 
 /** erp_schemas.ClientOrderPatch — хотя бы одно поле обязательно */
@@ -130,6 +142,8 @@ export interface ERPState {
   clients: Client[]
   orders: ClientOrder[]
   trucks: Truck[]
+  /** Зафиксированные маршруты заявок «В работе» (для карты и подсказок). */
+  fixed_assignments: FixedAssignment[]
 }
 
 /** erp_schemas.DemoResetResponse */

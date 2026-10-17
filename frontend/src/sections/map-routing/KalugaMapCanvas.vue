@@ -21,7 +21,7 @@
         <span>Загружаем карту…</span>
       </div>
       <!-- Легенда — постоянный оверлей поверх карты. -->
-      <MapLegend :schedule="solver.routeLegend" />
+      <MapLegend :schedule="solver.routeLegend" :has-fixed-routes="hasFixedRoutes" />
     </div>
   </section>
 </template>
@@ -37,11 +37,14 @@ import {
   OBNINSK_CENTER,
   buildMapPoints,
   createMarkerManager,
+  ensureFixedRouteLayers,
   ensureRouteLayers,
+  setFixedRouteGeometry,
   setRouteGeometry,
   type MapPoint,
   type MarkerManager,
 } from './useMapboxMarkers'
+import { useAssignmentStore } from '@/sections/erp-dashboard/useAssignmentStore'
 import { useErpStore } from '@/sections/erp-dashboard/useErpStore'
 import { useSolverStore } from '@/sections/erp-dashboard/useSolverStore'
 import type { ClientPlanInfo } from './useMapboxMarkers'
@@ -52,6 +55,7 @@ const props = withDefaults(defineProps<{ routes?: Route[] }>(), { routes: () => 
 
 const erp = useErpStore()
 const solver = useSolverStore()
+const assignments = useAssignmentStore()
 const container = ref<HTMLDivElement | null>(null)
 const mapReady = ref(false)
 const mapFailed = ref(false)
@@ -86,6 +90,10 @@ const planByOrder = computed(() => {
 
 const points = computed<MapPoint[]>(() =>
   buildMapPoints(erp.warehouses, erp.clients, erp.orders, erp.products, planByOrder.value),
+)
+const fixedAssignments = computed(() => Object.values(assignments.assignments))
+const hasFixedRoutes = computed(() =>
+  fixedAssignments.value.some((item) => item.geometry.length > 1),
 )
 const showMap = computed(() => accessToken.length > 0 && !mapFailed.value)
 const fallbackReason = computed(() => {
@@ -138,9 +146,11 @@ onMounted(() => {
     mapReady.value = true
     applySerenityPalette(map)
     ensureRouteLayers(map)
+    ensureFixedRouteLayers(map)
     markers = createMarkerManager(map)
     markers.sync(points.value)
     drawRoutes()
+    drawFixedRoutes()
   })
 
   map.on('error', (event) => {
@@ -187,10 +197,24 @@ function drawRoutes(): void {
   setRouteGeometry(map, props.routes ?? [], (_truckId, index) => routeColor(index))
 }
 
+/** Пунктирные линии фиксированных маршрутов заявок «В работе». */
+function drawFixedRoutes(): void {
+  if (!map) return
+  setFixedRouteGeometry(map, fixedAssignments.value)
+}
+
 watch(
   () => props.routes,
   () => {
     if (mapReady.value) drawRoutes()
+  },
+  { deep: true },
+)
+
+watch(
+  () => assignments.assignments,
+  () => {
+    if (mapReady.value) drawFixedRoutes()
   },
   { deep: true },
 )
