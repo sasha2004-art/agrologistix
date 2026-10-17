@@ -4,8 +4,10 @@
       <div>
         <h2 class="tab-title">Заявки B2B-клиентов</h2>
         <p class="tab-subtitle">
-          Объём, закупочная цена и тип подъездной дороги. Статус меняется по
-          <span class="mono">order_id</span>.
+          Объём, закупочная цена и тип подъездной дороги. Цена и статус сохраняются сразу (<span
+            class="mono"
+            >PATCH /erp/orders/&#123;id&#125;</span
+          >) и перечитываются с сервера.
         </p>
       </div>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-clipboard-list-outline">
@@ -66,7 +68,17 @@
             </td>
             <td>{{ row.product.name }}</td>
             <td class="text-right mono">{{ formatKg(row.order.requested_kg) }}</td>
-            <td class="text-right mono">{{ formatRub(row.order.purchase_price_rub) }}</td>
+            <td class="text-right">
+              <EditableNumberField
+                :model-value="row.order.purchase_price_rub"
+                :min="1"
+                :step="10"
+                suffix="₽"
+                :loading="erp.isPending(`order:${row.order.id}`)"
+                :aria-label="`Заявка №${row.order.id}: цена за кг в рублях`"
+                @commit="(value) => savePrice(row, value)"
+              />
+            </td>
             <td class="text-right mono">{{ formatRub(row.order.unmet_penalty_rub) }}</td>
             <td>
               <v-chip
@@ -78,7 +90,7 @@
               </v-chip>
             </td>
             <td>
-              <v-chip
+              <v-btn
                 size="small"
                 variant="tonal"
                 :color="row.order.delivery_status === 'delivered' ? 'success' : 'warning'"
@@ -87,17 +99,21 @@
                     ? 'mdi-check-circle-outline'
                     : 'mdi-clock-outline'
                 "
+                :loading="erp.isPending(`order:${row.order.id}`)"
+                :aria-pressed="row.order.delivery_status === 'delivered'"
+                :aria-label="`Заявка №${row.order.id}: переключить статус доставки`"
+                @click="toggleDelivered(row)"
               >
                 {{ row.order.delivery_status === 'delivered' ? 'Доставлено' : 'В работе' }}
-              </v-chip>
+              </v-btn>
             </td>
           </tr>
         </tbody>
       </v-table>
 
       <p class="tab-footnote">
-        Пока таблица только читает состояние. Редактирование цены и отметка «Доставлено» — Day 4
-        (<span class="mono">PATCH /erp/orders/&#123;id&#125;</span>).
+        Статус меняется на уровне заявки (<span class="mono">order_id</span>), а не клиента: у
+        одного клиента может быть несколько культур и рейсов.
       </p>
     </StatePanel>
   </div>
@@ -105,13 +121,24 @@
 
 <script setup lang="ts">
 import StatePanel from '@/shared/components/StatePanel.vue'
-import { useErpStore } from './useErpStore'
+import EditableNumberField from '@/shared/components/EditableNumberField.vue'
+import { useErpStore, type OrderRow } from './useErpStore'
 import { formatKg, formatRub } from '@/shared/utils/format'
+import type { DeliveryStatus } from '@/shared/types/domain'
 
 const erp = useErpStore()
 
 function reload(): void {
   void erp.loadState({ force: true })
+}
+
+function savePrice(row: OrderRow, value: number): void {
+  void erp.updateOrder(row.order.id, { purchase_price_rub: value })
+}
+
+function toggleDelivered(row: OrderRow): void {
+  const next: DeliveryStatus = row.order.delivery_status === 'delivered' ? 'pending' : 'delivered'
+  void erp.updateOrder(row.order.id, { delivery_status: next })
 }
 </script>
 
@@ -205,7 +232,7 @@ function reload(): void {
 
 /* Таблица шире панели — даём горизонтальный скролл вместо сжатия колонок. */
 .erp-table :deep(.v-table__wrapper > table) {
-  min-width: 740px;
+  min-width: 900px;
 }
 
 .cell-note {

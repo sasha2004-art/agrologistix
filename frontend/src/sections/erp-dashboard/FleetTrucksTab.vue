@@ -91,25 +91,29 @@
               </div>
             </td>
             <td>
-              <v-chip
+              <v-btn
                 size="small"
                 variant="tonal"
                 :color="truck.status === 'active' ? 'success' : 'error'"
                 :prepend-icon="
                   truck.status === 'active' ? 'mdi-check-circle-outline' : 'mdi-wrench-outline'
                 "
+                :loading="erp.isPending(`truck:${truck.id}`)"
+                :aria-pressed="truck.status === 'active'"
+                :aria-label="`${truck.name}: переключить состояние машины`"
+                @click="toggleTruck(truck)"
               >
                 {{ truck.status === 'active' ? 'В строю' : 'Сломана' }}
-              </v-chip>
+              </v-btn>
             </td>
           </tr>
         </tbody>
       </v-table>
 
       <p class="tab-footnote">
-        Переключатель «В строю / Сломана» — Day 4 (<span class="mono"
+        Сломанная машина сохраняется на сервере (<span class="mono"
           >PATCH /erp/trucks/&#123;id&#125;</span
-        >).
+        >) и исключается из расчёта поставок.
       </p>
     </StatePanel>
   </div>
@@ -119,11 +123,17 @@
 import StatePanel from '@/shared/components/StatePanel.vue'
 import { useErpStore } from './useErpStore'
 import { formatKg, formatRub, formatSpeed } from '@/shared/utils/format'
+import type { Truck, TruckStatus } from '@/shared/types/domain'
 
 const erp = useErpStore()
 
 function reload(): void {
   void erp.loadState({ force: true })
+}
+
+function toggleTruck(truck: Truck): void {
+  const status: TruckStatus = truck.status === 'active' ? 'broken' : 'active'
+  void erp.updateTruck(truck.id, { status })
 }
 </script>
 
@@ -217,7 +227,7 @@ function reload(): void {
 
 /* Таблица шире панели — даём горизонтальный скролл вместо сжатия колонок. */
 .erp-table :deep(.v-table__wrapper > table) {
-  min-width: 800px;
+  min-width: 860px;
 }
 
 .row-broken {

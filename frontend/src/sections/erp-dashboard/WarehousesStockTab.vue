@@ -45,13 +45,18 @@
               <span class="font-weight-medium">{{ row.warehouse.name }}</span>
               <span class="cell-note">{{ row.warehouse.address }}</span>
             </td>
-            <td
-              v-for="cell in row.cells"
-              :key="cell.product.id"
-              class="text-right mono"
-              :class="{ 'value-empty': cell.available_kg === 0 }"
-            >
-              {{ formatKg(cell.available_kg) }}
+            <td v-for="cell in row.cells" :key="cell.product.id" class="text-right">
+              <EditableNumberField
+                v-if="cell.stock"
+                :model-value="cell.available_kg"
+                :min="0"
+                :step="100"
+                suffix="кг"
+                :loading="erp.isPending(`stock:${cell.stock.id}`)"
+                :aria-label="`${row.warehouse.name}, ${cell.product.name}: остаток в кг`"
+                @commit="(value) => saveStock(cell, value)"
+              />
+              <span v-else class="mono value-empty">—</span>
             </td>
             <td class="text-right mono font-weight-medium">{{ formatKg(row.total_kg) }}</td>
           </tr>
@@ -59,9 +64,8 @@
       </v-table>
 
       <p class="tab-footnote">
-        Остаток можно будет изменить через
-        <span class="mono">PATCH /erp/stocks/&#123;id&#125;</span>
-        на Day 4.
+        Остаток сохраняется сразу (<span class="mono">PATCH /erp/stocks/&#123;id&#125;</span>) и
+        учитывается солвером при расчёте.
       </p>
     </StatePanel>
   </div>
@@ -69,13 +73,19 @@
 
 <script setup lang="ts">
 import StatePanel from '@/shared/components/StatePanel.vue'
-import { useErpStore } from './useErpStore'
+import EditableNumberField from '@/shared/components/EditableNumberField.vue'
+import { useErpStore, type StockMatrixCell } from './useErpStore'
 import { formatKg } from '@/shared/utils/format'
 
 const erp = useErpStore()
 
 function reload(): void {
   void erp.loadState({ force: true })
+}
+
+function saveStock(cell: StockMatrixCell, value: number): void {
+  if (!cell.stock) return
+  void erp.updateStock(cell.stock.id, { available_kg: value })
 }
 </script>
 
@@ -169,7 +179,7 @@ function reload(): void {
 
 /* Таблица шире панели — даём горизонтальный скролл вместо сжатия колонок. */
 .erp-table :deep(.v-table__wrapper > table) {
-  min-width: 560px;
+  min-width: 760px;
 }
 
 .cell-code,

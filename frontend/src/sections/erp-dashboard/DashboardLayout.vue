@@ -37,17 +37,6 @@
         <p class="drawer-subtitle">Состояние загружено: {{ loadedAtText }}</p>
       </header>
 
-      <v-alert
-        v-if="erp.hasError && erp.state"
-        type="warning"
-        variant="tonal"
-        density="compact"
-        role="alert"
-        class="mb-3"
-      >
-        {{ erp.errorMessage }}
-      </v-alert>
-
       <v-tabs v-model="tab" density="comfortable" show-arrows class="dash-tabs">
         <v-tab value="erp">Склады и заявки</v-tab>
         <v-tab value="fleet">Автопарк</v-tab>
