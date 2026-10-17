@@ -79,7 +79,9 @@ async def optimize(
     settings: SettingsDependency,
 ) -> SolverResponse:
     weather = await get_current_weather(session, settings, account_id=context.account_id)
-    solver_input = await build_solver_input(session, settings, weather, account_id=context.account_id)
+    solver_input = await build_solver_input(
+        session, settings, weather, account_id=context.account_id
+    )
     outcome = await solve_async(solver_input, settings.solver_time_limit_sec)
     run_id = _persist_run(session, outcome, weather, account_id=context.account_id)
     return to_solver_response(outcome, run_id=run_id)

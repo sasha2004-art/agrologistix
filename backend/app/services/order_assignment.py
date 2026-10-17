@@ -86,7 +86,9 @@ async def assign_order(
     warehouses = {
         int(warehouse.id or 0): warehouse
         for warehouse in session.exec(
-            select(Warehouse).where(Warehouse.account_id == account_id, Warehouse.is_active.is_(True))
+            select(Warehouse).where(
+                Warehouse.account_id == account_id, Warehouse.is_active.is_(True)
+            )
         ).all()
     }
     stocks = session.exec(
@@ -109,7 +111,9 @@ async def assign_order(
     reserved_stock: dict[tuple[int, int], float] = {}
     other_orders = {
         int(item.id or 0): item
-        for item in session.exec(select(ClientOrder).where(ClientOrder.account_id == account_id)).all()
+        for item in session.exec(
+            select(ClientOrder).where(ClientOrder.account_id == account_id)
+        ).all()
         if item.id is not None
     }
     current_order_id = int(order.id or 0)

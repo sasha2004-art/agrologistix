@@ -5,7 +5,15 @@ from dataclasses import dataclass
 from sqlalchemy import func
 from sqlmodel import Session, delete, select
 
-from app.models.erp_models import Account, Client, ClientOrder, Product, Truck, Warehouse, WarehouseStock
+from app.models.erp_models import (
+    Account,
+    Client,
+    ClientOrder,
+    Product,
+    Truck,
+    Warehouse,
+    WarehouseStock,
+)
 from app.models.run_models import (
     DeliveredOrderStock,
     FixedAssignment,
@@ -26,13 +34,41 @@ ACCOUNT_SEED: tuple[tuple[int, str, str], ...] = (
 )
 
 WAREHOUSE_SEED: tuple[dict[str, object], ...] = (
-    {"name": "Хаб Обнинск", "lat": 55.0968, "lon": 36.6103, "address": "г. Обнинск, ул. Северная, 1"},
-    {"name": "Склад Детчино", "lat": 54.8083, "lon": 36.2333, "address": "с. Детчино, ул. Агропромышленная, 7"},
+    {
+        "name": "Хаб Обнинск",
+        "lat": 55.0968,
+        "lon": 36.6103,
+        "address": "г. Обнинск, ул. Северная, 1",
+    },
+    {
+        "name": "Склад Детчино",
+        "lat": 54.8083,
+        "lon": 36.2333,
+        "address": "с. Детчино, ул. Агропромышленная, 7",
+    },
 )
 PRODUCT_SEED: tuple[dict[str, object], ...] = (
-    {"code": "strawberry", "name": "Клубника садовая", "base_spoilage_rate": 0.08, "optimal_temp_c": 4.0, "base_cost_rub": 90.0},
-    {"code": "tomato", "name": "Томаты тепличные", "base_spoilage_rate": 0.035, "optimal_temp_c": 10.0, "base_cost_rub": 47.5},
-    {"code": "cucumber", "name": "Огурцы короткоплодные", "base_spoilage_rate": 0.02, "optimal_temp_c": 10.0, "base_cost_rub": 35.0},
+    {
+        "code": "strawberry",
+        "name": "Клубника садовая",
+        "base_spoilage_rate": 0.08,
+        "optimal_temp_c": 4.0,
+        "base_cost_rub": 90.0,
+    },
+    {
+        "code": "tomato",
+        "name": "Томаты тепличные",
+        "base_spoilage_rate": 0.035,
+        "optimal_temp_c": 10.0,
+        "base_cost_rub": 47.5,
+    },
+    {
+        "code": "cucumber",
+        "name": "Огурцы короткоплодные",
+        "base_spoilage_rate": 0.02,
+        "optimal_temp_c": 10.0,
+        "base_cost_rub": 35.0,
+    },
 )
 STOCK_SEED: tuple[tuple[str, str, float, float], ...] = (
     ("Хаб Обнинск", "strawberry", 4500.0, 0.97),
@@ -43,14 +79,62 @@ STOCK_SEED: tuple[tuple[str, str, float, float], ...] = (
     ("Склад Детчино", "cucumber", 3500.0, 0.78),
 )
 CLIENT_SEED: tuple[dict[str, object], ...] = (
-    {"name": "ВкусВилл", "lat": 54.5138, "lon": 36.2612, "road_type": RoadType.ASPHALT.value, "address": "г. Калуга, ул. Московская, 300"},
-    {"name": "Агро-Рынок", "lat": 55.0147, "lon": 36.4719, "road_type": RoadType.ASPHALT.value, "address": "г. Малоярославец, ул. Плеханова, 12"},
-    {"name": "Кооператив Боровск", "lat": 55.2075, "lon": 36.4850, "road_type": RoadType.DIRT.value, "address": "г. Боровск, ул. Ленина, 44"},
-    {"name": "Пятёрочка", "lat": 55.1797, "lon": 36.6597, "road_type": RoadType.ASPHALT.value, "address": "г. Балабаново, ул. Гагарина, 8"},
-    {"name": "Эко-база", "lat": 54.7200, "lon": 37.1800, "road_type": RoadType.DIRT.value, "address": "г. Таруса, ул. Окская, 3"},
-    {"name": "Ферма Заречье", "lat": 54.9500, "lon": 36.4000, "road_type": RoadType.ASPHALT.value, "address": "Калужская обл., д. Заречье"},
-    {"name": "Ресторан Калуга", "lat": 54.5500, "lon": 36.3200, "road_type": RoadType.ASPHALT.value, "address": "г. Калуга, ул. Театральная, 12"},
-    {"name": "Садовая база", "lat": 55.2600, "lon": 36.7000, "road_type": RoadType.DIRT.value, "address": "Боровский р-н, д. Ворсино"},
+    {
+        "name": "ВкусВилл",
+        "lat": 54.5138,
+        "lon": 36.2612,
+        "road_type": RoadType.ASPHALT.value,
+        "address": "г. Калуга, ул. Московская, 300",
+    },
+    {
+        "name": "Агро-Рынок",
+        "lat": 55.0147,
+        "lon": 36.4719,
+        "road_type": RoadType.ASPHALT.value,
+        "address": "г. Малоярославец, ул. Плеханова, 12",
+    },
+    {
+        "name": "Кооператив Боровск",
+        "lat": 55.2075,
+        "lon": 36.4850,
+        "road_type": RoadType.DIRT.value,
+        "address": "г. Боровск, ул. Ленина, 44",
+    },
+    {
+        "name": "Пятёрочка",
+        "lat": 55.1797,
+        "lon": 36.6597,
+        "road_type": RoadType.ASPHALT.value,
+        "address": "г. Балабаново, ул. Гагарина, 8",
+    },
+    {
+        "name": "Эко-база",
+        "lat": 54.7200,
+        "lon": 37.1800,
+        "road_type": RoadType.DIRT.value,
+        "address": "г. Таруса, ул. Окская, 3",
+    },
+    {
+        "name": "Ферма Заречье",
+        "lat": 54.9500,
+        "lon": 36.4000,
+        "road_type": RoadType.ASPHALT.value,
+        "address": "Калужская обл., д. Заречье",
+    },
+    {
+        "name": "Ресторан Калуга",
+        "lat": 54.5500,
+        "lon": 36.3200,
+        "road_type": RoadType.ASPHALT.value,
+        "address": "г. Калуга, ул. Театральная, 12",
+    },
+    {
+        "name": "Садовая база",
+        "lat": 55.2600,
+        "lon": 36.7000,
+        "road_type": RoadType.DIRT.value,
+        "address": "Боровский р-н, д. Ворсино",
+    },
 )
 ORDER_SEED: tuple[tuple[int, str, str, float, float, float], ...] = (
     (1, "ВкусВилл", "strawberry", 400.0, 160.0, 60.0),
@@ -60,9 +144,42 @@ ORDER_SEED: tuple[tuple[int, str, str, float, float, float], ...] = (
     (9, "Эко-база", "cucumber", 300.0, 57.5, 27.5),
 )
 TRUCK_SEED: tuple[dict[str, object], ...] = (
-    {"name": "Volvo FH16", "plate_number": "А001АА40", "warehouse": "Хаб Обнинск", "capacity_kg": 10000.0, "cruise_speed_kmh": 75.0, "cost_per_km_rub": 29.0, "fixed_trip_cost_rub": 4250.0, "has_reefer": True, "has_insulation": False, "can_use_dirt": False},
-    {"name": "ГАЗон NEXT", "plate_number": "В202ВВ40", "warehouse": "Хаб Обнинск", "capacity_kg": 3000.0, "cruise_speed_kmh": 62.0, "cost_per_km_rub": 16.0, "fixed_trip_cost_rub": 1900.0, "has_reefer": True, "has_insulation": False, "can_use_dirt": True},
-    {"name": "КАМАЗ Компас", "plate_number": "С303СС40", "warehouse": "Склад Детчино", "capacity_kg": 5000.0, "cruise_speed_kmh": 70.0, "cost_per_km_rub": 20.0, "fixed_trip_cost_rub": 2300.0, "has_reefer": False, "has_insulation": True, "can_use_dirt": True},
+    {
+        "name": "Volvo FH16",
+        "plate_number": "А001АА40",
+        "warehouse": "Хаб Обнинск",
+        "capacity_kg": 10000.0,
+        "cruise_speed_kmh": 75.0,
+        "cost_per_km_rub": 29.0,
+        "fixed_trip_cost_rub": 4250.0,
+        "has_reefer": True,
+        "has_insulation": False,
+        "can_use_dirt": False,
+    },
+    {
+        "name": "ГАЗон NEXT",
+        "plate_number": "В202ВВ40",
+        "warehouse": "Хаб Обнинск",
+        "capacity_kg": 3000.0,
+        "cruise_speed_kmh": 62.0,
+        "cost_per_km_rub": 16.0,
+        "fixed_trip_cost_rub": 1900.0,
+        "has_reefer": True,
+        "has_insulation": False,
+        "can_use_dirt": True,
+    },
+    {
+        "name": "КАМАЗ Компас",
+        "plate_number": "С303СС40",
+        "warehouse": "Склад Детчино",
+        "capacity_kg": 5000.0,
+        "cruise_speed_kmh": 70.0,
+        "cost_per_km_rub": 20.0,
+        "fixed_trip_cost_rub": 2300.0,
+        "has_reefer": False,
+        "has_insulation": True,
+        "can_use_dirt": True,
+    },
 )
 
 
@@ -80,7 +197,9 @@ class SeedSummary:
 def _count(session: Session, model: type, account_id: int) -> int:
     return int(
         session.exec(
-            select(func.count()).select_from(model).where(getattr(model, "account_id") == account_id)
+            select(func.count())
+            .select_from(model)
+            .where(model.account_id == account_id)
         ).one()
     )
 
@@ -212,7 +331,9 @@ def _ensure_accounts(session: Session) -> dict[int, Account]:
                 changed = True
     if changed:
         session.commit()
-        accounts = {int(account.id or 0): account for account in session.exec(select(Account)).all()}
+        accounts = {
+            int(account.id or 0): account for account in session.exec(select(Account)).all()
+        }
     return accounts
 
 
@@ -221,7 +342,9 @@ def seed_database(session: Session) -> SeedSummary:
 
     accounts = _ensure_accounts(session)
     for account_id, *_ in ACCOUNT_SEED:
-        if session.exec(select(Warehouse.id).where(Warehouse.account_id == account_id).limit(1)).first():
+        if session.exec(
+            select(Warehouse.id).where(Warehouse.account_id == account_id).limit(1)
+        ).first():
             continue
         account = accounts[account_id]
         _insert_reference_data(session, account)
@@ -232,7 +355,14 @@ def seed_database(session: Session) -> SeedSummary:
 def reset_demo_database(session: Session, *, account_id: int) -> SeedSummary:
     """Drop and rebuild demo state only for the selected account."""
 
-    for model in (RouteStop, SimulationRun, FixedAssignment, RouteCache, WeatherOverrideState, DeliveredOrderStock):
+    for model in (
+        RouteStop,
+        SimulationRun,
+        FixedAssignment,
+        RouteCache,
+        WeatherOverrideState,
+        DeliveredOrderStock,
+    ):
         session.exec(delete(model).where(model.account_id == account_id))
     for model in (ClientOrder, WarehouseStock, Truck, Client, Product, Warehouse):
         session.exec(delete(model).where(model.account_id == account_id))

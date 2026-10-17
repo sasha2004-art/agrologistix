@@ -59,7 +59,7 @@ def _require[EntityT: SQLModel](
 ) -> EntityT:
     """Возвращает сущность по id или 404 с человекочитаемым названием."""
     entity = session.exec(
-        select(model).where(getattr(model, "account_id") == account_id, model.id == entity_id)
+        select(model).where(model.account_id == account_id, model.id == entity_id)
     ).first()
     if entity is None:
         raise HTTPException(

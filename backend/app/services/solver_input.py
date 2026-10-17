@@ -123,11 +123,15 @@ async def build_solver_input(
         )
         .order_by(WarehouseStock.id)
     ).all()
-    clients = session.exec(select(Client).where(Client.account_id == account_id).order_by(Client.id)).all()
+    clients = session.exec(
+        select(Client).where(Client.account_id == account_id).order_by(Client.id)
+    ).all()
     orders = session.exec(
         select(ClientOrder).where(ClientOrder.account_id == account_id).order_by(ClientOrder.id)
     ).all()
-    trucks = session.exec(select(Truck).where(Truck.account_id == account_id).order_by(Truck.id)).all()
+    trucks = session.exec(
+        select(Truck).where(Truck.account_id == account_id).order_by(Truck.id)
+    ).all()
 
     clients_by_id = {client.id: client for client in clients}
     # Only points that can appear in the plan are resolved through the distance
@@ -153,9 +157,7 @@ async def build_solver_input(
     legs: list[SolverLeg] = []
     if unique_points:
         coordinates = [Coordinate(lat=lat, lon=lon) for lat, lon in unique_points]
-        matrix = await build_distance_matrix(
-            session, coordinates, settings, account_id=account_id
-        )
+        matrix = await build_distance_matrix(session, coordinates, settings, account_id=account_id)
         for row_index in range(len(coordinates)):
             for column_index in range(len(coordinates)):
                 if row_index == column_index:

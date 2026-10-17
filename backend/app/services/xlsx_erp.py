@@ -115,7 +115,9 @@ def write_trucks_sheet(sheet: Worksheet, session: Session, *, account_id: int) -
 
     warehouses = {
         warehouse.id: warehouse
-        for warehouse in session.exec(select(Warehouse).where(Warehouse.account_id == account_id)).all()
+        for warehouse in session.exec(
+            select(Warehouse).where(Warehouse.account_id == account_id)
+        ).all()
     }
     for truck in session.exec(
         select(Truck).where(Truck.account_id == account_id).order_by(Truck.id)
@@ -148,7 +150,9 @@ def write_stocks_sheet(sheet: Worksheet, session: Session, *, account_id: int) -
     warehouses = session.exec(
         select(Warehouse).where(Warehouse.account_id == account_id).order_by(Warehouse.id)
     ).all()
-    stocks = session.exec(select(WarehouseStock).where(WarehouseStock.account_id == account_id)).all()
+    stocks = session.exec(
+        select(WarehouseStock).where(WarehouseStock.account_id == account_id)
+    ).all()
     available = {(stock.warehouse_id, stock.product_id): stock.available_kg for stock in stocks}
 
     headers = ["Склад", "Адрес", *[f"{product.name}, кг" for product in products], "Итого, кг"]

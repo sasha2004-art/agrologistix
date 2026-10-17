@@ -258,7 +258,9 @@ def _names(
     orders = {
         order.id: order
         for order in session.exec(
-            select(ClientOrder).where(ClientOrder.account_id == account_id, ClientOrder.id.in_(order_ids))
+            select(ClientOrder).where(
+                ClientOrder.account_id == account_id, ClientOrder.id.in_(order_ids)
+            )
         ).all()
     }
     stock_rows = session.exec(
@@ -276,7 +278,9 @@ def load_export_run(session: Session, run_id: int, *, account_id: int) -> Export
     """Read a stored run with its stops and related names, or ``None``."""
 
     run = session.exec(
-        select(SimulationRun).where(SimulationRun.account_id == account_id, SimulationRun.id == run_id)
+        select(SimulationRun).where(
+            SimulationRun.account_id == account_id, SimulationRun.id == run_id
+        )
     ).first()
     if run is None:
         return None

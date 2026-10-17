@@ -160,9 +160,7 @@ def _apply_shipped_status(session: Session, order: ClientOrder, target_status: s
     # склада, а не с последнего плана. Иначе работаем как раньше — по плану.
     consumed = _fixed_consumption(
         session, order, remaining_kg, account_id=order.account_id
-    ) or _plan_consumption(
-        session, order, remaining_kg, account_id=order.account_id
-    )
+    ) or _plan_consumption(session, order, remaining_kg, account_id=order.account_id)
     if not consumed:
         order.delivered_kg = order.requested_kg
         order.delivery_status = target_status
@@ -226,7 +224,7 @@ def _get_or_404[EntityT: SQLModel](
     session: Session, model: type[EntityT], entity_id: int, label: str, *, account_id: int
 ) -> EntityT:
     entity = session.exec(
-        select(model).where(getattr(model, "account_id") == account_id, model.id == entity_id)
+        select(model).where(model.account_id == account_id, model.id == entity_id)
     ).first()
     if entity is None:
         raise HTTPException(
@@ -260,7 +258,9 @@ def read_erp_state(context: AccessContext, session: SessionDependency) -> ERPSta
     orders = session.exec(
         select(ClientOrder).where(ClientOrder.account_id == account_id).order_by(ClientOrder.id)
     ).all()
-    trucks = session.exec(select(Truck).where(Truck.account_id == account_id).order_by(Truck.id)).all()
+    trucks = session.exec(
+        select(Truck).where(Truck.account_id == account_id).order_by(Truck.id)
+    ).all()
     fixed_assignments = [
         _fixed_assignment_response(session, item)
         for item in load_fixed_assignments(session, account_id=account_id)
@@ -433,9 +433,7 @@ def patch_warehouse_stock(
     _context: AccessContext,
     session: SessionDependency,
 ) -> WarehouseStockResponse:
-    stock = _get_or_404(
-        session, WarehouseStock, stock_id, "Партия", account_id=_context.account_id
-    )
+    stock = _get_or_404(session, WarehouseStock, stock_id, "Партия", account_id=_context.account_id)
     stock.available_kg = payload.available_kg
 
     session.add(stock)

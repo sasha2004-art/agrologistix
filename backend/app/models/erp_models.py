@@ -34,9 +34,7 @@ class Product(SQLModel, table=True):
     """Perishable crop reference with its spoilage rate."""
 
     __tablename__ = "product"
-    __table_args__ = (
-        UniqueConstraint("account_id", "code", name="uq_product_account_code"),
-    )
+    __table_args__ = (UniqueConstraint("account_id", "code", name="uq_product_account_code"),)
 
     id: int | None = Field(default=None, primary_key=True)
     account_id: int = Field(foreign_key="account.id", index=True)
