@@ -3,6 +3,7 @@
  *
  * Маркеры создаются как DOM-элементы (кнопки) с текстовыми aria-label и popup,
  * поэтому тип дороги и статус доставки передаются не только цветом.
+ * Наведение показывает краткую подсказку, клик — полную карточку точки.
  */
 
 import mapboxgl from 'mapbox-gl'
@@ -159,7 +160,9 @@ export function createMarkerElement(point: MapPoint): HTMLButtonElement {
   element.classList.add(...markerModifiers(point))
   element.classList.add('map-marker')
   element.setAttribute('aria-label', markerLabel(point))
-  element.title = markerLabel(point)
+  // Собственная подсказка при наведении заменяет нативный title,
+  // иначе браузер показывал бы вторую, всплывающую с задержкой.
+  element.removeAttribute('title')
   element.innerHTML = `<span class="mdi ${markerIcon(point)}" aria-hidden="true"></span>`
   return element
 }
@@ -195,6 +198,37 @@ export function popupHtml(point: MapPoint): string {
   return `<div class="map-popup"><strong>${escapeHtml(point.name)}</strong>${rows.join('')}</div>`
 }
 
+/**
+ * Краткая подсказка при наведении: имя точки и пара ключевых фактов.
+ * Полная карточка (адрес, заказы, время в пути, сохранность) открывается кликом.
+ */
+export function hoverHtml(point: MapPoint): string {
+  const rows: string[] = []
+  if (point.kind === 'warehouse') {
+    rows.push('<div class="map-tooltip__row">Склад</div>')
+    if (point.address) rows.push(`<div class="map-tooltip__row">${escapeHtml(point.address)}</div>`)
+  } else {
+    const traits = ['Покупатель', roadLabel(point.roadType), statusLabel(point.deliveryStatus)]
+      .filter(Boolean)
+      .join(' · ')
+    rows.push(`<div class="map-tooltip__row">${escapeHtml(traits)}</div>`)
+    if (point.orderCount > 0) {
+      rows.push(
+        `<div class="map-tooltip__row">Заказов: ${point.orderCount} · ${Math.round(point.requestedKg)} кг</div>`,
+      )
+    }
+  }
+  if (point.plan) {
+    rows.push(
+      `<div class="map-tooltip__row map-tooltip__plan">` +
+        `<span class="map-tooltip__swatch" style="background:${escapeHtml(point.plan.color)}"></span>` +
+        `${escapeHtml(point.plan.truckName)} · ${Math.round(point.plan.shippedKg)} кг` +
+        `</div>`,
+    )
+  }
+  return `<div class="map-tooltip"><strong>${escapeHtml(point.name)}</strong>${rows.join('')}</div>`
+}
+
 /** Ручка маркера, которую нужно обновить после свежих данных с сервера. */
 export interface MarkerHandle {
   point: MapPoint
@@ -207,7 +241,7 @@ export function applyPoint(handle: MarkerHandle, point: MapPoint): void {
   handle.point = point
   applyModifiers(handle.element, point)
   handle.element.setAttribute('aria-label', markerLabel(point))
-  handle.element.title = markerLabel(point)
+  handle.element.removeAttribute('title')
   handle.element.innerHTML = `<span class="mdi ${markerIcon(point)}" aria-hidden="true"></span>`
   handle.popup.setHTML(popupHtml(point))
 }
@@ -232,9 +266,25 @@ export function createMarkerManager(
   let markers: mapboxgl.Marker[] = []
   let handles: MarkerHandle[] = []
   let activePopup: mapboxgl.Popup | null = null
+  // Одна общая подсказка на карту: при наведении переезжает к активной точке.
+  const hoverTip = new mapboxgl.Popup({
+    offset: 26,
+    closeButton: false,
+    closeOnClick: false,
+    className: 'map-hover-tip',
+  })
+
+  const showHoverTip = (point: MapPoint): void => {
+    hoverTip.setLngLat(point.coordinates).setHTML(hoverHtml(point))
+    if (!hoverTip.isOpen()) hoverTip.addTo(map)
+  }
+  const hideHoverTip = (): void => {
+    hoverTip.remove()
+  }
 
   const syncRef = (points: MapPoint[]): void => {
     for (const marker of markers) marker.remove()
+    hideHoverTip()
     if (activePopup) {
       activePopup.remove()
       activePopup = null
@@ -253,12 +303,22 @@ export function createMarkerManager(
       fresh.push(handle)
 
       element.addEventListener('mouseenter', () => {
+        options.onHover?.(handle)
+        // Если полная карточка уже открыта кликом, подсказка только дублировала бы её.
+        if (popup.isOpen()) return
+        showHoverTip(handle.point)
+      })
+      element.addEventListener('mouseleave', hideHoverTip)
+      element.addEventListener('click', () => {
+        hideHoverTip()
         if (activePopup && activePopup !== popup) activePopup.remove()
         activePopup = popup
-        marker.togglePopup()
-        options.onHover?.(handle)
       })
-      element.addEventListener('focus', () => options.onHover?.(handle))
+      element.addEventListener('focus', () => {
+        options.onHover?.(handle)
+        if (!popup.isOpen()) showHoverTip(handle.point)
+      })
+      element.addEventListener('blur', hideHoverTip)
       return marker
     })
     handles = fresh
@@ -283,6 +343,7 @@ export function createMarkerManager(
       for (const marker of markers) marker.remove()
       markers = []
       handles = []
+      hideHoverTip()
       if (activePopup) {
         activePopup.remove()
         activePopup = null
