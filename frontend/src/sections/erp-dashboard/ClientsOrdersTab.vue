@@ -4,9 +4,29 @@
       <div>
         <h2 class="tab-title">Заказы покупателей</h2>
       </div>
-      <v-chip class="soft-chip" size="small" prepend-icon="mdi-clipboard-list-outline">
-        {{ erp.orderRows.length }} заказов
-      </v-chip>
+      <div class="header-actions">
+        <v-chip class="soft-chip" size="small" prepend-icon="mdi-clipboard-list-outline">
+          {{ erp.orderRows.length }} заказов
+        </v-chip>
+        <v-btn
+          variant="tonal"
+          color="primary"
+          size="small"
+          prepend-icon="mdi-store-plus-outline"
+          @click="clientOpen = true"
+        >
+          Магазин
+        </v-btn>
+        <v-btn
+          variant="tonal"
+          color="primary"
+          size="small"
+          prepend-icon="mdi-plus"
+          @click="orderOpen = true"
+        >
+          Заказ
+        </v-btn>
+      </div>
     </header>
 
     <StatePanel
@@ -101,18 +121,25 @@
         </tbody>
       </v-table>
     </StatePanel>
+
+    <CreateClientDialog v-model="clientOpen" />
+    <CreateOrderDialog v-model="orderOpen" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
+import CreateClientDialog from './create/CreateClientDialog.vue'
+import CreateOrderDialog from './create/CreateOrderDialog.vue'
 import { useErpStore, type OrderRow } from './useErpStore'
 import { assignmentSummary, useAssignmentStore } from './useAssignmentStore'
 import { formatKg, formatPrice } from '@/shared/utils/format'
 import type { DeliveryStatus } from '@/shared/types/domain'
 
 const erp = useErpStore()
+const clientOpen = ref(false)
+const orderOpen = ref(false)
 const assignment = useAssignmentStore()
 
 function reload(): void {
@@ -170,6 +197,13 @@ function partialDelivery(deliveredKg: number, requestedKg: number): boolean {
 </script>
 
 <style scoped lang="scss">
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .tab-body {
   display: grid;
   /* minmax(0,1fr) не даёт таблице с min-width растянуть всю панель. */

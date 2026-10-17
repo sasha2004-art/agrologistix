@@ -4,9 +4,20 @@
       <div>
         <h2 class="tab-title">Машины</h2>
       </div>
-      <v-chip class="soft-chip" size="small" prepend-icon="mdi-truck-outline">
-        {{ erp.activeTrucks.length }} в строю
-      </v-chip>
+      <div class="header-actions">
+        <v-chip class="soft-chip" size="small" prepend-icon="mdi-truck-outline">
+          {{ erp.activeTrucks.length }} в строю
+        </v-chip>
+        <v-btn
+          variant="tonal"
+          color="primary"
+          size="small"
+          prepend-icon="mdi-plus"
+          @click="createOpen = true"
+        >
+          Машина
+        </v-btn>
+      </div>
     </header>
 
     <StatePanel
@@ -96,16 +107,21 @@
         </tbody>
       </v-table>
     </StatePanel>
+
+    <CreateTruckDialog v-model="createOpen" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
+import CreateTruckDialog from './create/CreateTruckDialog.vue'
 import { useErpStore } from './useErpStore'
 import { formatKg, formatRub } from '@/shared/utils/format'
 import type { Truck, TruckStatus } from '@/shared/types/domain'
 
 const erp = useErpStore()
+const createOpen = ref(false)
 
 function reload(): void {
   void erp.loadState({ force: true })
@@ -118,6 +134,13 @@ function toggleTruck(truck: Truck): void {
 </script>
 
 <style scoped lang="scss">
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .tab-body {
   display: grid;
   /* minmax(0,1fr) не даёт таблице с min-width растянуть всю панель. */

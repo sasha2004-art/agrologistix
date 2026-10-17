@@ -11,10 +11,17 @@
 import * as mockData from './mockData'
 import type {
   AuthResponse,
+  Client,
+  ClientCreate,
   ClientOrder,
+  ClientOrderCreate,
   ClientOrderPatch,
   DataSource,
   ERPState,
+  Product,
+  ProductCreate,
+  TruckCreate,
+  WarehouseStockCreate,
   Loaded,
   OrderAssignment,
   SolverResponse,
@@ -196,6 +203,51 @@ export function patchStock(
     method: 'PATCH',
     access_pin: accessPin,
     body: JSON.stringify(patch),
+  })
+}
+
+/* --- Ручное создание: тоже мутации, поэтому тоже без mock-fallback --- */
+
+export function createProduct(payload: ProductCreate, accessPin: string): Promise<Product> {
+  return request<Product>('/erp/products', {
+    method: 'POST',
+    access_pin: accessPin,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createClient(payload: ClientCreate, accessPin: string): Promise<Client> {
+  return request<Client>('/erp/clients', {
+    method: 'POST',
+    access_pin: accessPin,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createTruck(payload: TruckCreate, accessPin: string): Promise<Truck> {
+  return request<Truck>('/erp/trucks', {
+    method: 'POST',
+    access_pin: accessPin,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createOrder(payload: ClientOrderCreate, accessPin: string): Promise<ClientOrder> {
+  return request<ClientOrder>('/erp/orders', {
+    method: 'POST',
+    access_pin: accessPin,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createStock(
+  payload: WarehouseStockCreate,
+  accessPin: string,
+): Promise<WarehouseStock> {
+  return request<WarehouseStock>('/erp/stocks', {
+    method: 'POST',
+    access_pin: accessPin,
+    body: JSON.stringify(payload),
   })
 }
 

@@ -4,9 +4,20 @@
       <div>
         <h2 class="tab-title">Склады и остатки</h2>
       </div>
-      <v-chip class="soft-chip" size="small" prepend-icon="mdi-warehouse">
-        Складов: {{ erp.warehouses.length }}
-      </v-chip>
+      <div class="header-actions">
+        <v-chip class="soft-chip" size="small" prepend-icon="mdi-warehouse">
+          Складов: {{ erp.warehouses.length }}
+        </v-chip>
+        <v-btn
+          variant="tonal"
+          color="primary"
+          size="small"
+          prepend-icon="mdi-plus"
+          @click="createOpen = true"
+        >
+          Партия
+        </v-btn>
+      </div>
     </header>
 
     <StatePanel
@@ -51,16 +62,21 @@
         </tbody>
       </v-table>
     </StatePanel>
+
+    <CreateStockDialog v-model="createOpen" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import EditableNumberField from '@/shared/components/EditableNumberField.vue'
+import CreateStockDialog from './create/CreateStockDialog.vue'
 import { useErpStore, type StockMatrixCell } from './useErpStore'
 import { formatKg } from '@/shared/utils/format'
 
 const erp = useErpStore()
+const createOpen = ref(false)
 
 function reload(): void {
   void erp.loadState({ force: true })
@@ -73,6 +89,13 @@ function saveStock(cell: StockMatrixCell, value: number): void {
 </script>
 
 <style scoped lang="scss">
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .tab-body {
   display: grid;
   /* minmax(0,1fr) не даёт таблице с min-width растянуть всю панель. */

@@ -19,6 +19,7 @@ import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 import { useNotificationStore } from '@/shared/stores/useNotificationStore'
 import { formatKg, formatPercent } from '@/shared/utils/format'
 import { freshnessLevel } from '@/shared/utils/freshness'
+import { remainingKg } from '@/shared/utils/order'
 import { useAssignmentStore } from './useAssignmentStore'
 import { useSolverStore } from './useSolverStore'
 import type {
@@ -65,11 +66,6 @@ export interface RiskAlert {
   id: string
   severity: RiskSeverity
   message: string
-}
-
-/** Outstanding weight of an order: what is still undelivered after every PATCH. */
-export function remainingKg(order: ClientOrder): number {
-  return Math.max(0, order.requested_kg - order.delivered_kg)
 }
 
 /** Ключ массовой отметки доставки: по нему UI рисует общий индикатор. */
@@ -491,6 +487,7 @@ export const useErpStore = defineStore('erp', () => {
     startAutoSync,
     stopAutoSync,
     isPending,
+    runMutation,
     updateOrder,
     updateTruck,
     updateStock,
