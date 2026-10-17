@@ -50,6 +50,11 @@ _SQLITE_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
         "total_unmet_kg",
         "ALTER TABLE simulation_run ADD COLUMN total_unmet_kg FLOAT NOT NULL DEFAULT 0",
     ),
+    (
+        "client_order",
+        "delivered_kg",
+        "ALTER TABLE client_order ADD COLUMN delivered_kg FLOAT NOT NULL DEFAULT 0",
+    ),
 )
 
 

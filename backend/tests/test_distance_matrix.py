@@ -246,3 +246,65 @@ def test_matrix_is_symmetric_for_straight_line_fallback(session: Session) -> Non
 
     assert matrix[0][1].distance_km == matrix[1][0].distance_km
     assert matrix[0][2].base_duration_min == pytest.approx(matrix[2][0].base_duration_min)
+
+
+def test_cold_matrix_fetches_mapbox_legs_concurrently(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    points = [
+        dm.Coordinate(lat=55.0968, lon=36.6103),
+        dm.Coordinate(lat=54.5138, lon=36.2612),
+        dm.Coordinate(lat=55.0147, lon=36.4719),
+        dm.Coordinate(lat=55.2075, lon=36.4850),
+        dm.Coordinate(lat=55.1797, lon=36.6597),
+    ]
+    calls = 0
+
+    async def slow_mapbox(origin: object, destination: object, *args: object, **kwargs: object):
+        nonlocal calls
+        calls += 1
+        await asyncio.sleep(0.05)
+        return dm.fallback_leg(origin, destination)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(dm, "fetch_mapbox_leg", slow_mapbox)
+    settings = Settings(
+        sqlite_db_path=":memory:",
+        mapbox_secret_token="pk.test",
+        external_api_timeout_sec=5.0,
+    )
+
+    started = time.perf_counter()
+    matrix = asyncio.run(dm.build_distance_matrix(session, points, settings))
+    elapsed = time.perf_counter() - started
+
+    assert calls == 20
+    assert len(matrix) == 5
+    assert elapsed < 0.6
+
+
+def test_matrix_falls_back_when_mapbox_exceeds_the_deadline(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    points = [OBININSK, KALUGA, MALOYAROSLAVETS]
+
+    async def stalled_mapbox(*args: object, **kwargs: object) -> dm.RouteLeg:
+        await asyncio.sleep(5.0)
+        raise AssertionError("the deadline must cancel this coroutine")
+
+    monkeypatch.setattr(dm, "fetch_mapbox_leg", stalled_mapbox)
+    settings = Settings(
+        sqlite_db_path=":memory:",
+        mapbox_secret_token="pk.test",
+        external_api_timeout_sec=0.2,
+    )
+
+    started = time.perf_counter()
+    matrix = asyncio.run(dm.build_distance_matrix(session, points, settings))
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 1.0
+    assert all(len(row) == 3 for row in matrix)
+    assert matrix[0][1].distance_km == pytest.approx(dm.fallback_leg(OBININSK, KALUGA).distance_km)
+    assert len(session.exec(select(RouteCache)).all()) == 6

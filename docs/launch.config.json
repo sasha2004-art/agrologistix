@@ -28,6 +28,7 @@
     "nginx_config": "deploy/nginx/agrologistix.conf",
     "nginx_bootstrap_config": "deploy/nginx/agrologistix-http-bootstrap.conf",
     "https_setup_command": "bash deploy/setup-https.sh",
+    "backend_env_file": "/opt/agrologistix/.env",
     "tls_certificate_dir": "/etc/letsencrypt/live/<domain>",
     "tls_renewal_timer": "certbot.timer"
   },

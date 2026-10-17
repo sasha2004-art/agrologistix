@@ -48,6 +48,7 @@ class ClientOrderResponse(APIModel):
     requested_kg: float = Field(gt=0.0)
     purchase_price_rub: float = Field(gt=0.0)
     unmet_penalty_rub: float = Field(ge=0.0)
+    delivered_kg: float = Field(default=0.0, ge=0.0)
     delivery_status: DeliveryStatus = DeliveryStatus.PENDING
 
 

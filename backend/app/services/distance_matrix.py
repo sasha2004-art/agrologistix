@@ -16,6 +16,7 @@ Geometry points are stored as ``(lat, lon)`` tuples in ``RouteCache.geojson_geom
 to match the solver ``RoutePoint`` DTO.
 """
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -228,15 +229,70 @@ async def build_distance_matrix(
     settings: Settings,
     client: httpx.AsyncClient | None = None,
 ) -> list[list[RouteLeg]]:
-    """Build a full NxN leg matrix, reusing cached coordinate pairs."""
+    """Build an NxN matrix with concurrent fetches and a shared API deadline."""
 
-    matrix: list[list[RouteLeg]] = []
-    for index, origin in enumerate(points):
-        row: list[RouteLeg] = []
-        for column, destination in enumerate(points):
-            if index == column:
-                row.append(RouteLeg(0.0, 0.0, [(origin.lat, origin.lon)]))
-                continue
-            row.append(await get_route_leg(session, origin, destination, settings, client))
-        matrix.append(row)
-    return matrix
+    pairs = {
+        coordinate_key(origin, destination): (origin, destination)
+        for row, origin in enumerate(points)
+        for column, destination in enumerate(points)
+        if row != column
+    }
+    resolved: dict[str, RouteLeg] = {}
+    missing: dict[str, tuple[Coordinate, Coordinate]] = {}
+    for key, (origin, destination) in pairs.items():
+        cached = session.get(RouteCache, key)
+        if cached is None:
+            missing[key] = (origin, destination)
+        else:
+            resolved[key] = _cached_leg(cached, origin, destination)
+
+    owns_client = client is None
+    active_client = client
+    if owns_client and _mapbox_token(settings):
+        active_client = httpx.AsyncClient(timeout=settings.external_api_timeout_sec)
+    try:
+        semaphore = asyncio.Semaphore(8)
+
+        async def fetch_pair(
+            key: str, origin: Coordinate, destination: Coordinate
+        ) -> tuple[str, RouteLeg | None]:
+            async with semaphore:
+                leg = await fetch_mapbox_leg(origin, destination, settings, active_client)
+            return key, leg
+
+        if missing and _mapbox_token(settings):
+            try:
+                async with asyncio.timeout(settings.external_api_timeout_sec):
+                    fetched = await asyncio.gather(
+                        *(fetch_pair(key, *pair) for key, pair in missing.items())
+                    )
+                resolved.update({key: leg for key, leg in fetched if leg is not None})
+            except TimeoutError:
+                logger.warning("Mapbox matrix deadline exceeded, using fallback legs")
+
+        for key, (origin, destination) in missing.items():
+            leg = resolved.get(key) or fallback_leg(origin, destination)
+            resolved[key] = leg
+            session.add(
+                RouteCache(
+                    pair_key=key,
+                    distance_km=leg.distance_km,
+                    base_duration_min=leg.base_duration_min,
+                    geojson_geometry=json.dumps(leg.geometry),
+                )
+            )
+        if missing:
+            session.commit()
+    finally:
+        if owns_client and active_client is not None:
+            await active_client.aclose()
+
+    return [
+        [
+            RouteLeg(0.0, 0.0, [(origin.lat, origin.lon)])
+            if row == column
+            else resolved[coordinate_key(origin, destination)]
+            for column, destination in enumerate(points)
+        ]
+        for row, origin in enumerate(points)
+    ]
