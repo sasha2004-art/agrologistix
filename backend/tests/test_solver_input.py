@@ -57,7 +57,7 @@ def _leg_points(solver_input: SolverInput) -> set[tuple[float, float]]:
 
 
 def test_delivered_order_point_is_not_resolved(session: Session) -> None:
-    client = session.exec(select(Client).where(Client.name.like("%Таруса%"))).one()
+    client = session.exec(select(Client).where(Client.address.like("%Таруса%"))).one()
     tarusa_order = _order(session, 9)
     assert tarusa_order.client_id == client.id
 
@@ -76,14 +76,14 @@ def test_delivered_order_point_is_not_resolved(session: Session) -> None:
 
 def test_partially_delivered_order_keeps_only_the_leftover_demand(session: Session) -> None:
     order = _order(session, 1)
-    order.delivered_kg = 1000.0
+    order.delivered_kg = 300.0
     session.add(order)
     session.commit()
 
     solver_input = _build(session)
 
     planned = next(item for item in solver_input.orders if item.order_id == 1)
-    assert planned.requested_kg == pytest.approx(order.requested_kg - 1000.0)
+    assert planned.requested_kg == pytest.approx(order.requested_kg - 300.0)
     assert remaining_demand_kg(order) == pytest.approx(500.0)
 
 

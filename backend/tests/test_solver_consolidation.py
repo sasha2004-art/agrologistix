@@ -57,7 +57,7 @@ def test_one_shop_is_served_by_one_truck_on_the_seed(client: TestClient) -> None
     payload = _baseline(client)
     visited = _client_trucks(payload)
 
-    assert payload["metrics"]["shipped_kg"] == 11000.0
+    assert payload["metrics"]["shipped_kg"] == 8350.0
     assert payload["metrics"]["unmet_kg"] == 0.0
     assert payload["metrics"]["split_clients"] == 0
     assert all(len(truck_ids) == 1 for truck_ids in visited.values())
@@ -70,7 +70,8 @@ def test_consolidation_uses_two_trips_instead_of_three(client: TestClient) -> No
 
     assert payload["metrics"]["total_trips"] == 2
     assert len(payload["routes"]) == 2
-    assert payload["metrics"]["avg_load_factor_pct"] > 40.0
+    # Объёмы магазинов не набивают машины под завязку: важна сама консолидация.
+    assert payload["metrics"]["avg_load_factor_pct"] > 30.0
 
 
 def test_client_orders_with_same_coordinates_share_a_truck(client: TestClient) -> None:

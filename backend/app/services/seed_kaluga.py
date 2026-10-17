@@ -24,13 +24,13 @@ from app.schemas.enums import DeliveryStatus, RoadType, TruckStatus
 
 WAREHOUSE_SEED: tuple[dict[str, object], ...] = (
     {
-        "name": "Хаб Обнинск-Северный",
+        "name": "Хаб Обнинск",
         "lat": 55.0968,
         "lon": 36.6103,
         "address": "г. Обнинск, ул. Северная, 1",
     },
     {
-        "name": "Склад Детчино-Агро",
+        "name": "Склад Детчино",
         "lat": 54.8083,
         "lon": 36.2333,
         "address": "с. Детчино, ул. Агропромышленная, 7",
@@ -62,49 +62,50 @@ PRODUCT_SEED: tuple[dict[str, object], ...] = (
 )
 
 # Warehouse stock batches: (warehouse, product, available_kg, initial_freshness).
+# Volumes match hub-scale batches (tens of tonnes per crop), not shop orders.
 # Freshness mirrors a realistic cold chain: the Obninsk hub ships recently
 # harvested lots (0.90-0.97), while the Detchino site keeps older batches, so
 # strawberries and cucumbers there are noticeably closer to spoiling.
 STOCK_SEED: tuple[tuple[str, str, float, float], ...] = (
-    ("Хаб Обнинск-Северный", "strawberry", 4200.0, 0.97),
-    ("Хаб Обнинск-Северный", "tomato", 8600.0, 0.93),
-    ("Хаб Обнинск-Северный", "cucumber", 5400.0, 0.90),
-    ("Склад Детчино-Агро", "strawberry", 2600.0, 0.82),
-    ("Склад Детчино-Агро", "tomato", 5200.0, 0.95),
-    ("Склад Детчино-Агро", "cucumber", 3800.0, 0.78),
+    ("Хаб Обнинск", "strawberry", 9000.0, 0.97),
+    ("Хаб Обнинск", "tomato", 22000.0, 0.93),
+    ("Хаб Обнинск", "cucumber", 14000.0, 0.90),
+    ("Склад Детчино", "strawberry", 5000.0, 0.82),
+    ("Склад Детчино", "tomato", 12000.0, 0.95),
+    ("Склад Детчино", "cucumber", 7000.0, 0.78),
 )
 
 CLIENT_SEED: tuple[dict[str, object], ...] = (
     {
-        "name": "РЦ «ВкусВилл» Калуга",
+        "name": "ВкусВилл",
         "lat": 54.5138,
         "lon": 36.2612,
         "road_type": RoadType.ASPHALT.value,
         "address": "г. Калуга, ул. Московская, 300",
     },
     {
-        "name": "Агро-Рынок Малоярославец",
+        "name": "Агро-Рынок",
         "lat": 55.0147,
         "lon": 36.4719,
         "road_type": RoadType.ASPHALT.value,
         "address": "г. Малоярославец, ул. Плеханова, 12",
     },
     {
-        "name": "Фермерский кооператив Боровск",
+        "name": "Кооператив Боровск",
         "lat": 55.2075,
         "lon": 36.4850,
         "road_type": RoadType.DIRT.value,
         "address": "г. Боровск, ул. Ленина, 44",
     },
     {
-        "name": "Сеть «Пятёрочка» Балабаново",
+        "name": "Пятёрочка",
         "lat": 55.1797,
         "lon": 36.6597,
         "road_type": RoadType.ASPHALT.value,
         "address": "г. Балабаново, ул. Гагарина, 8",
     },
     {
-        "name": "Эко-база Таруса",
+        "name": "Эко-база",
         "lat": 54.7200,
         "lon": 37.1800,
         "road_type": RoadType.DIRT.value,
@@ -112,23 +113,25 @@ CLIENT_SEED: tuple[dict[str, object], ...] = (
     },
 )
 
+# Demand matches a daily delivery per point: a retail chain and a market buy
+# tonnes, a farm cooperative and an eco base buy hundreds of kilograms.
 ORDER_SEED: tuple[tuple[str, str, float, float, float], ...] = (
-    ("РЦ «ВкусВилл» Калуга", "strawberry", 1500.0, 320.0, 120.0),
-    ("РЦ «ВкусВилл» Калуга", "tomato", 2000.0, 160.0, 80.0),
-    ("Агро-Рынок Малоярославец", "tomato", 1200.0, 150.0, 70.0),
-    ("Агро-Рынок Малоярославец", "cucumber", 900.0, 110.0, 50.0),
-    ("Фермерский кооператив Боровск", "strawberry", 800.0, 300.0, 150.0),
-    ("Фермерский кооператив Боровск", "cucumber", 1100.0, 105.0, 45.0),
-    ("Сеть «Пятёрочка» Балабаново", "tomato", 1800.0, 155.0, 75.0),
-    ("Сеть «Пятёрочка» Балабаново", "strawberry", 700.0, 310.0, 140.0),
-    ("Эко-база Таруса", "cucumber", 1000.0, 115.0, 55.0),
+    ("ВкусВилл", "strawberry", 800.0, 320.0, 120.0),
+    ("ВкусВилл", "tomato", 2400.0, 160.0, 80.0),
+    ("Агро-Рынок", "tomato", 1200.0, 150.0, 70.0),
+    ("Агро-Рынок", "cucumber", 700.0, 110.0, 50.0),
+    ("Кооператив Боровск", "strawberry", 300.0, 300.0, 150.0),
+    ("Кооператив Боровск", "cucumber", 500.0, 105.0, 45.0),
+    ("Пятёрочка", "tomato", 1500.0, 155.0, 75.0),
+    ("Пятёрочка", "strawberry", 350.0, 310.0, 140.0),
+    ("Эко-база", "cucumber", 600.0, 115.0, 55.0),
 )
 
 TRUCK_SEED: tuple[dict[str, object], ...] = (
     {
-        "name": "Volvo FH16 Еврофура Реф",
+        "name": "Volvo FH16 Реф",
         "plate_number": "А001АА40",
-        "warehouse": "Хаб Обнинск-Северный",
+        "warehouse": "Хаб Обнинск",
         "capacity_kg": 20000.0,
         "cruise_speed_kmh": 75.0,
         "cost_per_km_rub": 58.0,
@@ -137,9 +140,9 @@ TRUCK_SEED: tuple[dict[str, object], ...] = (
         "can_use_dirt": False,
     },
     {
-        "name": "ГАЗон NEXT Реф-Вездеход",
+        "name": "ГАЗон NEXT Реф",
         "plate_number": "В202ВВ40",
-        "warehouse": "Хаб Обнинск-Северный",
+        "warehouse": "Хаб Обнинск",
         "capacity_kg": 6000.0,
         "cruise_speed_kmh": 62.0,
         "cost_per_km_rub": 32.0,
@@ -148,9 +151,9 @@ TRUCK_SEED: tuple[dict[str, object], ...] = (
         "can_use_dirt": True,
     },
     {
-        "name": "КАМАЗ Компас Тент",
+        "name": "КАМАЗ Компас",
         "plate_number": "С303СС40",
-        "warehouse": "Склад Детчино-Агро",
+        "warehouse": "Склад Детчино",
         "capacity_kg": 10000.0,
         "cruise_speed_kmh": 70.0,
         "cost_per_km_rub": 40.0,
