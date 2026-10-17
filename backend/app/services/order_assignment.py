@@ -22,7 +22,7 @@ from app.models.erp_models import (
     WarehouseStock,
 )
 from app.models.run_models import FixedAssignment
-from app.schemas.enums import RoadType, TruckStatus
+from app.schemas.enums import DeliveryStatus, RoadType, TruckStatus
 from app.services.distance_matrix import Coordinate, get_route_leg
 from app.services.freshness_math import (
     CargoProfile,
@@ -89,6 +89,33 @@ async def assign_order(
         select(Truck).where(Truck.status == TruckStatus.ACTIVE.value).order_by(Truck.id)
     ).all()
 
+    # Added to the first stop of the fixed route, so one truck carries one trip.
+    # Existing fixations reserve capacity, stops and (for pending orders) stock,
+    # otherwise a mass assignment could overload a truck or the warehouse.
+    truck_load_kg: dict[int, float] = {}
+    truck_stops: dict[int, int] = {}
+    reserved_stock: dict[tuple[int, int], float] = {}
+    other_orders = {
+        int(item.id or 0): item
+        for item in session.exec(select(ClientOrder)).all()
+        if item.id is not None
+    }
+    current_order_id = int(order.id or 0)
+    for fixed in session.exec(select(FixedAssignment)).all():
+        if fixed.order_id == current_order_id:
+            continue
+        other = other_orders.get(fixed.order_id)
+        if other is None or other.delivery_status == DeliveryStatus.DELIVERED.value:
+            continue
+        truck_load_kg[fixed.truck_id] = truck_load_kg.get(fixed.truck_id, 0.0) + fixed.shipped_kg
+        truck_stops[fixed.truck_id] = truck_stops.get(fixed.truck_id, 0) + 1
+        # A pending order has not written its stock off yet, so its fixation
+        # keeps those kilograms reserved. An in-progress order already consumed
+        # them, and counting them again would double the reservation.
+        if other.delivery_status == DeliveryStatus.PENDING.value:
+            key = (fixed.warehouse_id, fixed.product_id)
+            reserved_stock[key] = reserved_stock.get(key, 0.0) + fixed.shipped_kg
+
     road_type = RoadType(client.road_type)
     surface = surface_factor(road_type)
     rain = precipitation_factor(weather.precipitation_mm)
@@ -97,9 +124,17 @@ async def assign_order(
     for truck in trucks:
         warehouse = warehouses.get(truck.warehouse_id)
         stock = stock_by_warehouse.get(truck.warehouse_id)
+        truck_id = int(truck.id or 0)
         if warehouse is None or stock is None:
             continue
         if truck.capacity_kg + _KG_EPSILON < shipped_kg:
+            continue
+        if truck_load_kg.get(truck_id, 0.0) + shipped_kg > truck.capacity_kg + _KG_EPSILON:
+            continue
+        if truck_stops.get(truck_id, 0) >= settings.solver_max_stops_per_trip:
+            continue
+        reserved = reserved_stock.get((truck.warehouse_id, order.product_id), 0.0)
+        if stock.available_kg - reserved + _KG_EPSILON < shipped_kg:
             continue
         if road_type is RoadType.DIRT and not truck.can_use_dirt:
             continue

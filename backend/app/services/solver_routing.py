@@ -40,19 +40,31 @@ def point_key(point: Point) -> str:
 
 
 class LegIndex:
-    """Lookup of cached legs with a haversine fallback for missing pairs."""
+    """Lookup of cached legs with a haversine fallback for missing pairs.
+
+    Fallback legs are memoized: the local search rebuilds routes hundreds of
+    times, and recomputing the same haversine polyline would waste CPU on the
+    single-vCPU target host.
+    """
 
     def __init__(self, legs: Sequence[SolverLeg]) -> None:
         self._legs = {(point_key(leg.origin), point_key(leg.destination)): leg for leg in legs}
+        self._fallback_cache: dict[tuple[str, str], SolverLeg] = {}
 
     def leg(self, origin: Point, destination: Point) -> SolverLeg | None:
         return self._legs.get((point_key(origin), point_key(destination)))
 
     def _fallback(self, origin: Point, destination: Point):
-        return fallback_leg(
+        key = (point_key(origin), point_key(destination))
+        cached = self._fallback_cache.get(key)
+        if cached is not None:
+            return cached
+        leg = fallback_leg(
             Coordinate(lat=origin[0], lon=origin[1]),
             Coordinate(lat=destination[0], lon=destination[1]),
         )
+        self._fallback_cache[key] = leg
+        return leg
 
     def distance_km(self, origin: Point, destination: Point) -> float:
         leg = self.leg(origin, destination)
@@ -90,31 +102,37 @@ def two_opt_order(
 
     Positions are returned instead of points so that several orders of the same
     client (identical coordinates) keep their own stops.
+
+    Reversing a segment also flips the direction of every inner link. Road legs
+    are directional (Mapbox distances can differ per direction), so the classic
+    two-edge delta is invalid here: the whole candidate route is measured and the
+    reversal is kept only when the exact length improves. Routes are short
+    (``max_stops_per_trip``), so the full recalculation stays cheap.
     """
 
     route = list(order)
     if len(route) < 3:
         return route
 
-    def position_coordinates(route_position: int) -> Point | None:
-        if route_position < 0 or route_position >= len(route):
-            return None
-        return points[route[route_position]]
+    def route_length(candidate: Sequence[int]) -> float:
+        total = 0.0
+        current = origin
+        for position in candidate:
+            point = points[position]
+            total += distance(current, point)
+            current = point
+        return total
 
+    best_length = route_length(route)
     for _ in range(TWO_OPT_MAX_PASSES):
         improved = False
         for start in range(len(route) - 1):
             for end in range(start + 1, len(route)):
-                before = position_coordinates(start - 1) or origin
-                after = position_coordinates(end + 1)
-
-                previous_link = distance(before, points[route[start]])
-                next_link = distance(points[route[end]], after) if after else 0.0
-                swapped_link = distance(before, points[route[end]])
-                swapped_next = distance(points[route[start]], after) if after else 0.0
-
-                if swapped_link + swapped_next + 1e-9 < previous_link + next_link:
-                    route[start : end + 1] = reversed(route[start : end + 1])
+                candidate = route[:start] + route[start : end + 1][::-1] + route[end + 1 :]
+                candidate_length = route_length(candidate)
+                if candidate_length + 1e-9 < best_length:
+                    route = candidate
+                    best_length = candidate_length
                     improved = True
         if not improved:
             break
@@ -215,6 +233,7 @@ def build_route(context: RouteBuildContext) -> PlannedRoute:
                 eta_minutes=round(travelled_hours * 60.0, 2),
                 expected_freshness=round(freshness, 6),
                 trip_leg_cost_rub=round(segment_cost, 2),
+                price_per_kg=order.price_per_kg,
             )
         )
 

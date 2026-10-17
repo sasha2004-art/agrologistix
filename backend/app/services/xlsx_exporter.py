@@ -67,7 +67,7 @@ def _summary_metrics(report: ExportRun) -> list[tuple[str, float]]:
     # Проценты потерь и недовоза — понятная пользователю замена штрафам.
     spoilage_pct = max(0.0, 100.0 - run.avg_freshness_pct) if run.total_shipped_kg > 0 else 0.0
     return [
-        ("Выручка, руб.", report.revenue_rub),
+        ("Выручка, руб.", report.stored_revenue_rub),
         ("Общие затраты, руб.", run.total_tco_rub),
         ("Затраты на доставку, руб.", run.total_trip_cost_rub),
         ("Потери урожая, руб.", run.total_spoilage_loss_rub),
@@ -100,8 +100,8 @@ def _write_summary(sheet: Worksheet, report: ExportRun) -> tuple[int, int, int]:
         ("Температура, °C", run.temp_c),
         ("Осадки, мм", run.precip_mm),
         ("Машин", len(report.routes)),
-        ("Выручка, руб.", report.revenue_rub),
-        ("Маржа, руб.", round(report.revenue_rub - run.total_tco_rub, 2)),
+        ("Выручка, руб.", report.stored_revenue_rub),
+        ("Маржа, руб.", round(report.stored_revenue_rub - run.total_tco_rub, 2)),
     ]
     row = 3
     for label, value in info:

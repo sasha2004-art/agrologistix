@@ -135,7 +135,10 @@ def _collect_warnings(
     warnings: list[PlannedWarning] = []
     orders_by_id = _orders_by_id(orders)
 
-    broken_count = len(solver_input.trucks) - len(active_trucks)
+    # ``active_trucks`` also drops trucks busy with fixed routes, so the broken
+    # count must come from the persisted status, not from the remainder.
+    in_service = [truck for truck in solver_input.trucks if truck.status is TruckStatus.ACTIVE]
+    broken_count = len(solver_input.trucks) - len(in_service)
     if broken_count > 0:
         warnings.append(
             PlannedWarning(
@@ -146,13 +149,25 @@ def _collect_warnings(
         )
 
     if not active_trucks and orders:
-        warnings.append(
-            PlannedWarning(
-                code="no_active_trucks",
-                message="Нет машин в строю: весь урожай остался не привезённым",
-                severity=WarningSeverity.ERROR.value,
+        if in_service:
+            warnings.append(
+                PlannedWarning(
+                    code="no_free_trucks",
+                    message=(
+                        "Все машины в строю уже заняты зафиксированными рейсами: "
+                        "часть заказов осталась без транспорта"
+                    ),
+                    severity=WarningSeverity.WARNING.value,
+                )
             )
-        )
+        else:
+            warnings.append(
+                PlannedWarning(
+                    code="no_active_trucks",
+                    message="Нет машин в строю: весь урожай остался не привезённым",
+                    severity=WarningSeverity.ERROR.value,
+                )
+            )
 
     requested_kg = sum(order.requested_kg for order in orders)
     if metrics.unmet_kg > 0:
@@ -228,45 +243,87 @@ def _collect_warnings(
     return warnings
 
 
+def _single_stop_fixed_route(
+    fixed: SolverFixedRoute, warehouse: SolverWarehouse | None
+) -> PlannedRoute:
+    """Fallback: a fixation missing its truck or warehouse keeps its saved data."""
+
+    origin = (
+        (warehouse.latitude, warehouse.longitude)
+        if warehouse is not None
+        else (fixed.order.latitude, fixed.order.longitude)
+    )
+    geometry = fixed.geometry or (origin, (fixed.order.latitude, fixed.order.longitude))
+    return PlannedRoute(
+        truck_id=fixed.truck_id,
+        truck_name=fixed.truck_name,
+        warehouse_id=fixed.warehouse_id,
+        total_distance_km=round(fixed.distance_km, 3),
+        total_duration_min=round(fixed.duration_min, 2),
+        total_cost_rub=round(fixed.trip_cost_rub, 2),
+        geometry=tuple(geometry),
+        stops=(
+            PlannedStop(
+                order_id=fixed.order.order_id,
+                truck_id=fixed.truck_id,
+                warehouse_id=fixed.warehouse_id,
+                client_id=fixed.order.client_id,
+                product_id=fixed.order.product_id,
+                sequence_order=1,
+                shipped_kg=round(fixed.shipped_kg, 3),
+                distance_km=round(fixed.distance_km, 3),
+                eta_minutes=round(fixed.duration_min, 2),
+                expected_freshness=round(fixed.expected_freshness, 6),
+                trip_leg_cost_rub=round(fixed.trip_cost_rub, 2),
+                price_per_kg=fixed.order.price_per_kg,
+            ),
+        ),
+    )
+
+
 def _fixed_planned_routes(
+    solver_input: SolverInput,
     fixed_routes: tuple[SolverFixedRoute, ...],
     warehouses: dict[int, SolverWarehouse],
+    products: dict[int, SolverProduct],
+    stocks: dict[tuple[int, int], SolverStock],
+    index: LegIndex,
+    trucks_by_id: dict[int, SolverTruck],
 ) -> list[PlannedRoute]:
-    """Готовые рейсы фиксаций: один стоп, готовая геометрия и метрики."""
+    """Готовые рейсы фиксаций: один мультистоп-рейс на машину.
+
+    Several fixations may point to the same truck when the logist takes a whole
+    plan into work, so they are rebuilt as one trip: the fleet rule «one trip
+    per truck per calculation» stays intact and the stop order, ETA, freshness
+    and TCO follow the same routing math as the MILP part of the plan.
+    """
+
+    grouped: dict[int, list[SolverFixedRoute]] = {}
+    for fixed in fixed_routes:
+        grouped.setdefault(fixed.truck_id, []).append(fixed)
 
     planned: list[PlannedRoute] = []
-    for fixed in fixed_routes:
-        warehouse = warehouses.get(fixed.warehouse_id)
-        origin = (
-            (warehouse.latitude, warehouse.longitude)
-            if warehouse is not None
-            else (fixed.order.latitude, fixed.order.longitude)
-        )
-        geometry = fixed.geometry or (origin, (fixed.order.latitude, fixed.order.longitude))
+    for truck_id in sorted(grouped):
+        group = grouped[truck_id]
+        truck = trucks_by_id.get(truck_id)
+        warehouse = warehouses.get(group[0].warehouse_id)
+        if truck is None or warehouse is None:
+            planned.extend(_single_stop_fixed_route(fixed, warehouse) for fixed in group)
+            continue
         planned.append(
-            PlannedRoute(
-                truck_id=fixed.truck_id,
-                truck_name=fixed.truck_name,
-                warehouse_id=fixed.warehouse_id,
-                total_distance_km=round(fixed.distance_km, 3),
-                total_duration_min=round(fixed.duration_min, 2),
-                total_cost_rub=round(fixed.trip_cost_rub, 2),
-                geometry=tuple(geometry),
-                stops=(
-                    PlannedStop(
-                        order_id=fixed.order.order_id,
-                        truck_id=fixed.truck_id,
-                        warehouse_id=fixed.warehouse_id,
-                        client_id=fixed.order.client_id,
-                        product_id=fixed.order.product_id,
-                        sequence_order=1,
-                        shipped_kg=round(fixed.shipped_kg, 3),
-                        distance_km=round(fixed.distance_km, 3),
-                        eta_minutes=round(fixed.duration_min, 2),
-                        expected_freshness=round(fixed.expected_freshness, 6),
-                        trip_leg_cost_rub=round(fixed.trip_cost_rub, 2),
+            build_route(
+                RouteBuildContext(
+                    truck=truck,
+                    warehouse=warehouse,
+                    loads=tuple(
+                        LoadedOrder(order=fixed.order, shipped_kg=fixed.shipped_kg)
+                        for fixed in group
                     ),
-                ),
+                    products=products,
+                    stocks=stocks,
+                    weather=solver_input.weather,
+                    index=index,
+                )
             )
         )
     return planned
@@ -281,7 +338,17 @@ def run_solver(
     started = perf_counter()
     # Фиксированные маршруты — уже выбранные логистом рейсы: их заявки не
     # перераспределяются, а машины не берутся в MILP повторно.
-    fixed_routes = solver_input.fixed_routes
+    truck_status = {truck.truck_id: truck.status for truck in solver_input.trucks}
+    available_fixed: list[SolverFixedRoute] = []
+    unavailable_fixed: list[SolverFixedRoute] = []
+    for route in solver_input.fixed_routes:
+        # Машина могла сломаться уже после фиксации: рейс на машине «не в работе»
+        # строить нельзя (он попал бы в план с заведомо недоступным транспортом).
+        if truck_status.get(route.truck_id) is TruckStatus.ACTIVE:
+            available_fixed.append(route)
+        else:
+            unavailable_fixed.append(route)
+    fixed_routes = tuple(available_fixed)
     fixed_truck_ids = {route.truck_id for route in fixed_routes}
     fixed_order_ids = {route.order.order_id for route in fixed_routes}
     active_trucks = [
@@ -352,8 +419,20 @@ def run_solver(
             merged_unmet[order_id] = merged_unmet.get(order_id, 0.0) + kilograms
         allocation = replace(allocation, unmet=merged_unmet)
     routes = list(limits.routes)
-    # Фиксированные рейсы добавляются после лимитов: они уже утверждены логистом.
-    routes.extend(_fixed_planned_routes(fixed_routes, warehouses))
+    # Фиксированные рейсы добавляются после лимитов: машина уже едет, логист
+    # утвердил рейс, поэтому стопы не снимаются, а свежесть пересчитывается
+    # по фактическому порядку объезда.
+    routes.extend(
+        _fixed_planned_routes(
+            solver_input,
+            fixed_routes,
+            warehouses,
+            products,
+            stocks,
+            index,
+            {truck.truck_id: truck for truck in solver_input.trucks},
+        )
+    )
 
     metric_orders = [*orders, *(route.order for route in fixed_routes)]
     metrics = _collect_metrics(
@@ -371,6 +450,20 @@ def run_solver(
         metrics,
     )
     warnings.extend(limits.warnings)
+    # Логист должен понять, почему зафиксированный рейс пропал из плана.
+    for fixed in unavailable_fixed:
+        warnings.append(
+            PlannedWarning(
+                code="fixed_truck_unavailable",
+                message=(
+                    f"Машина «{fixed.truck_name}» не в работе: зафиксированный "
+                    f"рейс заказа №{fixed.order.order_id} в план не вошёл"
+                ),
+                severity=WarningSeverity.WARNING.value,
+                client_id=fixed.order.client_id,
+                order_id=fixed.order.order_id,
+            )
+        )
 
     return SolverOutcome(
         routes=tuple(routes),

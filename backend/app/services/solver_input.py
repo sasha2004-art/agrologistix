@@ -49,7 +49,13 @@ def _fixed_routes(
     clients_by_id: dict[int, Client],
     trucks: list[Truck],
 ) -> tuple[SolverFixedRoute, ...]:
-    """Готовые рейсы из фиксаций: заявка «В работе» со своей машиной и складом."""
+    """Готовые рейсы из фиксаций: заявка «В работе» со своей машиной и складом.
+
+    Only ``in_progress`` orders become ready-made trips. A fixation of a still
+    pending order is a reservation: the stock has not been written off yet and
+    the order must stay in the MILP, otherwise a failed status change would
+    freeze the cargo out of the plan.
+    """
 
     orders_by_id = {int(order.id or 0): order for order in orders}
     trucks_by_id = {int(truck.id or 0): truck for truck in trucks}
@@ -59,7 +65,7 @@ def _fixed_routes(
         client = clients_by_id.get(fixed.client_id)
         if order is None or client is None:
             continue
-        if order.delivery_status == DeliveryStatus.DELIVERED:
+        if order.delivery_status != DeliveryStatus.IN_PROGRESS:
             continue
         truck = trucks_by_id.get(fixed.truck_id)
         routes.append(

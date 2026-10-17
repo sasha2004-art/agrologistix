@@ -64,6 +64,9 @@ class RouteStop(SQLModel, table=True):
     eta_minutes: float = Field(default=0.0, ge=0.0)
     expected_freshness: float = Field(default=1.0, ge=0.0, le=1.0)
     trip_leg_cost_rub: float = Field(default=0.0, ge=0.0)
+    # Цена за кг на момент расчёта: XLSX старого прогона не должен смешивать
+    # сохранённый план с ценой, изменённой позже.
+    price_per_kg: float = Field(default=0.0, ge=0.0)
     stop_status: str = Field(default=StopStatus.PLANNED.value, max_length=16, index=True)
 
 

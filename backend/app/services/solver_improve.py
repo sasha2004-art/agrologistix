@@ -39,7 +39,16 @@ from app.services.solver_routing import LegIndex, LoadedOrder, RouteBuildContext
 logger = logging.getLogger(__name__)
 
 TCO_EPSILON = 0.01
+# Two orders of the same client may be split over several trucks, so moving a
+# load must add the weights up instead of overwriting them.
+LOAD_TOLERANCE_KG = 2e-3
 LoadsMap = dict[int, dict[int, float]]
+
+
+def _add_load(loads: dict[int, float], order_id: int, kilograms: float) -> None:
+    """Accumulate one order share; never overwrite an existing share."""
+
+    loads[order_id] = loads.get(order_id, 0.0) + kilograms
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,10 +185,11 @@ class _Evaluator:
         return float("inf") if evaluation is None else evaluation.tco
 
     def feasible(self, plan: Plan) -> bool:
-        """Capacity, stock, dirt access and the stop limit for the whole plan."""
+        """Capacity, stock, dirt access, stop limit and full coverage of demand."""
 
         max_stops = self.solver_input.max_stops_per_trip
         stock_used: dict[tuple[int, int], float] = {}
+        delivered: dict[int, float] = {}
         for truck_id, orders in plan.loads:
             truck = self.truck_map.get(truck_id)
             if truck is None or not orders or len(orders) > max_stops:
@@ -190,6 +200,7 @@ class _Evaluator:
                 if order is None or kilograms <= EPSILON or not truck_can_serve_order(truck, order):
                     return False
                 total_kg += kilograms
+                delivered[order_id] = delivered.get(order_id, 0.0) + kilograms
                 key = (truck.warehouse_id, order.product_id)
                 stock_used[key] = stock_used.get(key, 0.0) + kilograms
             if total_kg > truck.capacity_kg + EPSILON:
@@ -197,6 +208,12 @@ class _Evaluator:
         for key, kilograms in stock_used.items():
             stock = self.stocks.get(key)
             if stock is None or kilograms > stock.available_kg + EPSILON:
+                return False
+        # A candidate move must neither lose nor duplicate kilograms: every
+        # order has to be fully covered by shipments plus unmet demand.
+        for order_id, order in self.orders_by_id.items():
+            total = delivered.get(order_id, 0.0) + plan.unmet.get(order_id, 0.0)
+            if abs(total - order.requested_kg) > LOAD_TOLERANCE_KG:
                 return False
         return True
 
@@ -216,7 +233,8 @@ def _merges(loads: LoadsMap) -> list[LoadsMap]:
     for position, source in enumerate(truck_ids):
         for target in truck_ids[position + 1 :]:
             merged = {truck_id: dict(orders) for truck_id, orders in loads.items()}
-            merged[target].update(merged.pop(source))
+            for order_id, kilograms in merged.pop(source).items():
+                _add_load(merged[target], order_id, kilograms)
             candidates.append(merged)
     return candidates
 
@@ -239,7 +257,7 @@ def _client_moves(loads: LoadsMap, orders_by_id: dict[int, SolverOrder]) -> list
             for order_id in order_ids:
                 for truck_id in list(moved):
                     if truck_id != target and order_id in moved[truck_id]:
-                        moved[target].setdefault(order_id, moved[truck_id].pop(order_id))
+                        _add_load(moved[target], order_id, moved[truck_id].pop(order_id))
             candidates.append({truck_id: orders for truck_id, orders in moved.items() if orders})
     return candidates
 
@@ -253,7 +271,7 @@ def _single_moves(loads: LoadsMap) -> list[LoadsMap]:
                 if target == source:
                     continue
                 moved = {truck_id: dict(orders) for truck_id, orders in loads.items()}
-                moved[target].setdefault(order_id, moved[source].pop(order_id))
+                _add_load(moved[target], order_id, moved[source].pop(order_id))
                 candidates.append(
                     {truck_id: orders for truck_id, orders in moved.items() if orders}
                 )
@@ -270,8 +288,8 @@ def _swaps(loads: LoadsMap) -> list[LoadsMap]:
                     swapped = {truck_id: dict(orders) for truck_id, orders in loads.items()}
                     kilograms_first = swapped[first].pop(order_first)
                     kilograms_second = swapped[second].pop(order_second)
-                    swapped[first][order_second] = kilograms_second
-                    swapped[second][order_first] = kilograms_first
+                    _add_load(swapped[first], order_second, kilograms_second)
+                    _add_load(swapped[second], order_first, kilograms_first)
                     candidates.append(
                         {truck_id: orders for truck_id, orders in swapped.items() if orders}
                     )

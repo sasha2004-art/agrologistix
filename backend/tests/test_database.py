@@ -102,6 +102,35 @@ def test_migration_adds_route_provider_and_refresh_metadata(tmp_path: Path) -> N
     assert checked_at is None
 
 
+def test_migration_adds_price_per_kg_to_route_stop(tmp_path: Path) -> None:
+    """Исторические прогоны должны знать цену на момент расчёта."""
+
+    settings = Settings(sqlite_db_path=str(tmp_path / "legacy-stops.db"))
+    engine = create_database_engine(settings)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE route_stop ("
+            "id INTEGER PRIMARY KEY, run_id INTEGER, truck_id INTEGER, "
+            "warehouse_id INTEGER, client_id INTEGER, product_id INTEGER, "
+            "sequence_order INTEGER, shipped_kg FLOAT)"
+        )
+        connection.exec_driver_sql("INSERT INTO route_stop VALUES (1, 1, 1, 1, 1, 1, 1, 250.0)")
+
+    apply_schema_migrations(engine)
+    migrated = _columns(engine, "route_stop")
+    # Повторный запуск ничего не ломает: миграция идемпотентна.
+    apply_schema_migrations(engine)
+
+    with engine.connect() as connection:
+        price = connection.exec_driver_sql(
+            "SELECT price_per_kg FROM route_stop WHERE id = 1"
+        ).scalar_one()
+
+    engine.dispose()
+    assert "price_per_kg" in migrated
+    assert price == 0.0
+
+
 def test_migration_ignores_missing_tables(tmp_path: Path) -> None:
     settings = Settings(sqlite_db_path=str(tmp_path / "empty.db"))
     engine = create_database_engine(settings)
