@@ -2,9 +2,9 @@
   <v-main class="d-flex align-center justify-center pa-4">
     <v-card class="login-card soft-card" max-width="420" width="100%">
       <v-card-item class="text-center pt-6 pb-0">
-        <v-icon icon="mdi-spa-outline" color="primary" size="26" />
-        <v-card-title class="text-h6 mt-3">Serenity</v-card-title>
-        <v-card-subtitle class="mt-1">Введите 6-значный PIN-код</v-card-subtitle>
+        <v-icon icon="mdi-sprout-outline" color="primary" size="26" />
+        <v-card-title class="text-h6 mt-3">AgroLogistix</v-card-title>
+        <v-card-subtitle class="mt-1">Введите 6-значный код доступа</v-card-subtitle>
       </v-card-item>
 
       <v-card-text class="text-center pt-6" @click="focusPin">
@@ -15,7 +15,7 @@
           type="password"
           inputmode="numeric"
           autocomplete="one-time-code"
-          aria-label="Шестизначный PIN-код"
+          aria-label="Шестизначный код доступа"
           maxlength="6"
           :value="pin"
           @input="onInput"
@@ -30,7 +30,7 @@
           role="alert"
           aria-live="assertive"
         >
-          PIN-код не принят. Попробуйте ещё раз.
+          Код не принят. Попробуйте ещё раз.
         </v-alert>
         <div class="status-slot">
           <v-progress-linear v-if="auth.isVerifying" indeterminate color="primary" height="2" />
@@ -101,7 +101,7 @@ async function submitPin(value: string): Promise<void> {
   hasError.value = false
   try {
     const accepted = await auth.login(value)
-    if (!accepted) throw new Error('PIN не принят')
+    if (!accepted) throw new Error('Код доступа не принят')
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
     await router.replace(redirect)
   } catch {

@@ -4,9 +4,9 @@ import '@mdi/font/css/materialdesignicons.css'
 
 export const vuetify = createVuetify({
   theme: {
-    defaultTheme: 'serenityLight',
+    defaultTheme: 'agroLight',
     themes: {
-      serenityLight: {
+      agroLight: {
         dark: false,
         colors: {
           background: '#F2ECFB',

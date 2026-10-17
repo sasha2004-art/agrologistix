@@ -47,7 +47,7 @@ def test_patch_order_with_empty_body_is_rejected(client: TestClient) -> None:
     assert response.status_code == 400
     assert response.json() == {
         "code": "bad_request",
-        "detail": "Request body must contain at least one field to update",
+        "detail": "Укажите хотя бы одно поле для изменения",
     }
 
 
@@ -61,7 +61,7 @@ def test_patch_order_with_unknown_id_returns_404(client: TestClient) -> None:
     assert response.status_code == 404
     assert response.json() == {
         "code": "not_found",
-        "detail": "Client order with id 9999 was not found",
+        "detail": "Заказ №9999 не найден",
     }
 
 

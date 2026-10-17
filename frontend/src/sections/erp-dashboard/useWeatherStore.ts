@@ -17,29 +17,40 @@ export type WeatherStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface WeatherPresetOption {
   value: WeatherMode
+  /** Короткая подпись для кнопки. */
   label: string
+  /** Понятное название для меню и печати. */
+  title: string
   icon: string
   hint: string
+  /** true — ручная симуляция для примера, false — фактическая погода. */
+  simulation: boolean
 }
 
 export const WEATHER_PRESETS: WeatherPresetOption[] = [
   {
     value: 'normal',
-    label: 'Норма',
+    label: 'Фактическая',
+    title: 'Фактическая погода',
     icon: 'mdi-weather-partly-cloudy',
-    hint: 'Обычные условия для расчёта',
+    hint: 'Данные Open-Meteo по Калужской области',
+    simulation: false,
   },
   {
     value: 'heatwave_35c',
-    label: 'Жара · 35 °C',
+    label: 'Симуляция: жара',
+    title: 'Симуляция: жара +35 °C',
     icon: 'mdi-weather-sunny-alert',
-    hint: 'Ускоренная порча без рефрижератора',
+    hint: 'Пример для расчёта: ускоренная порча без рефрижератора',
+    simulation: true,
   },
   {
     value: 'heavy_rain',
-    label: 'Сильный дождь',
+    label: 'Симуляция: дождь',
+    title: 'Симуляция: сильный дождь',
     icon: 'mdi-weather-pouring',
-    hint: 'Замедление на грунтовках и порча',
+    hint: 'Пример для расчёта: замедление на грунтовках и порча',
+    simulation: true,
   },
 ]
 
@@ -73,6 +84,8 @@ export const useWeatherStore = defineStore('weather', () => {
 
   const mode = computed<WeatherMode>(() => weather.value?.mode ?? 'normal')
   const preset = computed(() => weatherPreset(mode.value))
+  /** Ручная симуляция влияет на расчёт, но не является прогнозом. */
+  const isSimulation = computed(() => mode.value !== 'normal')
   const icon = computed(() => weatherIcon(weather.value?.weather_code ?? null))
   const isLoading = computed(() => status.value === 'loading')
   const isPending = computed(() => pendingMode.value !== null)
@@ -109,7 +122,13 @@ export const useWeatherStore = defineStore('weather', () => {
     pendingMode.value = next
     try {
       weather.value = await overrideWeather(next, accessPin)
-      notifications.push('success', `Погодный режим: ${weatherPreset(next).label}`)
+      const chosen = weatherPreset(next)
+      notifications.push(
+        'success',
+        chosen.simulation
+          ? `Включена симуляция погоды: ${chosen.title.replace('Симуляция: ', '')}`
+          : 'Расчёт снова идёт по фактической погоде',
+      )
       await load({ force: true, silent: true })
       return true
     } catch (error) {
@@ -142,6 +161,7 @@ export const useWeatherStore = defineStore('weather', () => {
     pendingMode,
     mode,
     preset,
+    isSimulation,
     icon,
     isLoading,
     isPending,

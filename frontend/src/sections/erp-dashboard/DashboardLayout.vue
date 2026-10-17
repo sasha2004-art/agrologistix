@@ -7,21 +7,16 @@
       @click="drawer = !drawer"
     />
     <v-app-bar-title class="text-body-1">
-      <span class="brand">Serenity</span>
+      <span class="brand">AgroLogistix</span>
     </v-app-bar-title>
 
     <v-spacer />
 
     <WeatherControlBar class="me-2" />
 
-    <v-btn
-      variant="text"
-      :loading="erp.isLoading"
-      aria-label="Обновить состояние ERP"
-      @click="reload"
-    >
+    <v-btn variant="text" :loading="erp.isLoading" aria-label="Обновить данные" @click="reload">
       <v-icon icon="mdi-refresh" />
-      <v-tooltip activator="parent" location="bottom">Обновить состояние</v-tooltip>
+      <v-tooltip activator="parent" location="bottom">Обновить данные</v-tooltip>
     </v-btn>
     <v-btn variant="text" prepend-icon="mdi-logout" @click="logout">Выйти</v-btn>
   </v-app-bar>
@@ -35,14 +30,14 @@
   >
     <div class="drawer-body">
       <header class="drawer-head">
-        <h1 class="drawer-title">Рабочее пространство диспетчера</h1>
-        <p class="drawer-subtitle">Состояние загружено: {{ loadedAtText }}</p>
+        <h1 class="drawer-title">Планирование поставок</h1>
+        <p class="drawer-subtitle">Данные обновлены: {{ loadedAtText }}</p>
       </header>
 
       <v-tabs v-model="tab" density="comfortable" show-arrows class="dash-tabs">
-        <v-tab value="erp">Склады и заявки</v-tab>
-        <v-tab value="fleet">Автопарк</v-tab>
-        <v-tab value="routes">Маршруты и TCO</v-tab>
+        <v-tab value="erp">Заказы</v-tab>
+        <v-tab value="fleet">Машины</v-tab>
+        <v-tab value="routes">Расчёт</v-tab>
       </v-tabs>
 
       <v-window v-model="tab" class="dash-window">

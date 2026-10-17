@@ -15,7 +15,7 @@ export interface WarningMeta {
 const WARNING_META: Record<string, WarningMeta> = {
   broken_trucks_excluded: {
     icon: 'mdi-car-wrench',
-    title: 'Сломанные машины исключены',
+    title: 'Сломанные машины не в расчёте',
   },
   no_active_trucks: {
     icon: 'mdi-truck-remove-outline',
@@ -23,11 +23,11 @@ const WARNING_META: Record<string, WarningMeta> = {
   },
   unmet_demand: {
     icon: 'mdi-package-variant-closed-remove',
-    title: 'Недовоз',
+    title: 'Недопоставка',
   },
   dirt_unreachable: {
     icon: 'mdi-road-variant',
-    title: 'Грунтовка недоступна',
+    title: 'Нет машины для грунтовки',
   },
   heat_without_reefer: {
     icon: 'mdi-thermometer-high',
@@ -35,12 +35,20 @@ const WARNING_META: Record<string, WarningMeta> = {
   },
   stock_shortage: {
     icon: 'mdi-warehouse',
-    title: 'Нехватка остатков',
+    title: 'Не хватает урожая на складе',
+  },
+  freshness_risk: {
+    icon: 'mdi-thermometer-low',
+    title: 'Низкая сохранность',
+  },
+  trip_limit_exceeded: {
+    icon: 'mdi-clock-alert-outline',
+    title: 'Слишком длинный рейс',
   },
 }
 
 export function warningMeta(code: string): WarningMeta {
-  return WARNING_META[code] ?? { icon: 'mdi-alert-outline', title: 'Предупреждение расчёта' }
+  return WARNING_META[code] ?? { icon: 'mdi-alert-outline', title: 'Замечание к расчёту' }
 }
 
 export function warningColor(severity: WarningSeverity): string {
@@ -54,7 +62,7 @@ export function warningTarget(warning: {
   order_id?: number | null
   client_id?: number | null
 }): string | null {
-  if (warning.order_id) return `Заявка №${warning.order_id}`
-  if (warning.client_id) return `Клиент №${warning.client_id}`
+  if (warning.order_id) return `Заказ №${warning.order_id}`
+  if (warning.client_id) return `Покупатель №${warning.client_id}`
   return null
 }

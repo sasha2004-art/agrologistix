@@ -22,8 +22,8 @@
       </v-btn>
     </template>
 
-    <v-list density="comfortable" min-width="280">
-      <v-list-subheader>Режим погоды для расчёта</v-list-subheader>
+    <v-list density="comfortable" min-width="300">
+      <v-list-subheader>Погода для расчёта</v-list-subheader>
       <v-list-item
         v-for="option in presets"
         :key="option.value"
@@ -35,7 +35,7 @@
         <template #prepend>
           <v-icon :icon="option.icon" />
         </template>
-        <v-list-item-title>{{ option.label }}</v-list-item-title>
+        <v-list-item-title>{{ option.title }}</v-list-item-title>
         <v-list-item-subtitle>{{ option.hint }}</v-list-item-subtitle>
         <template #append>
           <v-icon v-if="option.value === weather.mode" icon="mdi-check" color="primary" />
@@ -45,8 +45,14 @@
       <v-divider class="my-2" />
 
       <v-list-item lines="two" density="compact">
-        <v-list-item-title class="text-body-2">Текущие данные</v-list-item-title>
+        <v-list-item-title class="text-body-2">Сейчас</v-list-item-title>
         <v-list-item-subtitle class="text-caption">{{ currentDetails }}</v-list-item-subtitle>
+      </v-list-item>
+
+      <v-list-item v-if="weather.isSimulation" density="compact">
+        <v-list-item-subtitle class="text-caption">
+          Симуляция не является прогнозом: она показывает, как расчёт отреагирует на жару или дождь.
+        </v-list-item-subtitle>
       </v-list-item>
 
       <v-list-item v-if="weather.hasError" density="compact" @click="retry">
@@ -74,14 +80,20 @@ const temperatureText = computed(() =>
 )
 
 const triggerLabel = computed(
-  () => `Погода: ${weather.preset.label}, ${temperatureText.value}. Выбрать режим расчёта поставок`,
+  () => `Погода: ${weather.preset.title}, ${temperatureText.value}. Выбрать погоду для расчёта`,
 )
 
 const currentDetails = computed(() => {
   if (weather.hasError) return 'Данные недоступны'
   if (!weather.weather) return 'Загружаем…'
-  const parts = [`осадки ${weather.weather.precipitation_mm.toFixed(1)} мм`]
-  if (weather.source === 'mock') parts.push('dev-mock')
+  const parts = [temperatureText.value, `осадки ${weather.weather.precipitation_mm.toFixed(1)} мм`]
+  parts.push(
+    weather.isSimulation
+      ? `симуляция: ${weather.preset.title.replace('Симуляция: ', '')}`
+      : weather.source === 'mock'
+        ? 'резервные данные'
+        : 'фактическая (по API)',
+  )
   return parts.join(' · ')
 })
 

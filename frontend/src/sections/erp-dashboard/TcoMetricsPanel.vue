@@ -1,9 +1,9 @@
 <template>
-  <section class="tco" aria-label="Метрики TCO плана">
+  <section class="tco" aria-label="Затраты и прибыль по плану">
     <div class="tco-head">
-      <h3 class="tco-title">TCO плана</h3>
+      <h3 class="tco-title">Затраты и прибыль</h3>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-calculator-variant-outline">
-        {{ solver.routes.length }} рейс(а) · {{ solver.plannedStops.length }} стоп(ов)
+        {{ solver.routes.length }} машин · {{ solver.plannedStops.length }} остановок
       </v-chip>
     </div>
 
@@ -61,42 +61,42 @@ const cards = computed<Card[]>(() => {
   const m = metrics.value
   return [
     {
-      label: 'Совокупные затраты',
+      label: 'Общие затраты',
       value: formatRub(m.total_tco_rub),
-      hint: 'рейсы + порча + штрафы',
+      hint: 'доставка + потери + штрафы',
     },
     {
-      label: 'Стоимость рейсов',
+      label: 'Затраты на доставку',
       value: formatRub(m.total_trip_cost_rub),
-      hint: 'топливо, время, фикс',
+      hint: 'дорога и выезд',
     },
     {
-      label: 'Потери от порчи',
+      label: 'Потери урожая',
       value: formatRub(m.total_spoilage_loss_rub),
-      hint: 'по свежести на выгрузке',
+      hint: 'испортилось в пути',
     },
     {
-      label: 'Штраф за недовоз',
+      label: 'Штраф за недопоставку',
       value: formatRub(m.total_unmet_penalty_rub),
-      hint: `${formatKg(m.unmet_kg)} не закрыто`,
+      hint: `${formatKg(m.unmet_kg)} не привезли`,
       modifier: m.unmet_kg > 0 ? 'alert' : undefined,
     },
     {
-      label: 'Ожидаемая прибыль',
+      label: 'Прибыль',
       value: formatRub(m.expected_net_profit_rub),
-      hint: `${formatKg(m.shipped_kg)} отгружено`,
+      hint: `${formatKg(m.shipped_kg)} привезли`,
     },
     {
-      label: 'Средняя свежесть',
+      label: 'Сохранность урожая',
       value: formatPercent(m.avg_freshness_pct),
       hint: freshnessLabel(freshnessFraction.value),
       modifier: freshness.value,
     },
     {
       // Консолидация: сколько рейсов вышло и насколько полно загружены машины.
-      label: 'Загрузка рейсов',
+      label: 'Загрузка машин',
       value: formatPercent(m.avg_load_factor_pct),
-      hint: `${formatNumber(m.total_trips)} рейс(а) · разделённых клиентов: ${formatNumber(m.split_clients)}`,
+      hint: `${formatNumber(m.total_trips)} рейсов · покупателей в двух машинах: ${formatNumber(m.split_clients)}`,
     },
   ]
 })

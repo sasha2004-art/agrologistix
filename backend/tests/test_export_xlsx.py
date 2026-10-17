@@ -73,7 +73,7 @@ def test_export_route_sheet_matches_planned_stops(client: TestClient) -> None:
     sheet = workbook[workbook.sheetnames[1]]
     header_row = next(row[0].row for row in sheet.iter_rows() if row[0].value == "№")
     headers = [cell.value for cell in sheet[header_row]]
-    assert headers[:5] == ["№", "Заявка", "Клиент", "Культура", "Отгружено, кг"]
+    assert headers[:5] == ["№", "Заказ", "Покупатель", "Урожай", "Отгружено, кг"]
     assert headers[-1] == "Статус"
 
     rows = [
@@ -142,7 +142,7 @@ def test_workbook_can_be_built_without_database_entities() -> None:
     assert "Рейс 1" in workbook.sheetnames[1]
     route_sheet = workbook[workbook.sheetnames[1]]
     header = next(row for row in route_sheet.iter_rows() if row[0].value == "№")
-    assert [cell.value for cell in header][:2] == ["№", "Заявка"]
+    assert [cell.value for cell in header][:2] == ["№", "Заказ"]
     row = next(row for row in route_sheet.iter_rows() if row[0].value == 1)
     assert row[1].value == "—"
     totals = next(row for row in route_sheet.iter_rows() if row[0].value == "Итого")
@@ -167,7 +167,7 @@ def test_export_rejects_unknown_run_and_missing_pin(client: TestClient) -> None:
     assert missing.status_code == 404
     assert missing.json() == {
         "code": "not_found",
-        "detail": "Solver run with id 9999 was not found",
+        "detail": "Расчёт №9999 не найден",
     }
 
 

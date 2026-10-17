@@ -20,7 +20,7 @@ export function freshnessLevel(fraction: number): FreshnessLevel {
 
 export function freshnessLabel(fraction: number): string {
   const level = freshnessLevel(fraction)
-  if (level === 'error') return 'Низкая свежесть'
-  if (level === 'warning') return 'Сниженная свежесть'
-  return 'Свежесть в норме'
+  if (level === 'error') return 'Низкая сохранность'
+  if (level === 'warning') return 'Сниженная сохранность'
+  return 'Сохранность в норме'
 }

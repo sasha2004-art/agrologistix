@@ -114,7 +114,7 @@ async function requestWithFallback<T>(
     return { data: await request<T>(path, options), source: 'api' satisfies DataSource }
   } catch (error) {
     if (!isFallbackEligible(error)) throw error
-    console.warn(`[api] ${path} недоступен, используются dev-mock данные`, error)
+    console.warn(`[api] ${path} недоступен, используются резервные данные`, error)
     return { data: clone(fallback()), source: 'mock' }
   }
 }
@@ -128,7 +128,8 @@ export async function verifyPin(accessPin: string): Promise<AuthResponse> {
   } catch (error) {
     if (!isFallbackEligible(error)) throw error
     const demoSession = DEMO_PINS[accessPin]
-    if (!demoSession) throw new ApiError(401, { code: 'unauthorized', detail: 'Неверный PIN-код' })
+    if (!demoSession)
+      throw new ApiError(401, { code: 'unauthorized', detail: 'Неверный код доступа' })
     return clone(demoSession)
   }
 }
@@ -241,16 +242,16 @@ export function optimize(accessPin: string): Promise<SolverResponse> {
 /** Человекочитаемое сообщение об ошибке для v-alert. */
 export function describeApiError(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 401) return 'PIN-код не принят или сессия истекла.'
+    if (error.status === 401) return 'Код доступа не принят или сессия истекла.'
     if (error.status === 403) return 'Недостаточно прав для этого действия.'
-    if (error.status === 404) return 'Запись не найдена — возможно, данные уже обновлены.'
+    if (error.status === 404) return 'Данные не найдены — возможно, они уже обновлены.'
     if (error.status === 422) return `Некорректное значение: ${error.detail}`
     if (error.status >= 500)
-      return `Сервер временно недоступен (${error.status}). Изменение не сохранено — повторите позже.`
+      return 'Сервис временно недоступен. Изменение не сохранено — повторите позже.'
     return error.detail
   }
   if (error instanceof TypeError)
-    return 'Сервер недоступен: изменение не сохранено. Проверьте соединение и повторите.'
+    return 'Нет связи с сервисом: изменение не сохранено. Проверьте подключение и повторите.'
   if (error instanceof Error) return error.message
   return 'Не удалось выполнить запрос. Попробуйте ещё раз.'
 }

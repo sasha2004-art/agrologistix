@@ -36,7 +36,7 @@ export interface MapPoint {
   planStopsCount: number
 }
 
-/** Данные плана для точки клиента: попап показывает ETA, свежесть и вес. */
+/** Данные плана для точки клиента: попап показывает время в пути, сохранность и вес. */
 export interface ClientPlanInfo {
   orderId: number | null
   truckName: string
@@ -99,8 +99,8 @@ export function buildMapPoints(
       deliveryStatus: clientStatus(own),
       orderCount: own.length,
       requestedKg: own.reduce((sum, order) => sum + order.requested_kg, 0),
-      // Если у клиента несколько заявок в плане, показываем самую «позднюю» по ETA,
-      // а остальные сворачиваем в счётчик, чтобы попап не распухал.
+      // Если у клиента несколько заказов в плане, показываем самый «поздний» по времени
+      // в пути, а остальные сворачиваем в счётчик, чтобы попап не распухал.
       plan: planned.sort((a, b) => b.etaMinutes - a.etaMinutes)[0] ?? null,
       planStopsCount: planned.length,
     })
@@ -123,7 +123,7 @@ export function markerIcon(point: MapPoint): string {
 }
 
 export function markerLabel(point: MapPoint): string {
-  const parts = [point.kind === 'warehouse' ? 'Склад' : 'Клиент', point.name]
+  const parts = [point.kind === 'warehouse' ? 'Склад' : 'Покупатель', point.name]
   if (point.roadType) parts.push(roadLabel(point.roadType))
   if (point.deliveryStatus) parts.push(statusLabel(point.deliveryStatus))
   return parts.join(', ')
@@ -169,7 +169,7 @@ export function popupHtml(point: MapPoint): string {
   if (point.address) rows.push(`<div class="map-popup__row">${escapeHtml(point.address)}</div>`)
   if (point.roadType)
     rows.push(
-      `<div class="map-popup__row">Подъезд: <strong>${roadLabel(point.roadType)}</strong></div>`,
+      `<div class="map-popup__row">Дорога: <strong>${roadLabel(point.roadType)}</strong></div>`,
     )
   if (point.deliveryStatus)
     rows.push(
@@ -177,17 +177,17 @@ export function popupHtml(point: MapPoint): string {
     )
   if (point.orderCount > 0)
     rows.push(
-      `<div class="map-popup__row">Заявок: ${point.orderCount} · ${Math.round(point.requestedKg)} кг</div>`,
+      `<div class="map-popup__row">Заказов: ${point.orderCount} · ${Math.round(point.requestedKg)} кг</div>`,
     )
   if (point.plan) {
-    const extra = point.planStopsCount > 1 ? ` (+${point.planStopsCount - 1} стоп(ов))` : ''
+    const extra = point.planStopsCount > 1 ? ` (+${point.planStopsCount - 1} остановок)` : ''
     rows.push(
       `<div class="map-popup__row map-popup__plan">` +
         `<span class="map-popup__swatch" style="background:${escapeHtml(point.plan.color)}"></span>` +
-        `Рейс: <strong>${escapeHtml(point.plan.truckName)}</strong>${extra} · ETA ${formatMinutes(
+        `Машина: <strong>${escapeHtml(point.plan.truckName)}</strong>${extra} · в пути ${formatMinutes(
           point.plan.etaMinutes,
         )} · ` +
-        `свежесть ${formatFreshness(point.plan.expectedFreshness)} · ${Math.round(point.plan.shippedKg)} кг` +
+        `сохранность ${formatFreshness(point.plan.expectedFreshness)} · ${Math.round(point.plan.shippedKg)} кг` +
         `</div>`,
     )
   }

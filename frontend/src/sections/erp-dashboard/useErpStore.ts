@@ -181,7 +181,7 @@ export const useErpStore = defineStore('erp', () => {
       alerts.push({
         id: 'no-active-trucks',
         severity: 'error',
-        message: 'Нет машин в строю: расчёт вернёт недовоз по всем заявкам.',
+        message: 'Нет машин в строю: все заказы останутся не привезёнными.',
       })
     }
 
@@ -200,7 +200,7 @@ export const useErpStore = defineStore('erp', () => {
         id: 'no-dirt-capable-truck',
         severity: 'error',
         message:
-          'Ни одной активной машины с допуском к грунтовке: точки на грунте останутся без поставки.',
+          'Ни одной машины, которая может ехать по грунтовке: заказы в такие точки останутся без поставки.',
       })
     }
 
@@ -208,7 +208,7 @@ export const useErpStore = defineStore('erp', () => {
       alerts.push({
         id: 'no-reefer',
         severity: 'warning',
-        message: 'В автопарке нет рефрижераторов: свежесть скоропорта снизится.',
+        message: 'Нет машин с охлаждением: урожай будет портиться быстрее.',
       })
     }
 
@@ -228,11 +228,11 @@ export const useErpStore = defineStore('erp', () => {
       alerts.push({
         id: `low-freshness-${stock.id}`,
         severity: level === 'error' ? 'error' : 'warning',
-        message: `${product?.name ?? `Продукт №${stock.product_id}`} на складе «${
+        message: `${product?.name ?? `Урожай №${stock.product_id}`} на складе «${
           warehouse?.name ?? `№${stock.warehouse_id}`
-        }»: свежесть партии ${formatPercent(stock.initial_freshness * 100)}, остаток ${formatKg(
+        }»: сохранность партии ${formatPercent(stock.initial_freshness * 100)}, остаток ${formatKg(
           stock.available_kg,
-        )} — груз рискует испортиться.`,
+        )} — урожай рискует испортиться.`,
       })
     }
 
@@ -243,7 +243,7 @@ export const useErpStore = defineStore('erp', () => {
         alerts.push({
           id: `stock-shortage-${row.order.id}`,
           severity: 'warning',
-          message: `${row.product.name}: остаток ${Math.round(available)} кг меньше заявки №${row.order.id} (${Math.round(outstanding)} кг).`,
+          message: `${row.product.name}: остаток ${Math.round(available)} кг меньше заказа №${row.order.id} (${Math.round(outstanding)} кг).`,
         })
       }
     }
@@ -269,7 +269,7 @@ export const useErpStore = defineStore('erp', () => {
   ): Promise<void> {
     if (!auth.accessPin) {
       status.value = 'error'
-      errorMessage.value = 'Требуется вход по PIN-коду.'
+      errorMessage.value = 'Требуется вход по коду доступа.'
       return
     }
     if (status.value === 'loading') return
@@ -349,7 +349,7 @@ export const useErpStore = defineStore('erp', () => {
   ): Promise<boolean> {
     const accessPin = auth.accessPin
     if (!accessPin) {
-      notifications.push('error', 'Требуется вход по PIN-коду.')
+      notifications.push('error', 'Требуется вход по коду доступа.')
       return false
     }
     pendingKeys.value.add(key)
@@ -374,7 +374,7 @@ export const useErpStore = defineStore('erp', () => {
       // Backend отвечает 400 на пустой патч — не отправляем заведомо невалидный запрос.
       return Promise.resolve(false)
     }
-    return runMutation(`order:${orderId}`, `Заявка №${orderId} сохранена`, async (accessPin) => {
+    return runMutation(`order:${orderId}`, `Заказ №${orderId} сохранён`, async (accessPin) => {
       const updated = await patchOrder(orderId, patch, accessPin)
       if (state.value) state.value.orders = replaceById(state.value.orders, updated)
     })

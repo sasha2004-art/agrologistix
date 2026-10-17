@@ -3,11 +3,11 @@
     <header class="sheet-head">
       <div>
         <h1 class="sheet-title">Маршрутный лист</h1>
-        <p class="sheet-sub">План поставок · прогон №{{ runId }} · {{ printedAtText }}</p>
+        <p class="sheet-sub">Расчёт №{{ runId }} · {{ printedAtText }}</p>
       </div>
       <div class="sheet-weather">
-        <p>Погода: {{ weatherText }}</p>
-        <p>Автопарк: {{ solver.routes.length }} рейс(а)</p>
+        <p>{{ weatherText }}</p>
+        <p>Машин: {{ solver.routes.length }}</p>
       </div>
     </header>
 
@@ -24,13 +24,13 @@
         <thead>
           <tr>
             <th>№</th>
-            <th>Клиент и адрес</th>
-            <th>Подъезд</th>
-            <th>Продукт</th>
+            <th>Покупатель и адрес</th>
+            <th>Дорога</th>
+            <th>Урожай</th>
             <th class="num">Вес</th>
-            <th class="num">ETA</th>
-            <th class="num">Свежесть</th>
-            <th class="num">Плечо</th>
+            <th class="num">В пути</th>
+            <th class="num">Сохранность</th>
+            <th class="num">Стоимость</th>
           </tr>
         </thead>
         <tbody>
@@ -72,9 +72,7 @@
       </li>
     </ul>
 
-    <footer class="sheet-foot">
-      AgroLogistix · маршрутный лист сформирован из плана прогона №{{ runId }}
-    </footer>
+    <footer class="sheet-foot">AgroLogistix · маршрутный лист по расчёту №{{ runId }}</footer>
   </section>
 </template>
 
@@ -102,13 +100,16 @@ const printedAtText = computed(() => new Date().toLocaleString('ru-RU'))
 
 const weatherText = computed(() => {
   const current = weather.weather
-  if (!current) return 'нет данных'
+  if (!current) return 'Погода: нет данных'
   const preset = weatherPreset(current.mode)
-  return `${Math.round(current.temperature_c)} °C, ${preset.label.toLowerCase()}, осадки ${formatDecimal(current.precipitation_mm)} мм`
+  const conditions = `${Math.round(current.temperature_c)} °C, осадки ${formatDecimal(current.precipitation_mm)} мм`
+  if (preset.simulation)
+    return `Симуляция погоды: ${preset.title.replace('Симуляция: ', '')}, ${conditions}`
+  return `Фактическая погода: ${conditions}`
 })
 
 function clientName(clientId: number): string {
-  return erp.clientById.get(clientId)?.name ?? `Клиент №${clientId}`
+  return erp.clientById.get(clientId)?.name ?? `Покупатель №${clientId}`
 }
 
 function clientAddress(clientId: number): string {
@@ -120,10 +121,10 @@ function roadLabel(clientId: number): string {
 }
 
 function productName(productId: number): string {
-  return erp.productById.get(productId)?.name ?? `Продукт №${productId}`
+  return erp.productById.get(productId)?.name ?? `Урожай №${productId}`
 }
 
-/** Фактическая загрузка машины: сумма отгружённых кг по её стопам. */
+/** Фактическая загрузка машины: сумма отгружённых кг по её остановкам. */
 function truckLoad(truckId: number): number {
   const route = solver.routes.find((item) => item.truck_id === truckId)
   return (route?.stops ?? []).reduce((sum, stop) => sum + stop.shipped_kg, 0)

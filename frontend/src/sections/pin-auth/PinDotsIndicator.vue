@@ -3,7 +3,7 @@
     class="pin-dots"
     :class="{ 'pin-dots--error': error, 'pin-dots--shake': shaking }"
     role="group"
-    aria-label="Введено цифр PIN-кода"
+    aria-label="Введено цифр кода доступа"
   >
     <span
       v-for="index in 6"

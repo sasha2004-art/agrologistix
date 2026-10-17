@@ -2,10 +2,8 @@
   <div class="tab-body">
     <header class="tab-header">
       <div>
-        <h2 class="tab-title">Маршруты и TCO</h2>
-        <p class="tab-subtitle">
-          Расчёт на сервере: рейсы по машинам, полилинии на карте, метрики TCO и предупреждения.
-        </p>
+        <h2 class="tab-title">Расчёт маршрутов</h2>
+        <p class="tab-subtitle">Машины, маршруты, затраты и сохранность урожая.</p>
       </div>
       <div class="header-chips">
         <v-chip
@@ -28,11 +26,8 @@
         :disabled="solver.isLoading || !erp.isReady"
         @click="runPlan"
       >
-        {{ solver.hasPlan ? 'Пересчитать план' : 'Рассчитать поставки' }}
+        {{ solver.hasPlan ? 'Пересчитать' : 'Рассчитать поставки' }}
       </v-btn>
-      <v-chip class="soft-chip" size="small" prepend-icon="mdi-server-outline">
-        POST /solver/optimize
-      </v-chip>
       <v-btn
         v-if="solver.hasPlan"
         variant="text"
@@ -40,7 +35,7 @@
         prepend-icon="mdi-close-circle-outline"
         @click="solver.clear()"
       >
-        Сбросить план
+        Очистить
       </v-btn>
     </div>
 
@@ -53,7 +48,7 @@
         :disabled="exporting || !activeRunId"
         @click="exportXlsx"
       >
-        Скачать XLSX
+        Скачать таблицу (Excel)
       </v-btn>
       <v-btn variant="tonal" color="primary" prepend-icon="mdi-printer" @click="printSheet">
         Печать / PDF
@@ -64,7 +59,7 @@
         prepend-icon="mdi-truck-outline"
         :title="routesInSheetText"
       >
-        В лист: {{ solver.routes.length }} рейс(а) · {{ solver.plannedStops.length }} стоп(ов)
+        В лист: {{ solver.routes.length }} машин, {{ solver.plannedStops.length }} остановок
       </v-chip>
     </div>
 
@@ -75,14 +70,13 @@
       density="comfortable"
       class="stale-note"
     >
-      Исходные данные изменились — пересчитайте план поставок, чтобы увидеть актуальные рейсы и
-      метрики.
+      Данные изменились — пересчитайте маршруты, чтобы увидеть актуальные цифры.
     </v-alert>
 
     <StatePanel
       :status="erp.panelStatus"
       :error-text="erp.errorMessage"
-      loading-text="Готовим исходные данные для расчёта…"
+      loading-text="Готовим данные для расчёта…"
       @retry="reload"
     >
       <div class="run-stack">
@@ -107,11 +101,11 @@
         <div v-else class="neu-inset plan-empty">
           <v-icon icon="mdi-map-marker-path" size="32" color="primary" />
           <p class="plan-title">
-            {{ solver.isLoading ? 'Считаем план…' : 'План ещё не рассчитан' }}
+            {{ solver.isLoading ? 'Считаем…' : 'Маршруты ещё не рассчитаны' }}
           </p>
           <p class="plan-text">
-            Нажмите «Рассчитать поставки»: сервер распределит заявки по машинам, посчитает свежесть,
-            TCO и нарисует рейсы на карте.
+            Нажмите «Рассчитать поставки»: сервис распределит заказы по машинам, посчитает
+            сохранность урожая и нарисует маршруты на карте.
           </p>
           <v-progress-linear
             v-if="solver.isLoading"
@@ -122,9 +116,9 @@
         </div>
 
         <section class="risks">
-          <h3 class="risks-title">Предварительные риски по исходным данным</h3>
+          <h3 class="risks-title">На что обратить внимание</h3>
           <p v-if="erp.riskAlerts.length === 0" class="risks-empty">
-            Ограничений не найдено: автопарк, остатки и дороги согласованы.
+            Замечаний нет: машины, остатки и дороги согласованы.
           </p>
           <ul v-else class="risks-list">
             <li v-for="alert in erp.riskAlerts" :key="alert.id" class="risks-item">
@@ -167,7 +161,7 @@ const exporting = ref(false)
 /** Прогон, который попадает в XLSX и на печать. */
 const activeRunId = computed(() => solver.plan?.run_id ?? null)
 
-/** Подсказка к чипу: какие именно рейсы попадут в маршрутный лист. */
+/** Подсказка к чипу: какие именно машины попадут в маршрутный лист. */
 const routesInSheetText = computed(() =>
   solver.routes.map((route) => `${route.truck_name} (${route.stops.length})`).join(', '),
 )

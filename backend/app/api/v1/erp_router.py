@@ -93,7 +93,7 @@ def _consume_stock(session: Session, order: ClientOrder, consumed: dict[int, flo
         if stock is None or stock.available_kg + _KG_EPSILON < shipped_kg:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Warehouse stock changed since the latest plan",
+                detail="Остатки на складе изменились после расчёта — обновите план и повторите",
             )
         stock.available_kg = max(0.0, stock.available_kg - shipped_kg)
         session.add(stock)
@@ -158,7 +158,7 @@ def _get_or_404[EntityT: SQLModel](
     if entity is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"{label} with id {entity_id} was not found",
+            detail=f"{label} №{entity_id} не найден",
         )
     return entity
 
@@ -201,7 +201,7 @@ def patch_client_order(
     _context: AccessContext,
     session: SessionDependency,
 ) -> ClientOrderResponse:
-    order = _get_or_404(session, ClientOrder, order_id, "Client order")
+    order = _get_or_404(session, ClientOrder, order_id, "Заказ")
 
     updated = False
     if payload.purchase_price_rub is not None:
@@ -222,7 +222,7 @@ def patch_client_order(
     if not updated:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Request body must contain at least one field to update",
+            detail="Укажите хотя бы одно поле для изменения",
         )
 
     session.add(order)
@@ -243,7 +243,7 @@ def patch_truck(
     _context: AccessContext,
     session: SessionDependency,
 ) -> TruckResponse:
-    truck = _get_or_404(session, Truck, truck_id, "Truck")
+    truck = _get_or_404(session, Truck, truck_id, "Машина")
     truck.status = payload.status.value
 
     session.add(truck)
@@ -264,7 +264,7 @@ def patch_warehouse_stock(
     _context: AccessContext,
     session: SessionDependency,
 ) -> WarehouseStockResponse:
-    stock = _get_or_404(session, WarehouseStock, stock_id, "Warehouse stock")
+    stock = _get_or_404(session, WarehouseStock, stock_id, "Партия")
     stock.available_kg = payload.available_kg
 
     session.add(stock)
