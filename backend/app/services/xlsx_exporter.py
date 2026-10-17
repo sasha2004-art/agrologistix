@@ -3,30 +3,32 @@
 The workbook is generated in memory (:class:`io.BytesIO`) with ``openpyxl``.
 Structure:
 
-* ``Сводка`` — run metadata, итоговые метрики, краткая таблица рейсов и
-  диаграмма «стоимость + потери»;
+* ``Сводка`` — run metadata, итоговые метрики и краткая таблица рейсов;
 * ``Рейсы`` — подробная аналитика по машинам (оснащение, загрузка, деньги);
 * ``Аналитика`` — построчно по остановкам: плечо, ETA, сохранность, выручка,
   потери и маржа;
 * ``Замечания`` — пометки, рассчитанные из прогона (недовоз, низкая
   сохранность, недогруженные рейсы, дробление покупателей);
+* ``Заказы``, ``Машины``, ``Склады и остатки`` — таблицы сайта на момент
+  экспорта (добавляются, когда передан ``session``);
 * ``Рейс N <госномер>`` — лист водителя: остановки, итоги, подписи.
 
-Only persisted data is used, so the exporter never depends on the live ERP
-state. No PDF engine is involved: printing is a frontend concern.
+Структура книги — обычные таблицы, без диаграмм и символов валюты.
+No PDF engine is involved: printing is a frontend concern.
 """
 
 from io import BytesIO
 
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
+from sqlmodel import Session
 
 from app.services.xlsx_analysis import (
-    add_route_chart,
     write_analysis_sheet,
     write_notes_sheet,
     write_routes_sheet,
 )
+from app.services.xlsx_erp import write_orders_sheet, write_stocks_sheet, write_trucks_sheet
 from app.services.xlsx_report import (
     LABEL_FONT,
     TITLE_FONT,
@@ -65,13 +67,13 @@ def _summary_metrics(report: ExportRun) -> list[tuple[str, float]]:
     # Проценты потерь и недовоза — понятная пользователю замена штрафам.
     spoilage_pct = max(0.0, 100.0 - run.avg_freshness_pct) if run.total_shipped_kg > 0 else 0.0
     return [
-        ("Выручка, ₽", report.revenue_rub),
-        ("Общие затраты, ₽", run.total_tco_rub),
-        ("Затраты на доставку, ₽", run.total_trip_cost_rub),
-        ("Потери урожая, ₽", run.total_spoilage_loss_rub),
+        ("Выручка, руб.", report.revenue_rub),
+        ("Общие затраты, руб.", run.total_tco_rub),
+        ("Затраты на доставку, руб.", run.total_trip_cost_rub),
+        ("Потери урожая, руб.", run.total_spoilage_loss_rub),
         ("Потери урожая, кг", report.spoilage_kg),
         ("Потери урожая, %", round(spoilage_pct, 2)),
-        ("Прибыль, ₽", run.expected_net_profit_rub),
+        ("Прибыль, руб.", run.expected_net_profit_rub),
         ("Сохранность урожая, %", run.avg_freshness_pct),
         ("Привезли, кг", run.total_shipped_kg),
         ("Не привезли, кг", run.total_unmet_kg),
@@ -98,8 +100,8 @@ def _write_summary(sheet: Worksheet, report: ExportRun) -> tuple[int, int, int]:
         ("Температура, °C", run.temp_c),
         ("Осадки, мм", run.precip_mm),
         ("Машин", len(report.routes)),
-        ("Выручка, ₽", report.revenue_rub),
-        ("Маржа, ₽", round(report.revenue_rub - run.total_tco_rub, 2)),
+        ("Выручка, руб.", report.revenue_rub),
+        ("Маржа, руб.", round(report.revenue_rub - run.total_tco_rub, 2)),
     ]
     row = 3
     for label, value in info:
@@ -134,8 +136,8 @@ def _write_summary(sheet: Worksheet, report: ExportRun) -> tuple[int, int, int]:
         "Отгружено, кг",
         "Пробег, км",
         "Время, мин",
-        "Стоимость, ₽",
-        "Потери, ₽",
+        "Стоимость, руб.",
+        "Потери, руб.",
     ]
     for column, header in enumerate(headers, start=1):
         sheet.cell(row=route_header, column=column, value=header)
@@ -161,14 +163,6 @@ def _write_summary(sheet: Worksheet, report: ExportRun) -> tuple[int, int, int]:
                 cell.number_format = "#,##0.00"
         row += 1
 
-    add_route_chart(
-        sheet,
-        route_header,
-        first_route_row,
-        len(report.routes),
-        cost_column=8,
-        spoilage_column=9,
-    )
     autosize(sheet)
     return route_header, first_route_row, len(report.routes)
 
@@ -186,10 +180,10 @@ def _write_route(sheet: Worksheet, index: int, route: ExportRoute, run_weather: 
         ("Загрузка, %", route.load_factor_pct),
         ("Пробег, км", route.total_distance_km),
         ("Время в пути, мин", route.total_duration_min),
-        ("Стоимость, ₽", route.total_cost_rub),
-        ("Выручка, ₽", route.revenue_rub),
-        ("Потери, ₽", route.spoilage_rub),
-        ("Маржа, ₽", route.margin_rub),
+        ("Стоимость, руб.", route.total_cost_rub),
+        ("Выручка, руб.", route.revenue_rub),
+        ("Потери, руб.", route.spoilage_rub),
+        ("Маржа, руб.", route.margin_rub),
         ("Сохранность в последней точке, %", route.final_freshness_pct),
         ("Погода", weather_label(run_weather)),
     ]
@@ -212,7 +206,7 @@ def _write_route(sheet: Worksheet, index: int, route: ExportRoute, run_weather: 
         "Расстояние, км",
         "В пути, мин",
         "Сохранность, %",
-        "Стоимость, ₽",
+        "Стоимость, руб.",
         "Статус",
     ]
     for column, header in enumerate(headers, start=1):
@@ -223,7 +217,7 @@ def _write_route(sheet: Worksheet, index: int, route: ExportRoute, run_weather: 
     for stop in route.stops:
         values = [
             stop.sequence_order,
-            stop.order_id if stop.order_id is not None else "—",
+            stop.order_id if stop.order_id is not None else "-",
             stop.client_name,
             stop.product_name,
             stop.shipped_kg,
@@ -248,8 +242,12 @@ def _write_route(sheet: Worksheet, index: int, route: ExportRoute, run_weather: 
     autosize(sheet)
 
 
-def build_workbook(report: ExportRun) -> Workbook:
-    """Render the report as an ``openpyxl`` workbook."""
+def build_workbook(report: ExportRun, session: Session | None = None) -> Workbook:
+    """Render the report as an ``openpyxl`` workbook.
+
+    С ``session`` добавляются листы текущего ERP (заказы, машины, склады и
+    остатки) — те же таблицы, что видит логист на сайте.
+    """
 
     workbook = Workbook()
     summary = workbook.active
@@ -264,15 +262,23 @@ def build_workbook(report: ExportRun) -> Workbook:
     ):
         writer(workbook.create_sheet(title=safe_sheet_title(title, used_titles)))
 
+    if session is not None:
+        for title, writer in (
+            ("Заказы", lambda sheet: write_orders_sheet(sheet, session)),
+            ("Машины", lambda sheet: write_trucks_sheet(sheet, session)),
+            ("Склады и остатки", lambda sheet: write_stocks_sheet(sheet, session)),
+        ):
+            writer(workbook.create_sheet(title=safe_sheet_title(title, used_titles)))
+
     for index, route in enumerate(report.routes, start=1):
         title = safe_sheet_title(f"Рейс {index} {route.plate_number}", used_titles)
         _write_route(workbook.create_sheet(title=title), index, route, report.run.weather_mode)
     return workbook
 
 
-def export_run_xlsx(report: ExportRun) -> bytes:
+def export_run_xlsx(report: ExportRun, session: Session | None = None) -> bytes:
     """Serialize the report to XLSX bytes."""
 
     buffer = BytesIO()
-    build_workbook(report).save(buffer)
+    build_workbook(report, session).save(buffer)
     return buffer.getvalue()

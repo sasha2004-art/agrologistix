@@ -8,7 +8,6 @@
 Штрафов за недовоз здесь нет: недовоз измеряется килограммами и процентом.
 """
 
-from openpyxl.chart import BarChart, Reference
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.services.xlsx_report import (
@@ -40,11 +39,11 @@ ROUTES_HEADERS = (
     "Остановок",
     "Пробег, км",
     "Время, мин",
-    "Выручка, ₽",
+    "Выручка, руб.",
     "Потери, кг",
-    "Потери, ₽",
-    "Стоимость, ₽",
-    "Маржа, ₽",
+    "Потери, руб.",
+    "Стоимость, руб.",
+    "Маржа, руб.",
     "Сохранность в точках, %",
 )
 
@@ -60,16 +59,16 @@ ANALYSIS_HEADERS = (
     "Склад",
     "Партия, %",
     "Отгружено, кг",
-    "Цена, ₽/кг",
-    "Выручка, ₽",
+    "Цена, руб./кг",
+    "Выручка, руб.",
     "Плечо, км",
     "Время плеча, мин",
     "ETA, мин",
     "Сохранность, %",
     "Потери, кг",
-    "Потери, ₽",
-    "Стоимость плеча, ₽",
-    "Маржа, ₽",
+    "Потери, руб.",
+    "Стоимость плеча, руб.",
+    "Маржа, руб.",
     "Этап",
 )
 
@@ -161,7 +160,7 @@ def write_analysis_sheet(sheet: Worksheet, report: ExportRun) -> None:
                 index,
                 route.truck_name,
                 stop.sequence_order,
-                stop.order_id if stop.order_id is not None else "—",
+                stop.order_id if stop.order_id is not None else "-",
                 stop.client_name,
                 stop.client_address,
                 road_label(stop.road_type),
@@ -282,40 +281,6 @@ def _collect_notes(report: ExportRun) -> list[tuple[str, str, str]]:
             )
         )
     return notes
-
-
-def add_route_chart(
-    sheet: Worksheet,
-    header_row: int,
-    first_row: int,
-    count: int,
-    cost_column: int,
-    spoilage_column: int,
-) -> None:
-    """Столбчатая диаграмма «стоимость доставки + потери» по рейсам."""
-
-    if count <= 0:
-        return
-    chart = BarChart()
-    chart.type = "col"
-    chart.title = "Стоимость доставки и потери урожая, ₽"
-    chart.y_axis.title = "₽"
-    chart.x_axis.title = "Рейс"
-    data = Reference(
-        sheet,
-        min_col=cost_column,
-        max_col=spoilage_column,
-        min_row=header_row,
-        max_row=first_row + count - 1,
-    )
-    categories = Reference(
-        sheet, min_col=1, max_col=1, min_row=first_row, max_row=first_row + count - 1
-    )
-    chart.add_data(data, titles_from_data=True)
-    chart.set_categories(categories)
-    chart.height = 8
-    chart.width = 18
-    sheet.add_chart(chart, f"A{first_row + count + 2}")
 
 
 def _column_letter(column: int) -> str:
