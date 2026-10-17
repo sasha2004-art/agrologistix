@@ -67,6 +67,20 @@ npm run dev --prefix frontend
 Откройте <http://127.0.0.1:5173>.
 Vite проксирует запросы `/api` на backend `http://localhost:8000`.
 
+### Токен Mapbox (карта)
+
+`VITE_MAPBOX_PUBLIC_TOKEN` — переменная **этапа сборки**: Vite встраивает её в
+JS-бандл при `npm run build`, поэтому на сервере фронтовый `.env` не нужен.
+
+- локально: `frontend/.env` со строкой `VITE_MAPBOX_PUBLIC_TOKEN=pk...`;
+- в CI: Repository Variable `VITE_MAPBOX_PUBLIC_TOKEN`, прокинутая в шаги сборки фронтенда;
+- после смены токена фронтенд нужно **пересобрать**.
+
+Секретный `MAPBOX_SECRET_TOKEN` (серверные запросы к Mapbox) хранится только в
+`/opt/agrologistix/.env` и никогда не попадает во фронтенд.
+Public-токен ограничьте URL-ами домена и `http://localhost:5173/*` в
+кабинете Mapbox.
+
 ## Проверки
 
 ```bash
@@ -186,6 +200,7 @@ bash deploy/deploy.sh
 - `DEPLOY_SERVICE`
 - `DEPLOY_DOMAIN`
 - `APP_ENV`
+- `VITE_MAPBOX_PUBLIC_TOKEN`
 
 ### Repository Secrets
 

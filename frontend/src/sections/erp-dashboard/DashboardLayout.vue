@@ -12,6 +12,8 @@
 
     <v-spacer />
 
+    <WeatherControlBar class="me-2" />
+
     <v-btn
       variant="text"
       :loading="erp.isLoading"
@@ -75,7 +77,7 @@
   </v-navigation-drawer>
 
   <v-main class="dash-main">
-    <MapPanelPlaceholder />
+    <KalugaMapCanvas />
   </v-main>
 </template>
 
@@ -86,7 +88,8 @@ import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/sections/pin-auth/useAuthStore'
 import ClientsOrdersTab from './ClientsOrdersTab.vue'
 import FleetTrucksTab from './FleetTrucksTab.vue'
-import MapPanelPlaceholder from './MapPanelPlaceholder.vue'
+import KalugaMapCanvas from '@/sections/map-routing/KalugaMapCanvas.vue'
+import WeatherControlBar from './WeatherControlBar.vue'
 import RoutesTcoTab from './RoutesTcoTab.vue'
 import WarehousesStockTab from './WarehousesStockTab.vue'
 import { useErpStore } from './useErpStore'
@@ -165,10 +168,15 @@ function startResize(event: PointerEvent): void {
   window.addEventListener('pointercancel', cleanup)
 }
 
-onBeforeUnmount(() => stopResize?.())
+onBeforeUnmount(() => {
+  stopResize?.()
+  erp.stopAutoSync()
+})
 
 onMounted(() => {
   void erp.loadState()
+  // Раз в секунду подтягиваем состояние с сервера: store — единственный источник правды.
+  erp.startAutoSync()
 })
 
 function reload(): void {
