@@ -155,7 +155,7 @@ async def fetch_mapbox_leg(
         return None
 
     owns_client = client is None
-    active_client = client or httpx.AsyncClient(timeout=settings.external_api_timeout_sec)
+    active_client = client or httpx.AsyncClient(timeout=settings.mapbox_timeout_sec)
     coordinates = f"{origin.lon},{origin.lat};{destination.lon},{destination.lat}"
     try:
         response = await active_client.get(
@@ -291,7 +291,7 @@ async def build_distance_matrix(
     owns_client = client is None
     active_client = client
     if owns_client and _mapbox_token(settings):
-        active_client = httpx.AsyncClient(timeout=settings.external_api_timeout_sec)
+        active_client = httpx.AsyncClient(timeout=settings.mapbox_timeout_sec)
     mapbox_successes: set[str] = set()
     try:
         semaphore = asyncio.Semaphore(8)
@@ -306,7 +306,7 @@ async def build_distance_matrix(
         attempt_started_at = now
         if missing and token_available:
             try:
-                async with asyncio.timeout(settings.external_api_timeout_sec):
+                async with asyncio.timeout(settings.mapbox_timeout_sec):
                     fetched = await asyncio.gather(
                         *(fetch_pair(key, *pair) for key, pair in missing.items())
                     )

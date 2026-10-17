@@ -408,7 +408,7 @@ def test_matrix_falls_back_when_mapbox_exceeds_the_deadline(
     settings = Settings(
         sqlite_db_path=":memory:",
         mapbox_secret_token="pk.test",
-        external_api_timeout_sec=0.2,
+        mapbox_timeout_sec=0.2,
     )
 
     started = time.perf_counter()

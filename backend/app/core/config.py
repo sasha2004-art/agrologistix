@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     admin_access_pin: SecretStr = Field(default=SecretStr("999999"), repr=False)
     sqlite_db_path: str = "./data/app.db"
     external_api_timeout_sec: float = Field(default=1.5, gt=0.0)
+    # Mapbox строит матрицу по одному запросу на пару точек: 1.5 с хватает погоде,
+    # но не дорогам, поэтому у Directions отдельный, более щедрый таймаут.
+    mapbox_timeout_sec: float = Field(default=8.0, gt=0.0)
     solver_time_limit_sec: float = Field(default=1.0, gt=0.0)
     # Route consolidation (docs/ARCHITECTURE.md, «Мультистоп и консолидация
     # рейсов»): keep the orders of one client on a single truck unless capacity
