@@ -13,7 +13,13 @@ from app.models.erp_models import (
     Warehouse,
     WarehouseStock,
 )
-from app.models.run_models import RouteCache, RouteStop, SimulationRun, WeatherOverrideState
+from app.models.run_models import (
+    DeliveredOrderStock,
+    RouteCache,
+    RouteStop,
+    SimulationRun,
+    WeatherOverrideState,
+)
 from app.schemas.enums import DeliveryStatus, RoadType, TruckStatus
 
 WAREHOUSE_SEED: tuple[dict[str, object], ...] = (
@@ -240,7 +246,13 @@ def seed_database(session: Session) -> SeedSummary:
 def reset_demo_database(session: Session) -> SeedSummary:
     """Drop every persisted record and rebuild the demo state from scratch."""
 
-    for model in (RouteStop, SimulationRun, RouteCache, WeatherOverrideState):
+    for model in (
+        RouteStop,
+        SimulationRun,
+        RouteCache,
+        WeatherOverrideState,
+        DeliveredOrderStock,
+    ):
         session.exec(delete(model))
     for model in (ClientOrder, WarehouseStock, Truck, Client, Product, Warehouse):
         session.exec(delete(model))

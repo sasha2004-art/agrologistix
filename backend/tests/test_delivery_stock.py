@@ -8,9 +8,11 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 AUTH = {"X-Access-Pin": "123456"}
+ADMIN_AUTH = {"X-Access-Pin": "654321"}
 OPTIMIZE_URL = "/api/v1/solver/optimize"
 ORDERS_URL = "/api/v1/erp/orders"
 STOCKS_URL = "/api/v1/erp/stocks"
+RESET_URL = "/api/v1/system/reset-demo"
 
 EPSILON = 1e-6
 
@@ -289,6 +291,32 @@ def test_delivery_conflicts_when_stock_changed_after_the_plan(client: TestClient
 
     assert response.status_code == 409
     assert response.json()["code"] == "conflict"
+
+
+def test_reset_demo_clears_delivered_stock_journal(client: TestClient) -> None:
+    baseline = client.post(OPTIMIZE_URL, headers=AUTH, json={"mode": "baseline"}).json()
+    order_id = baseline["routes"][0]["stops"][0]["order_id"]
+    assert (
+        client.patch(
+            f"{ORDERS_URL}/{order_id}",
+            headers=AUTH,
+            json={"delivery_status": "delivered"},
+        ).status_code
+        == 200
+    )
+
+    with _database_session(client) as session:
+        assert session.exec(select(DeliveredOrderStock)).all() != []
+
+    reset = client.post(RESET_URL, headers=ADMIN_AUTH)
+
+    assert reset.status_code == 200
+    with _database_session(client) as session:
+        assert session.exec(select(DeliveredOrderStock)).all() == []
+        assert session.get(ClientOrder, order_id).delivered_kg == 0.0
+        assert session.get(ClientOrder, order_id).delivery_status == "pending"
+        assert session.exec(select(RouteStop)).all() == []
+        assert session.exec(select(SimulationRun)).all() == []
 
 
 def test_delivery_without_any_plan_is_closed_as_delivered(client: TestClient) -> None:
