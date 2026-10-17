@@ -76,6 +76,49 @@
   z-index: 5;
 }
 
+/* Подсказка при наведении: компактная карточка поверх маркера.
+   pointer-events: none — она не должна перехватывать курсор и мешать клику. */
+.map-hover-tip {
+  pointer-events: none;
+}
+
+.map-hover-tip .mapboxgl-popup-content {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(46, 16, 101, 0.93);
+  color: #f5f3ff;
+  box-shadow: 0 4px 12px rgba(46, 16, 101, 0.32);
+}
+
+.map-hover-tip .mapboxgl-popup-tip {
+  border-top-color: rgba(46, 16, 101, 0.93);
+  border-bottom-color: rgba(46, 16, 101, 0.93);
+}
+
+.map-tooltip strong {
+  display: block;
+  font-size: 12px;
+}
+
+.map-tooltip__row {
+  font-size: 11px;
+  color: inherit;
+  opacity: 0.88;
+}
+
+.map-tooltip__plan {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 1;
+}
+
+.map-tooltip__swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+
 .map-popup strong {
   display: block;
   margin-bottom: 4px;
