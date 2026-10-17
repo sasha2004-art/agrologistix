@@ -3,10 +3,6 @@
     <header class="tab-header">
       <div>
         <h2 class="tab-title">Заказы покупателей</h2>
-        <p class="tab-subtitle">
-          Объём, цена продажи и дорога к покупателю. Изменения сохраняются сразу и учитываются в
-          следующем расчёте.
-        </p>
       </div>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-clipboard-list-outline">
         {{ erp.orderRows.length }} заказов
@@ -182,12 +178,6 @@ function partialDelivery(deliveredKg: number, requestedKg: number): boolean {
 .tab-title {
   margin: 0;
   font-size: 18px;
-}
-
-.tab-subtitle {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #5b5175;
 }
 
 /* Таблица шире панели — даём горизонтальный скролл вместо сжатия колонок. */
