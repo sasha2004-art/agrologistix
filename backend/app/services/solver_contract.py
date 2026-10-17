@@ -161,12 +161,24 @@ class PlannedRoute:
 
 @dataclass(frozen=True, slots=True)
 class PlannedMetrics:
+    """Public plan metrics plus one internal optimisation weight.
+
+    ``total_unmet_penalty_rub`` is the MILP slack price of undelivered cargo:
+    the engine needs a money value to compare "deliver" against "skip", so it
+    stays in the dataclass and in ``simulation_run`` telemetry, but it is
+    deliberately excluded from the public ``Metrics`` DTO and from TCO. The
+    user-facing answer to undelivered cargo is the share ``unmet_pct`` (and
+    ``unmet_kg``), and the money answer to spoilage is ``spoilage_pct``.
+    """
+
     total_tco_rub: float
     total_trip_cost_rub: float
     total_spoilage_loss_rub: float
     total_unmet_penalty_rub: float
     expected_net_profit_rub: float
     avg_freshness_pct: float
+    spoilage_pct: float
+    unmet_pct: float
     shipped_kg: float
     unmet_kg: float
     # Route consolidation telemetry: how many trips the plan uses, how full the

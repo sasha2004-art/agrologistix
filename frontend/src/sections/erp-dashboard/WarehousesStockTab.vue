@@ -3,7 +3,6 @@
     <header class="tab-header">
       <div>
         <h2 class="tab-title">Склады и остатки</h2>
-        <p class="tab-subtitle">Склады и доступные партии урожая.</p>
       </div>
       <v-chip class="soft-chip" size="small" prepend-icon="mdi-warehouse">
         Складов: {{ erp.warehouses.length }}
@@ -18,14 +17,6 @@
       empty-icon="mdi-warehouse"
       @retry="reload"
     >
-      <div class="summary-row">
-        <div v-for="row in erp.stockMatrix" :key="row.warehouse.id" class="summary-card neu-inset">
-          <span class="summary-label">{{ row.warehouse.name }}</span>
-          <span class="summary-value mono">{{ formatKg(row.total_kg) }}</span>
-          <span class="summary-hint">{{ row.warehouse.is_active ? 'работает' : 'отключён' }}</span>
-        </div>
-      </div>
-
       <v-table density="comfortable" class="erp-table">
         <thead>
           <tr>
@@ -59,10 +50,6 @@
           </tr>
         </tbody>
       </v-table>
-
-      <p class="tab-footnote">
-        Остаток сохраняется сразу и учитывается в следующем расчёте поставок.
-      </p>
     </StatePanel>
   </div>
 </template>
@@ -115,39 +102,6 @@ function saveStock(cell: StockMatrixCell, value: number): void {
   font-size: 18px;
 }
 
-.tab-subtitle {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #5b5175;
-}
-
-.summary-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.summary-card {
-  display: grid;
-  gap: 2px;
-  padding: 12px 14px;
-}
-
-.summary-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.summary-value {
-  font-size: 18px;
-}
-
-.summary-hint {
-  font-size: 12px;
-  color: #5b5175;
-}
-
 .erp-table {
   max-width: 100%;
   border: var(--neu-border);
@@ -186,12 +140,6 @@ function saveStock(cell: StockMatrixCell, value: number): void {
 }
 
 .value-empty {
-  color: #5b5175;
-}
-
-.tab-footnote {
-  margin: 12px 0 0;
-  font-size: 12px;
   color: #5b5175;
 }
 </style>

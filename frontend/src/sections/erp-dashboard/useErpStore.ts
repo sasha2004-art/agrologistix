@@ -147,20 +147,6 @@ export const useErpStore = defineStore('erp', () => {
   const pendingOrders = computed(() =>
     orderRows.value.filter((row) => row.order.delivery_status === 'pending'),
   )
-  const deliveredOrders = computed(() =>
-    orderRows.value.filter((row) => row.order.delivery_status === 'delivered'),
-  )
-
-  const pendingVolumeKg = computed(() =>
-    pendingOrders.value.reduce((sum, row) => sum + remainingKg(row.order), 0),
-  )
-  const pendingRevenueRub = computed(() =>
-    pendingOrders.value.reduce(
-      (sum, row) => sum + remainingKg(row.order) * row.order.purchase_price_rub,
-      0,
-    ),
-  )
-
   const activeTrucks = computed(() => trucks.value.filter((truck) => truck.status === 'active'))
   const brokenTrucks = computed(() => trucks.value.filter((truck) => truck.status === 'broken'))
   const reeferTrucks = computed(() => trucks.value.filter((truck) => truck.has_reefer))
@@ -437,9 +423,6 @@ export const useErpStore = defineStore('erp', () => {
     stockRows,
     orderRows,
     pendingOrders,
-    deliveredOrders,
-    pendingVolumeKg,
-    pendingRevenueRub,
     activeTrucks,
     brokenTrucks,
     reeferTrucks,

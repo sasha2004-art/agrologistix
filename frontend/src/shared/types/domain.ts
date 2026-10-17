@@ -184,14 +184,23 @@ export interface Route {
   stops: RouteStop[]
 }
 
-/** solver_schemas.Metrics */
+/**
+ * solver_schemas.Metrics — публичные метрики плана.
+ *
+ * Штрафов за недовоз здесь нет: вес недовоза остаётся внутренним параметром
+ * MILP. Недовоз отвечает процентом `unmet_pct` и килограммами `unmet_kg`,
+ * испорченный в пути груз — процентом `spoilage_pct`.
+ */
 export interface Metrics {
   total_tco_rub: number
   total_trip_cost_rub: number
   total_spoilage_loss_rub: number
-  total_unmet_penalty_rub: number
   expected_net_profit_rub: number
   avg_freshness_pct: number
+  /** Доля урожая, испорченного в пути, % (100 − avg_freshness_pct). */
+  spoilage_pct: number
+  /** Доля недовоза от заказанного объёма, %. */
+  unmet_pct: number
   shipped_kg: number
   unmet_kg: number
   /** Метрики консолидации рейсов. */

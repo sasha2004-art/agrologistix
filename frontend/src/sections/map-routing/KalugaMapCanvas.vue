@@ -3,14 +3,6 @@
     <header class="map-header">
       <div>
         <h2 class="map-title">Карта Калужской области</h2>
-        <p class="map-subtitle">
-          Склады и покупатели.
-          {{
-            mapReady
-              ? 'Наведите на точку для краткой справки, нажмите — для подробностей.'
-              : 'Карта недоступна — показываем список точек.'
-          }}
-        </p>
       </div>
     </header>
 
@@ -237,12 +229,6 @@ onBeforeUnmount(teardownMap)
 .map-title {
   margin: 0;
   font-size: 18px;
-}
-
-.map-subtitle {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #5b5175;
 }
 
 .map-area {

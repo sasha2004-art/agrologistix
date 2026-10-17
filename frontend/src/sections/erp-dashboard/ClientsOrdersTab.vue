@@ -21,29 +21,6 @@
       empty-icon="mdi-clipboard-text-off-outline"
       @retry="reload"
     >
-      <div class="summary-row">
-        <div class="summary-card neu-inset">
-          <span class="summary-label">В работе</span>
-          <span class="summary-value mono">{{ erp.pendingOrders.length }}</span>
-          <span class="summary-hint">{{ formatKg(erp.pendingVolumeKg) }}</span>
-        </div>
-        <div class="summary-card neu-inset">
-          <span class="summary-label">Доставлено</span>
-          <span class="summary-value mono">{{ erp.deliveredOrders.length }}</span>
-          <span class="summary-hint">заявок закрыто</span>
-        </div>
-        <div class="summary-card neu-inset">
-          <span class="summary-label">Выручка в работе</span>
-          <span class="summary-value mono">{{ formatRub(erp.pendingRevenueRub) }}</span>
-          <span class="summary-hint">объём × цена</span>
-        </div>
-        <div class="summary-card neu-inset">
-          <span class="summary-label">Дорога — грунтовка</span>
-          <span class="summary-value mono">{{ erp.dirtClients.length }}</span>
-          <span class="summary-hint">нужна проходимая машина</span>
-        </div>
-      </div>
-
       <v-table density="comfortable" class="erp-table">
         <thead>
           <tr>
@@ -52,7 +29,6 @@
             <th scope="col">Культура</th>
             <th scope="col" class="text-right">Объём</th>
             <th scope="col" class="text-right">Цена, ₽/кг</th>
-            <th scope="col" class="text-right">Штраф</th>
             <th scope="col">Дорога</th>
             <th scope="col">Статус</th>
           </tr>
@@ -86,7 +62,6 @@
                 @commit="(value) => savePrice(row, value)"
               />
             </td>
-            <td class="text-right mono">{{ formatRub(row.order.unmet_penalty_rub) }}</td>
             <td>
               <v-chip
                 class="soft-chip"
@@ -117,11 +92,6 @@
           </tr>
         </tbody>
       </v-table>
-
-      <p class="tab-footnote">
-        Статус ставится каждому заказу отдельно: у одного покупателя может быть несколько культур и
-        рейсов.
-      </p>
     </StatePanel>
   </div>
 </template>
@@ -130,7 +100,7 @@
 import StatePanel from '@/shared/components/StatePanel.vue'
 import EditableNumberField from '@/shared/components/EditableNumberField.vue'
 import { useErpStore, type OrderRow } from './useErpStore'
-import { formatKg, formatRub } from '@/shared/utils/format'
+import { formatKg } from '@/shared/utils/format'
 import type { DeliveryStatus } from '@/shared/types/domain'
 
 const erp = useErpStore()
@@ -190,33 +160,6 @@ function partialDelivery(deliveredKg: number, requestedKg: number): boolean {
   color: #5b5175;
 }
 
-.summary-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.summary-card {
-  display: grid;
-  gap: 2px;
-  padding: 12px 14px;
-}
-
-.summary-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.summary-value {
-  font-size: 18px;
-}
-
-.summary-hint {
-  font-size: 12px;
-  color: #5b5175;
-}
-
 .erp-table {
   max-width: 100%;
   border: var(--neu-border);
@@ -249,12 +192,6 @@ function partialDelivery(deliveredKg: number, requestedKg: number): boolean {
 
 .cell-note {
   display: block;
-  font-size: 12px;
-  color: #5b5175;
-}
-
-.tab-footnote {
-  margin: 12px 0 0;
   font-size: 12px;
   color: #5b5175;
 }

@@ -33,9 +33,10 @@ const EMPTY_METRICS: Metrics = {
   total_tco_rub: 0,
   total_trip_cost_rub: 0,
   total_spoilage_loss_rub: 0,
-  total_unmet_penalty_rub: 0,
   expected_net_profit_rub: 0,
   avg_freshness_pct: 0,
+  spoilage_pct: 0,
+  unmet_pct: 0,
   shipped_kg: 0,
   unmet_kg: 0,
   total_trips: 0,
@@ -63,7 +64,7 @@ const cards = computed<Card[]>(() => {
     {
       label: 'Общие затраты',
       value: formatRub(m.total_tco_rub),
-      hint: 'доставка + потери + штрафы',
+      hint: 'доставка и потери урожая',
     },
     {
       label: 'Затраты на доставку',
@@ -73,14 +74,18 @@ const cards = computed<Card[]>(() => {
     {
       label: 'Потери урожая',
       value: formatRub(m.total_spoilage_loss_rub),
-      hint: 'испортилось в пути',
+      hint: `${formatPercent(m.spoilage_pct)} груза испортилось в пути`,
     },
-    {
-      label: 'Штраф за недопоставку',
-      value: formatRub(m.total_unmet_penalty_rub),
-      hint: `${formatKg(m.unmet_kg)} не привезли`,
-      modifier: m.unmet_kg > 0 ? 'alert' : undefined,
-    },
+    ...(m.unmet_pct > 0
+      ? [
+          {
+            label: 'Не привезли',
+            value: formatPercent(m.unmet_pct),
+            hint: `${formatKg(m.unmet_kg)} от заказанного объёма`,
+            modifier: 'alert',
+          },
+        ]
+      : []),
     {
       label: 'Прибыль',
       value: formatRub(m.expected_net_profit_rub),

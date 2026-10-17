@@ -19,7 +19,9 @@ AgroLogistix — B2B-платформа оперативного планиро�
    (в строю / сломана), погодный пресет;
 3. нажимает «Рассчитать поставки»;
 4. получает план: рейсы по машинам с порядком остановок, полилинии на карте,
-   свежесть груза в каждой точке, финансовые метрики TCO и предупреждения;
+   свежесть груза в каждой точке, финансовые метрики TCO (доставка и потери),
+   процент потерянного урожая и долю недовоза, предупреждения; штрафов
+   в интерфейсе нет — недовоз измеряется килограммами и процентами;
 5. выгружает маршрутные листы в XLSX или печатает PDF через браузер.
 
 Расчёт всегда строится заново по актуальному состоянию ERP и погоды: у запроса нет
@@ -139,7 +141,7 @@ Swap-файл 2 GB настраивается на хосте (см. `docs/LAUNC
 | `SQLITE_DB_PATH` | `./data/app.db` | Путь к файлу SQLite |
 | `EXTERNAL_API_TIMEOUT_SEC` | `1.5` | Таймаут Open-Meteo и Mapbox, общий дедлайн матрицы |
 | `SOLVER_TIME_LIMIT_SEC` | `1.0` | Лимит HiGHS; половина уходит на каждую из двух MILP-попыток |
-| `SOLVER_CLIENT_SPLIT_PENALTY_RUB` | `5000` | Штраф за дробление клиента между рейсами (мягкий режим) |
+| `SOLVER_CLIENT_SPLIT_PENALTY_RUB` | `5000` | Внутренний вес дробления клиента между рейсами (мягкий режим) |
 | `SOLVER_MAX_STOPS_PER_TRIP` | `5` | Максимум остановок в рейсе |
 | `SOLVER_MAX_TRIP_HOURS` | `9.0` | Максимальная длительность рейса (смена) |
 | `SOLVER_MIN_STOP_FRESHNESS` | `0.70` | Порог свежести: ниже — предупреждение `freshness_risk` |
@@ -243,12 +245,23 @@ $$
 Время накапливается по маршруту: каждый следующий стоп считается по суммарному
 времени от склада, поэтому свежесть монотонно убывает по ходу рейса.
 
-### 6.2 Целевая функция TCO
+### 6.2 Целевая функция и метрики
+
+Внутри оптимизатора недовоз имеет технический вес `penalty_per_kg`: без него
+slack-переменная была бы бесплатной, и план мог бы вообще не везти груз.
 
 $$
-\min Z = \underbrace{\sum_{r \in \text{рейсы}} C_{\text{trip}}(r)}_{C_{\text{trip}}}
+\min Z_{\text{internal}} = \underbrace{\sum_{r \in \text{рейсы}} C_{\text{trip}}(r)}_{C_{\text{trip}}}
 + \underbrace{\sum_{s \in \text{стопы}} \text{shipped\_kg}_s \cdot (1 - E[\text{Freshness}]_s) \cdot \text{price}_p}_{\text{потери от порчи}}
-+ \underbrace{\sum_{o \in \text{заявки}} \text{unmet\_kg}_o \cdot \text{penalty}_o}_{\text{штраф за недовоз}}
++ \underbrace{\sum_{o \in \text{заявки}} \text{unmet\_kg}_o \cdot \text{penalty}_o}_{\text{внутренний вес недовоза}}
+$$
+
+`penalty_per_kg` — служебный параметр MILP: в публичный DTO он не отдаётся и в
+интерфейсе не показывается (остаётся телеметрией `simulation_run`). Публичные
+метрики считают **только фактически отгруженный груз**:
+
+$$
+\text{total\_tco} = C_{\text{trip}} + \text{потери от порчи}
 $$
 
 Стоимость рейса, как её считает `build_route`:
@@ -264,20 +277,26 @@ $$
 
 | Метрика | Формула |
 | :--- | :--- |
-| `total_tco_rub` | $C_{\text{trip}} + \text{потери} + \text{штрафы}$ |
-| `expected_net_profit_rub` | $\sum \text{shipped\_kg} \cdot \text{price} - \text{TCO}$ |
+| `total_tco_rub` | $C_{\text{trip}} + \text{потери}$ (без внутреннего веса недовоза) |
+| `expected_net_profit_rub` | $\sum \text{shipped\_kg} \cdot \text{price} - \text{total\_tco}$ |
 | `avg_freshness_pct` | $\dfrac{\sum \text{shipped\_kg} \cdot \text{freshness}}{\sum \text{shipped\_kg}} \cdot 100$ |
+| `spoilage_pct` | $100 - \text{avg\_freshness\_pct}$; $0$, если отгрузки не было |
+| `unmet_pct` | $\dfrac{\text{unmet\_kg}}{\sum \text{requested\_kg}} \cdot 100$ |
 | `shipped_kg` / `unmet_kg` | сумма отгруженных кг / сумма slack-переменных недовоза |
 | `total_trips` | число использованных машин (= число маршрутов) |
 | `avg_load_factor_pct` | $\dfrac{\text{shipped\_kg}}{\sum \text{capacity использованных машин}} \cdot 100$ |
 | `split_clients` | число клиентов, чьи заявки развезены более чем одной машиной |
+
+Внутренняя телеметрия `PlannedMetrics.total_unmet_penalty_rub` (вес недовоза × кг)
+пишется в `simulation_run`, но в ответе API отсутствует.
 
 ### 6.3 Грузовая аллокация (MILP)
 
 Решается через `scipy.optimize.milp` (HiGHS). Переменные:
 
 * $x_{k,o} \ge 0$ — килограммы заявки $o$, которые везёт машина $k$;
-* $u_o \ge 0$ — недовоз заявки (slack с ценой `unmet_penalty_rub`);
+* $u_o \ge 0$ — недовоз заявки (slack с внутренним весом `unmet_penalty_rub`;
+  в публичные метрики не входит);
 * $y_k \in \{0,1\}$ — машина используется (платит `fixed_trip_cost_rub`);
 * $z_{k,c} \in \{0,1\}$ — машина $k$ обслуживает клиента $c$;
 * $s_c \ge 0$ — slack дробления клиента (цена `SOLVER_CLIENT_SPLIT_PENALTY_RUB`);
@@ -311,7 +330,7 @@ $$
 $\text{unit\_cost} = \text{spoilage\_per\_kg} + \dfrac{\text{cost\_per\_km} \cdot \text{distance}(\text{склад} \to \text{клиент})}{\text{requested\_kg}}$.
 
 **Алгоритм выбора.** MILP запускается дважды — со строгой группировкой клиента
-(«магазин — один рейс») и с мягким штрафом за дробление, по половине
+(«магазин — один рейс») и с мягким весом дробления клиента, по половине
 `SOLVER_TIME_LIMIT_SEC` на попытку. Побеждает вариант с ключом
 `(unmet_kg, режим, objective)`: сначала минимизируется недовоз, затем предпочитается
 строгая группировка. При ошибке HiGHS или истечении лимита включается жадный
@@ -478,7 +497,7 @@ RouteStopResponse:
 
 Metrics:
   total_tco_rub, total_trip_cost_rub, total_spoilage_loss_rub,
-  total_unmet_penalty_rub, expected_net_profit_rub, avg_freshness_pct,
+  expected_net_profit_rub, avg_freshness_pct, spoilage_pct, unmet_pct,
   shipped_kg, unmet_kg, total_trips, avg_load_factor_pct, split_clients
 
 SolverWarning:
@@ -544,7 +563,7 @@ JSON — `snake_case` с `extra="forbid"`: неизвестное поле в т
 
 * лист **«Сводка»**: заголовок с номером расчёта, дата/погода/температура/осадки,
   число машин, таблица показателей (общие затраты, доставка, потери урожая,
-  штраф за недопоставку, прибыль, сохранность урожая, привезли, не привезли)
+  прибыль, сохранность урожая, привезли, не привезли)
   и таблица рейсов (машина, склад, остановок, кг, км, мин, ₽);
 * листы **«Рейс N <госномер>»**: склад, вместимость, пробег, время, стоимость,
   сохранность в последней точке, погода, таблица остановок
@@ -569,7 +588,7 @@ print). Скрываются карта, шапка и панели, остаё�
 | :--- | :--- |
 | `landing/` | публичный лендинг с единственной кнопкой входа |
 | `pin-auth/` | экран 6-точечного PIN, индикатор, auth-store (роль + PIN в `sessionStorage`) |
-| `erp-dashboard/` | каркас дашборда, вкладки складов/заявок/автопарка, погодная панель, TCO-панель, таблица рейсов, предупреждения, печатный лист, сторы `useErpStore` / `useSolverStore` / `useWeatherStore` |
+| `erp-dashboard/` | каркас дашборда, вкладки складов/заявок/автопарка, погодная панель, панель метрик (затраты, потери % и недовоз %), таблица рейсов, предупреждения, печатный лист, сторы `useErpStore` / `useSolverStore` / `useWeatherStore` |
 | `map-routing/` | Mapbox GL canvas, маркеры складов/клиентов, полилинии маршрутов, легенда, fallback-панель |
 
 **Роутинг:** `/` (лендинг), `/login`, `/dashboard` (`meta.requiresAuth`),

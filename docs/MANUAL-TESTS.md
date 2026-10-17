@@ -54,9 +54,10 @@ curl -s -X POST -H "$A" $B/system/reset-demo
 
 ### Справочник seed-данных
 
-Заявки (`order_id`: клиент, продукт, кг, цена ₽/кг, штраф ₽/кг):
+Заявки (`order_id`: клиент, продукт, кг, цена ₽/кг, вес недовоза ₽/кг).
+Вес недовоза — внутренний параметр MILP, в публичных метриках он не показывается:
 
-| id | клиент | дорога | продукт | кг | цена | штраф |
+| id | клиент | дорога | продукт | кг | цена | вес недовоза |
 |---|---|---|---|---|---|---|
 | 1 | ВкусВилл Калуга | asphalt | клубника | 1500 | 320 | 120 |
 | 2 | ВкусВилл Калуга | asphalt | томаты | 2000 | 160 | 80 |
@@ -283,8 +284,7 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/op
 ```
 
 Значения в карточках (`Общие затраты`, `Затраты на доставку`, `Потери
-урожая`, `Штраф за недопоставку`, `Прибыль`, `Сохранность урожая`) совпадают
-с ответом. Карточка штрафа подсвечивается только при `unmet_kg > 0`.
+урожая`, `Прибыль`, `Сохранность урожая`) совпадают с ответом.
 
 ### F3. Полилинии и легенда рейсов
 
@@ -346,8 +346,8 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/op
 
 ```json
 {"total_tco_rub":246114.53,"total_trip_cost_rub":28852.49,"total_spoilage_loss_rub":217262.04,
- "total_unmet_penalty_rub":0.0,"expected_net_profit_rub":1799385.47,"avg_freshness_pct":89.60,
- "shipped_kg":11000.0,"unmet_kg":0.0}
+ "expected_net_profit_rub":1799385.47,"avg_freshness_pct":89.60,"spoilage_pct":10.40,
+ "shipped_kg":11000.0,"unmet_kg":0.0,"unmet_pct":0.0}
 ```
 
 Маршруты: 3 — еврофура (`truck_id=1`, 3 стопа, 4 000 кг), ГАЗон
@@ -370,7 +370,8 @@ sqlite3 /opt/agrologistix/data/app.db \
 * ETA и свежесть **растут по времени** по порядку стопов внутри маршрута;
 * первый стоп каждого рейса включает `fixed_trip_cost_rub` — сумма
   `trip_leg_cost_rub` по рейсу равна `total_cost_rub` (погрешность ≤ 0.05 ₽);
-* `total_tco_rub = total_trip_cost_rub + total_spoilage_loss_rub + total_unmet_penalty_rub`;
+* `total_tco_rub = total_trip_cost_rub + total_spoilage_loss_rub` (штрафов нет);
+* `spoilage_pct = 100 − avg_freshness_pct`, `unmet_pct = unmet_kg / 11 000 · 100`;
 * `shipped_kg + unmet_kg = 11 000`.
 
 ### S2. Ограничение вместимости (доступен только ГАЗон, 6 000 кг)
@@ -387,9 +388,9 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/op
 
 * `shipped_kg = 6000.0`, `unmet_kg = 5000.0`;
 * единственный маршрут `truck_id=2`, 5 стопов, ровно 6 000 кг (≤ `capacity_kg`);
-* `total_unmet_penalty_rub = 297500.0` — сумма штрафов за 5 000 кг недовоза;
-* `total_tco_rub = 490283.54`, `total_spoilage_loss_rub = 185153.91`,
-  `avg_freshness_pct = 87.52`;
+* `unmet_pct = 45.45` (5 000 из 11 000 кг);
+* `total_tco_rub = 192783.54` (доставка + потери, без штрафов),
+  `total_spoilage_loss_rub = 185153.91`, `avg_freshness_pct = 87.52`;
 * `warnings`: `broken_trucks_excluded`, `unmet_demand`.
 
 ### S3. Грунтовка недоступна (осталась только еврофура без допуска)
@@ -405,8 +406,9 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/op
 Ожидается:
 
 * `shipped_kg = 8100.0`, `unmet_kg = 2900.0` (грунтовые заявки 5, 6, 9);
-* `total_tco_rub = 418254.54`, `total_spoilage_loss_rub = 179106.48`,
-  `total_unmet_penalty_rub = 224500.0`, `avg_freshness_pct = 89.06`;
+* `total_tco_rub = 193754.54` (доставка + потери, без штрафов),
+  `total_spoilage_loss_rub = 179106.48`, `avg_freshness_pct = 89.06`,
+  `unmet_pct = 26.36` (2 900 из 11 000 кг);
 * `routes`: только `truck_id=1` (6 стопов); **еврофура не назначена ни на одну dirt-точку**;
 * `warnings`: `broken_trucks_excluded`, `unmet_demand` и **три** `dirt_unreachable`
   с парами `client_id/order_id`: `(3,5)`, `(3,6)`, `(5,9)`.
@@ -423,7 +425,8 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/op
 Ожидается (без ошибок сервера):
 
 * `routes: []`, `shipped_kg = 0.0`, `unmet_kg = 11000.0`, `avg_freshness_pct = 0.0`;
-* `total_tco_rub = total_unmet_penalty_rub = 926500.0`;
+* `total_tco_rub = 0.0` (рейсов нет — нет доставки и потерь),
+  `spoilage_pct = 0.0`, `unmet_pct = 100.0`;
 * `warnings`: `broken_trucks_excluded`, `no_active_trucks`, `unmet_demand`,
   `dirt_unreachable` **ровно 3** (только грунтовые заявки 5, 6, 9 —
   предупреждение о грунтовке не должно появляться на асфальтовых точках).
@@ -455,8 +458,8 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/op
 Ожидается:
 
 * `shipped_kg = 10000.0`, `unmet_kg = 1000.0`, `avg_freshness_pct = 74.41`;
-* `total_spoilage_loss_rub = 512251.45`, `total_tco_rub = 612869.37`,
-  `total_unmet_penalty_rub = 87000.0`;
+* `total_spoilage_loss_rub = 512251.45`, `total_tco_rub = 525869.37`
+  (доставка + потери, без штрафов), `unmet_pct = 9.09` (1 000 из 11 000 кг);
 * один маршрут на КАМАЗе (`truck_id=3`), 9 стопов;
 * `warnings`: `broken_trucks_excluded`, `unmet_demand`, `heat_without_reefer`.
 
@@ -488,7 +491,8 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/op
 
 Отношение точно соответствует формуле `k_rain = 1 + 0.3 · min(1; мм / 10) = 1.3`
 при 12 мм. Дополнительно в этом сценарии (`heatwave_35c`, только ГАЗон-реф):
-`shipped_kg = 6000.0`, `unmet_kg = 5000.0`, `total_tco_rub = 463453.14`,
+`shipped_kg = 6000.0`, `unmet_kg = 5000.0`, `total_tco_rub = 165953.14`
+(доставка + потери, без штрафов), `unmet_pct = 45.45`,
 `avg_freshness_pct = 89.15` (против 87.52 под ливнем — без замедления груз
 портится меньше); порча в ливень 185 154 ₽ против 158 324 ₽ в жару.
 
@@ -517,10 +521,12 @@ curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/op
 
 ```bash
 curl -s -H "$U" -X POST -H 'Content-Type: application/json' -d '{}' $B/solver/optimize \
- | python3 -c "import sys,json;m=json.load(sys.stdin)['metrics'];print(m['total_tco_rub'], m['total_trip_cost_rub']+m['total_spoilage_loss_rub']+m['total_unmet_penalty_rub'], m['shipped_kg']+m['unmet_kg'])"
+ | python3 -c "import sys,json;m=json.load(sys.stdin)['metrics'];print(m['total_tco_rub'], m['total_trip_cost_rub']+m['total_spoilage_loss_rub'], m['shipped_kg']+m['unmet_kg'], m['spoilage_pct'], m['unmet_pct'])"
 ```
 
-Ожидается: первые два числа равны (расхождение ≤ 0.05), третье ≈ 11 000.
+Ожидается: первые два числа равны (расхождение ≤ 0.05), третье ≈ 11 000,
+четвёртое равно `100 − avg_freshness_pct`, пятое — доля недовоза от заказанного
+объёма. Штрафов в публичном ответе нет: это внутренний вес недовоза в MILP.
 
 ### 8.3 Новый прогон на каждый расчёт
 
@@ -597,8 +603,9 @@ curl -s -H "$U" -X PATCH -H 'Content-Type: application/json' -d '{"status":"brok
 в расчёте: 2», «Не удалось привезти 2900 кг…» и три «К этой точке не проехать:
 нужна машина, которая может ехать по грунтовке» с чипами «Заказ №5/6/9»;
 в блоке «На что обратить внимание» — «Ни одной машины, которая может ехать
-по грунтовке…»; общие затраты ≈ `403 213 ₽`, «Штраф за недопоставку» подсвечен,
-не привезли `2 900 кг`. Уровень замечания виден по цветной полосе слева
+по грунтовке…»; общие затраты (доставка и потери, без штрафов) ниже, чем при
+полном автопарке, не привезли `2 900 кг`.
+Уровень замечания виден по цветной полосе слева
 (error / warning / info).
 Верните машины в `active` и пересчитайте план.
 
