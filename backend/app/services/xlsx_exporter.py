@@ -242,7 +242,9 @@ def _write_route(sheet: Worksheet, index: int, route: ExportRoute, run_weather: 
     autosize(sheet)
 
 
-def build_workbook(report: ExportRun, session: Session | None = None) -> Workbook:
+def build_workbook(
+    report: ExportRun, session: Session | None = None, *, account_id: int | None = None
+) -> Workbook:
     """Render the report as an ``openpyxl`` workbook.
 
     С ``session`` добавляются листы текущего ERP (заказы, машины, склады и
@@ -263,10 +265,15 @@ def build_workbook(report: ExportRun, session: Session | None = None) -> Workboo
         writer(workbook.create_sheet(title=safe_sheet_title(title, used_titles)))
 
     if session is not None:
+        if account_id is None:
+            raise ValueError("account_id is required when ERP sheets are requested")
         for title, writer in (
-            ("Заказы", lambda sheet: write_orders_sheet(sheet, session)),
-            ("Машины", lambda sheet: write_trucks_sheet(sheet, session)),
-            ("Склады и остатки", lambda sheet: write_stocks_sheet(sheet, session)),
+            ("Заказы", lambda sheet: write_orders_sheet(sheet, session, account_id=account_id)),
+            ("Машины", lambda sheet: write_trucks_sheet(sheet, session, account_id=account_id)),
+            (
+                "Склады и остатки",
+                lambda sheet: write_stocks_sheet(sheet, session, account_id=account_id),
+            ),
         ):
             writer(workbook.create_sheet(title=safe_sheet_title(title, used_titles)))
 
@@ -276,9 +283,11 @@ def build_workbook(report: ExportRun, session: Session | None = None) -> Workboo
     return workbook
 
 
-def export_run_xlsx(report: ExportRun, session: Session | None = None) -> bytes:
+def export_run_xlsx(
+    report: ExportRun, session: Session | None = None, *, account_id: int | None = None
+) -> bytes:
     """Serialize the report to XLSX bytes."""
 
     buffer = BytesIO()
-    build_workbook(report, session).save(buffer)
+    build_workbook(report, session, account_id=account_id).save(buffer)
     return buffer.getvalue()

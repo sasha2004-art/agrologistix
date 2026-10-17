@@ -18,6 +18,7 @@ class SimulationRun(SQLModel, table=True):
     __tablename__ = "simulation_run"
 
     id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
     created_at: datetime = Field(default_factory=utc_now, index=True)
     weather_mode: str = Field(default=WeatherMode.NORMAL.value, max_length=16)
     temp_c: float = Field(default=20.0)
@@ -52,6 +53,7 @@ class RouteStop(SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
     run_id: int = Field(foreign_key="simulation_run.id", index=True)
     order_id: int | None = Field(default=None, foreign_key="client_order.id", index=True)
     truck_id: int = Field(foreign_key="truck.id", index=True)
@@ -77,6 +79,7 @@ class DeliveredOrderStock(SQLModel, table=True):
     __table_args__ = (CheckConstraint("shipped_kg >= 0", name="ck_delivered_stock_non_negative"),)
 
     id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
     order_id: int = Field(foreign_key="client_order.id", index=True)
     stock_id: int = Field(foreign_key="warehouse_stock.id", index=True)
     shipped_kg: float = Field(ge=0.0)
@@ -103,6 +106,7 @@ class FixedAssignment(SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
     order_id: int = Field(foreign_key="client_order.id", unique=True, index=True)
     truck_id: int = Field(foreign_key="truck.id", index=True)
     warehouse_id: int = Field(foreign_key="warehouse.id", index=True)
@@ -131,6 +135,7 @@ class RouteCache(SQLModel, table=True):
     )
 
     pair_key: str = Field(primary_key=True, max_length=128)
+    account_id: int = Field(foreign_key="account.id", index=True)
     distance_km: float = Field(ge=0.0)
     base_duration_min: float = Field(ge=0.0)
     geojson_geometry: str | None = Field(default=None)
@@ -138,9 +143,6 @@ class RouteCache(SQLModel, table=True):
     # Null means never tried against Mapbox. Old fallback cache entries are
     # migrated this way and are upgraded on the first request with a token.
     mapbox_checked_at: float | None = Field(default=None, ge=0.0)
-
-
-WEATHER_OVERRIDE_ID = 1
 
 
 class WeatherOverrideState(SQLModel, table=True):
@@ -158,6 +160,7 @@ class WeatherOverrideState(SQLModel, table=True):
         ),
     )
 
-    id: int = Field(default=WEATHER_OVERRIDE_ID, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", unique=True, index=True)
     mode: str = Field(default=WeatherMode.NORMAL.value, max_length=16)
     updated_at: datetime = Field(default_factory=utc_now)

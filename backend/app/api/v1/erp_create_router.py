@@ -55,10 +55,12 @@ _CREATED_RESPONSES: dict[int | str, dict[str, object]] = {
 
 
 def _require[EntityT: SQLModel](
-    session: Session, model: type[EntityT], entity_id: int, label: str
+    session: Session, model: type[EntityT], entity_id: int, label: str, *, account_id: int
 ) -> EntityT:
     """Возвращает сущность по id или 404 с человекочитаемым названием."""
-    entity = session.get(model, entity_id)
+    entity = session.exec(
+        select(model).where(getattr(model, "account_id") == account_id, model.id == entity_id)
+    ).first()
     if entity is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -90,15 +92,18 @@ def _conflict(detail: str) -> HTTPException:
 )
 def create_product(
     payload: ProductCreate,
-    _context: AccessContext,
+    context: AccessContext,
     session: SessionDependency,
 ) -> ProductResponse:
     code = payload.code.strip()
-    existing = session.exec(select(Product).where(Product.code == code)).first()
+    existing = session.exec(
+        select(Product).where(Product.account_id == context.account_id, Product.code == code)
+    ).first()
     if existing is not None:
         raise _conflict(f"Товар с кодом «{code}» уже есть в библиотеке")
 
     product = Product(
+        account_id=context.account_id,
         code=code,
         name=payload.name.strip(),
         base_spoilage_rate=payload.base_spoilage_rate,
@@ -120,10 +125,11 @@ def create_product(
 )
 def create_client(
     payload: ClientCreate,
-    _context: AccessContext,
+    context: AccessContext,
     session: SessionDependency,
 ) -> ClientResponse:
     client = Client(
+        account_id=context.account_id,
         name=payload.name,
         lat=payload.lat,
         lon=payload.lon,
@@ -145,19 +151,24 @@ def create_client(
 )
 def create_truck(
     payload: TruckCreate,
-    _context: AccessContext,
+    context: AccessContext,
     session: SessionDependency,
 ) -> TruckResponse:
-    warehouse = _require(session, Warehouse, payload.warehouse_id, "Склад")
+    warehouse = _require(
+        session, Warehouse, payload.warehouse_id, "Склад", account_id=context.account_id
+    )
     if not warehouse.is_active:
         raise _conflict(f"Склад «{warehouse.name}» выключен: машину к нему не привязать")
 
     plate = payload.plate_number.strip().upper()
-    existing = session.exec(select(Truck).where(Truck.plate_number == plate)).first()
+    existing = session.exec(
+        select(Truck).where(Truck.account_id == context.account_id, Truck.plate_number == plate)
+    ).first()
     if existing is not None:
         raise _conflict(f"Машина с номером «{plate}» уже есть в автопарке")
 
     truck = Truck(
+        account_id=context.account_id,
         name=payload.name,
         plate_number=plate,
         warehouse_id=payload.warehouse_id,
@@ -185,13 +196,14 @@ def create_truck(
 )
 def create_order(
     payload: ClientOrderCreate,
-    _context: AccessContext,
+    context: AccessContext,
     session: SessionDependency,
 ) -> ClientOrderResponse:
-    _require(session, Client, payload.client_id, "Покупатель")
-    _require(session, Product, payload.product_id, "Товар")
+    _require(session, Client, payload.client_id, "Покупатель", account_id=context.account_id)
+    _require(session, Product, payload.product_id, "Товар", account_id=context.account_id)
 
     order = ClientOrder(
+        account_id=context.account_id,
         client_id=payload.client_id,
         product_id=payload.product_id,
         requested_kg=payload.requested_kg,
@@ -215,16 +227,19 @@ def create_order(
 )
 def create_stock(
     payload: WarehouseStockCreate,
-    _context: AccessContext,
+    context: AccessContext,
     session: SessionDependency,
 ) -> WarehouseStockResponse:
-    warehouse = _require(session, Warehouse, payload.warehouse_id, "Склад")
-    _require(session, Product, payload.product_id, "Товар")
+    warehouse = _require(
+        session, Warehouse, payload.warehouse_id, "Склад", account_id=context.account_id
+    )
+    _require(session, Product, payload.product_id, "Товар", account_id=context.account_id)
     if not warehouse.is_active:
         raise _conflict(f"Склад «{warehouse.name}» выключен: партию нельзя добавить")
 
     existing = session.exec(
         select(WarehouseStock).where(
+            WarehouseStock.account_id == context.account_id,
             WarehouseStock.warehouse_id == payload.warehouse_id,
             WarehouseStock.product_id == payload.product_id,
         )
@@ -235,6 +250,7 @@ def create_stock(
         )
 
     stock = WarehouseStock(
+        account_id=context.account_id,
         warehouse_id=payload.warehouse_id,
         product_id=payload.product_id,
         available_kg=payload.available_kg,

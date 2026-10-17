@@ -59,12 +59,14 @@ _KG_EPSILON = 1e-6
 
 
 def _plan_consumption(
-    session: Session, order: ClientOrder, remaining_kg: float
+    session: Session, order: ClientOrder, remaining_kg: float, *, account_id: int
 ) -> dict[int, float]:
     """Warehouse quantities shipped by the latest plan for this order."""
 
     stops = session.exec(
-        select(RouteStop).where(RouteStop.order_id == order.id).order_by(RouteStop.run_id.desc())
+        select(RouteStop)
+        .where(RouteStop.account_id == account_id, RouteStop.order_id == order.id)
+        .order_by(RouteStop.run_id.desc())
     ).all()
     if not stops:
         return {}
@@ -90,12 +92,14 @@ def _plan_consumption(
 
 
 def _fixed_consumption(
-    session: Session, order: ClientOrder, remaining_kg: float
+    session: Session, order: ClientOrder, remaining_kg: float, *, account_id: int
 ) -> dict[int, float]:
     """Warehouse quantities of the fixed route chosen when the order went in progress."""
 
     fixed = session.exec(
-        select(FixedAssignment).where(FixedAssignment.order_id == order.id)
+        select(FixedAssignment).where(
+            FixedAssignment.account_id == account_id, FixedAssignment.order_id == order.id
+        )
     ).first()
     if fixed is None:
         return {}
@@ -107,6 +111,7 @@ def _consume_stock(session: Session, order: ClientOrder, consumed: dict[int, flo
 
     stocks = session.exec(
         select(WarehouseStock).where(
+            WarehouseStock.account_id == order.account_id,
             WarehouseStock.product_id == order.product_id,
             WarehouseStock.warehouse_id.in_(consumed),
         )
@@ -125,6 +130,7 @@ def _consume_stock(session: Session, order: ClientOrder, consumed: dict[int, flo
         session.add(stock)
         session.add(
             DeliveredOrderStock(
+                account_id=order.account_id,
                 order_id=int(order.id or 0),
                 stock_id=int(stock.id or 0),
                 shipped_kg=shipped_kg,
@@ -152,8 +158,10 @@ def _apply_shipped_status(session: Session, order: ClientOrder, target_status: s
 
     # У заявки «В работе» уже есть зафиксированный маршрут: списываем с его
     # склада, а не с последнего плана. Иначе работаем как раньше — по плану.
-    consumed = _fixed_consumption(session, order, remaining_kg) or _plan_consumption(
-        session, order, remaining_kg
+    consumed = _fixed_consumption(
+        session, order, remaining_kg, account_id=order.account_id
+    ) or _plan_consumption(
+        session, order, remaining_kg, account_id=order.account_id
     )
     if not consumed:
         order.delivered_kg = order.requested_kg
@@ -172,7 +180,10 @@ def _restore_delivered_stock(session: Session, order: ClientOrder) -> None:
     """Undo the write-off when an order is switched back to ``pending``."""
 
     deliveries = session.exec(
-        select(DeliveredOrderStock).where(DeliveredOrderStock.order_id == order.id)
+        select(DeliveredOrderStock).where(
+            DeliveredOrderStock.account_id == order.account_id,
+            DeliveredOrderStock.order_id == order.id,
+        )
     ).all()
     for delivery in deliveries:
         stock = session.get(WarehouseStock, delivery.stock_id)
@@ -186,8 +197,14 @@ def _restore_delivered_stock(session: Session, order: ClientOrder) -> None:
 def _fixed_assignment_response(session: Session, fixed: FixedAssignment) -> FixedAssignmentResponse:
     """Фиксация с именами машины и склада и полилинией для карты."""
 
-    truck = session.get(Truck, fixed.truck_id)
-    warehouse = session.get(Warehouse, fixed.warehouse_id)
+    truck = session.exec(
+        select(Truck).where(Truck.account_id == fixed.account_id, Truck.id == fixed.truck_id)
+    ).first()
+    warehouse = session.exec(
+        select(Warehouse).where(
+            Warehouse.account_id == fixed.account_id, Warehouse.id == fixed.warehouse_id
+        )
+    ).first()
     return FixedAssignmentResponse(
         order_id=fixed.order_id,
         truck_id=fixed.truck_id,
@@ -206,9 +223,11 @@ def _fixed_assignment_response(session: Session, fixed: FixedAssignment) -> Fixe
 
 
 def _get_or_404[EntityT: SQLModel](
-    session: Session, model: type[EntityT], entity_id: int, label: str
+    session: Session, model: type[EntityT], entity_id: int, label: str, *, account_id: int
 ) -> EntityT:
-    entity = session.get(model, entity_id)
+    entity = session.exec(
+        select(model).where(getattr(model, "account_id") == account_id, model.id == entity_id)
+    ).first()
     if entity is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -222,15 +241,29 @@ def _get_or_404[EntityT: SQLModel](
     response_model=ERPStateResponse,
     summary="Read the full ERP state used by the solver",
 )
-def read_erp_state(_context: AccessContext, session: SessionDependency) -> ERPStateResponse:
-    warehouses = session.exec(select(Warehouse).order_by(Warehouse.id)).all()
-    products = session.exec(select(Product).order_by(Product.id)).all()
-    stocks = session.exec(select(WarehouseStock).order_by(WarehouseStock.id)).all()
-    clients = session.exec(select(Client).order_by(Client.id)).all()
-    orders = session.exec(select(ClientOrder).order_by(ClientOrder.id)).all()
-    trucks = session.exec(select(Truck).order_by(Truck.id)).all()
+def read_erp_state(context: AccessContext, session: SessionDependency) -> ERPStateResponse:
+    account_id = context.account_id
+    warehouses = session.exec(
+        select(Warehouse).where(Warehouse.account_id == account_id).order_by(Warehouse.id)
+    ).all()
+    products = session.exec(
+        select(Product).where(Product.account_id == account_id).order_by(Product.id)
+    ).all()
+    stocks = session.exec(
+        select(WarehouseStock)
+        .where(WarehouseStock.account_id == account_id)
+        .order_by(WarehouseStock.id)
+    ).all()
+    clients = session.exec(
+        select(Client).where(Client.account_id == account_id).order_by(Client.id)
+    ).all()
+    orders = session.exec(
+        select(ClientOrder).where(ClientOrder.account_id == account_id).order_by(ClientOrder.id)
+    ).all()
+    trucks = session.exec(select(Truck).where(Truck.account_id == account_id).order_by(Truck.id)).all()
     fixed_assignments = [
-        _fixed_assignment_response(session, item) for item in load_fixed_assignments(session)
+        _fixed_assignment_response(session, item)
+        for item in load_fixed_assignments(session, account_id=account_id)
     ]
 
     return ERPStateResponse(
@@ -259,7 +292,7 @@ def patch_product(
     _context: AccessContext,
     session: SessionDependency,
 ) -> ProductResponse:
-    product = _get_or_404(session, Product, product_id, "Товар")
+    product = _get_or_404(session, Product, product_id, "Товар", account_id=_context.account_id)
     product.base_cost_rub = payload.base_cost_rub
     session.add(product)
     session.commit()
@@ -282,7 +315,7 @@ def patch_client_order(
     _context: AccessContext,
     session: SessionDependency,
 ) -> ClientOrderResponse:
-    order = _get_or_404(session, ClientOrder, order_id, "Заказ")
+    order = _get_or_404(session, ClientOrder, order_id, "Заказ", account_id=_context.account_id)
 
     updated = False
     if payload.purchase_price_rub is not None:
@@ -294,14 +327,14 @@ def patch_client_order(
             # Возврат в «В плане» отменяет отгрузку, возвращает сток и снимает фиксацию.
             if order.delivered_kg > 0.0:
                 _restore_delivered_stock(session, order)
-            clear_fixed_assignment(session, int(order.id or 0))
+            clear_fixed_assignment(session, int(order.id or 0), account_id=_context.account_id)
             order.delivery_status = DeliveryStatus.PENDING.value
         else:
             # «В работе» и «Доставлено» — обе стадии уже отгруженного груза.
             _apply_shipped_status(session, order, target_status)
             if target_status == DeliveryStatus.DELIVERED.value:
                 # Закрытая заявка больше не участвует в плане: фиксация не нужна.
-                clear_fixed_assignment(session, int(order.id or 0))
+                clear_fixed_assignment(session, int(order.id or 0), account_id=_context.account_id)
         updated = True
 
     if not updated:
@@ -333,9 +366,11 @@ async def assign_client_order(
 ) -> OrderAssignmentResponse:
     """Подбирает оптимальную машину и маршрут для заявки, которую берут в работу."""
 
-    order = _get_or_404(session, ClientOrder, order_id, "Заказ")
-    weather = await get_current_weather(session, settings)
-    assignment = await assign_order(session, settings, order, weather)
+    order = _get_or_404(session, ClientOrder, order_id, "Заказ", account_id=_context.account_id)
+    weather = await get_current_weather(session, settings, account_id=_context.account_id)
+    assignment = await assign_order(
+        session, settings, order, weather, account_id=_context.account_id
+    )
     if assignment is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -346,7 +381,7 @@ async def assign_client_order(
         )
     # Маршрут фиксируется: он появится на карте и войдёт в следующий расчёт
     # как готовый рейс, а машина не будет переиспользована.
-    save_fixed_assignment(session, assignment, order)
+    save_fixed_assignment(session, assignment, order, account_id=_context.account_id)
 
     return OrderAssignmentResponse(
         order_id=assignment.order_id,
@@ -377,7 +412,7 @@ def patch_truck(
     _context: AccessContext,
     session: SessionDependency,
 ) -> TruckResponse:
-    truck = _get_or_404(session, Truck, truck_id, "Машина")
+    truck = _get_or_404(session, Truck, truck_id, "Машина", account_id=_context.account_id)
     truck.status = payload.status.value
 
     session.add(truck)
@@ -398,7 +433,9 @@ def patch_warehouse_stock(
     _context: AccessContext,
     session: SessionDependency,
 ) -> WarehouseStockResponse:
-    stock = _get_or_404(session, WarehouseStock, stock_id, "Партия")
+    stock = _get_or_404(
+        session, WarehouseStock, stock_id, "Партия", account_id=_context.account_id
+    )
     stock.available_kg = payload.available_kg
 
     session.add(stock)
@@ -413,7 +450,7 @@ def patch_warehouse_stock(
     summary="Rebuild the Kaluga demo dataset (administrator only)",
 )
 def reset_demo(_context: AdminContext, session: SessionDependency) -> DemoResetResponse:
-    summary = reset_demo_database(session)
+    summary = reset_demo_database(session, account_id=_context.account_id)
     reset_weather_cache()
     return DemoResetResponse(
         warehouses=summary.warehouses,

@@ -85,6 +85,10 @@ def coordinate_key(origin: Coordinate, destination: Coordinate) -> str:
     )
 
 
+def account_coordinate_key(account_id: int, origin: Coordinate, destination: Coordinate) -> str:
+    return f"a{account_id}:{coordinate_key(origin, destination)}"
+
+
 def haversine_km(origin: Coordinate, destination: Coordinate) -> float:
     """Great-circle distance between two coordinates in kilometers."""
 
@@ -213,6 +217,7 @@ def _should_refresh_fallback(entry: RouteCache, has_mapbox_token: bool, now: flo
 
 def _persist_leg(
     session: Session,
+    account_id: int,
     pair_key: str,
     leg: RouteLeg,
     source: str,
@@ -223,6 +228,7 @@ def _persist_leg(
 
     entry = cached or RouteCache(
         pair_key=pair_key,
+        account_id=account_id,
         distance_km=leg.distance_km,
         base_duration_min=leg.base_duration_min,
     )
@@ -239,12 +245,16 @@ async def get_route_leg(
     origin: Coordinate,
     destination: Coordinate,
     settings: Settings,
+    *,
+    account_id: int,
     client: httpx.AsyncClient | None = None,
 ) -> RouteLeg:
     """Return a road leg, refreshing old fallback entries when Mapbox is enabled."""
 
-    pair_key = coordinate_key(origin, destination)
+    pair_key = account_coordinate_key(account_id, origin, destination)
     cached = session.get(RouteCache, pair_key)
+    if cached is not None and cached.account_id != account_id:
+        cached = None
     token_available = bool(_mapbox_token(settings))
     now = time.time()
     if cached is not None and not _should_refresh_fallback(cached, token_available, now):
@@ -256,7 +266,7 @@ async def get_route_leg(
     if leg is None:
         leg = fallback_leg(origin, destination)
 
-    _persist_leg(session, pair_key, leg, source, checked_at, cached)
+    _persist_leg(session, account_id, pair_key, leg, source, checked_at, cached)
     session.commit()
     return leg
 
@@ -265,12 +275,14 @@ async def build_distance_matrix(
     session: Session,
     points: list[Coordinate],
     settings: Settings,
+    *,
+    account_id: int,
     client: httpx.AsyncClient | None = None,
 ) -> list[list[RouteLeg]]:
     """Build an NxN matrix with concurrent fetches and a shared API deadline."""
 
     pairs = {
-        coordinate_key(origin, destination): (origin, destination)
+        account_coordinate_key(account_id, origin, destination): (origin, destination)
         for row, origin in enumerate(points)
         for column, destination in enumerate(points)
         if row != column
@@ -282,6 +294,8 @@ async def build_distance_matrix(
     now = time.time()
     for key, (origin, destination) in pairs.items():
         cached = session.get(RouteCache, key)
+        if cached is not None and cached.account_id != account_id:
+            cached = None
         if cached is None or _should_refresh_fallback(cached, token_available, now):
             missing[key] = (origin, destination)
             cached_entries[key] = cached
@@ -324,6 +338,7 @@ async def build_distance_matrix(
             checked_at = attempt_started_at if token_available else None
             _persist_leg(
                 session,
+                account_id,
                 key,
                 leg,
                 source,
@@ -340,7 +355,7 @@ async def build_distance_matrix(
         [
             RouteLeg(0.0, 0.0, [(origin.lat, origin.lon)])
             if row == column
-            else resolved[coordinate_key(origin, destination)]
+            else resolved[account_coordinate_key(account_id, origin, destination)]
             for column, destination in enumerate(points)
         ]
         for row, origin in enumerate(points)

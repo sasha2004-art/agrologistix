@@ -6,12 +6,23 @@ from sqlmodel import Field, SQLModel
 from app.schemas.enums import DeliveryStatus, RoadType, TruckStatus
 
 
+class Account(SQLModel, table=True):
+    """Tenant account with an individual access code."""
+
+    __tablename__ = "account"
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(max_length=120)
+    access_code: str = Field(max_length=6, unique=True, index=True)
+
+
 class Warehouse(SQLModel, table=True):
     """Multi-warehouse agroholding hub in the Kaluga region."""
 
     __tablename__ = "warehouse"
 
     id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
     name: str = Field(max_length=100, index=True)
     lat: float = Field(ge=-90.0, le=90.0)
     lon: float = Field(ge=-180.0, le=180.0)
@@ -23,9 +34,13 @@ class Product(SQLModel, table=True):
     """Perishable crop reference with its spoilage rate."""
 
     __tablename__ = "product"
+    __table_args__ = (
+        UniqueConstraint("account_id", "code", name="uq_product_account_code"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
-    code: str = Field(max_length=32, unique=True, index=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
+    code: str = Field(max_length=32, index=True)
     name: str = Field(max_length=100)
     base_spoilage_rate: float = Field(gt=0.0)
     optimal_temp_c: float
@@ -37,7 +52,12 @@ class WarehouseStock(SQLModel, table=True):
 
     __tablename__ = "warehouse_stock"
     __table_args__ = (
-        UniqueConstraint("warehouse_id", "product_id", name="uq_stock_warehouse_product"),
+        UniqueConstraint(
+            "account_id",
+            "warehouse_id",
+            "product_id",
+            name="uq_stock_account_warehouse_product",
+        ),
         CheckConstraint("available_kg >= 0", name="ck_stock_available_non_negative"),
         CheckConstraint(
             "initial_freshness >= 0.5 AND initial_freshness <= 1.0",
@@ -46,6 +66,7 @@ class WarehouseStock(SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
     warehouse_id: int = Field(foreign_key="warehouse.id", index=True)
     product_id: int = Field(foreign_key="product.id", index=True)
     available_kg: float = Field(ge=0.0)
@@ -61,6 +82,7 @@ class Client(SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
     name: str = Field(max_length=120, index=True)
     lat: float = Field(ge=-90.0, le=90.0)
     lon: float = Field(ge=-180.0, le=180.0)
@@ -84,6 +106,7 @@ class ClientOrder(SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
     client_id: int = Field(foreign_key="client.id", index=True)
     product_id: int = Field(foreign_key="product.id", index=True)
     requested_kg: float = Field(gt=0.0)
@@ -102,6 +125,7 @@ class Truck(SQLModel, table=True):
 
     __tablename__ = "truck"
     __table_args__ = (
+        UniqueConstraint("account_id", "plate_number", name="uq_truck_account_plate"),
         CheckConstraint("capacity_kg > 0", name="ck_truck_capacity_positive"),
         CheckConstraint("cruise_speed_kmh > 0", name="ck_truck_speed_positive"),
         CheckConstraint("cost_per_km_rub >= 0", name="ck_truck_cost_non_negative"),
@@ -110,8 +134,9 @@ class Truck(SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.id", index=True)
     name: str = Field(max_length=100)
-    plate_number: str = Field(max_length=20, unique=True, index=True)
+    plate_number: str = Field(max_length=20, index=True)
     warehouse_id: int = Field(foreign_key="warehouse.id", index=True)
     capacity_kg: float = Field(gt=0.0)
     cruise_speed_kmh: float = Field(gt=0.0)

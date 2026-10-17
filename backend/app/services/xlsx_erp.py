@@ -45,7 +45,7 @@ def _equipment(truck: Truck) -> str:
     return ", ".join(features)
 
 
-def write_orders_sheet(sheet: Worksheet, session: Session) -> None:
+def write_orders_sheet(sheet: Worksheet, session: Session, *, account_id: int) -> None:
     """Лист «Заказы»: то же, что таблица заказов на сайте."""
 
     headers = [
@@ -62,9 +62,17 @@ def write_orders_sheet(sheet: Worksheet, session: Session) -> None:
     ]
     row = _header(sheet, _title(sheet, "Заказы покупателей", len(headers)), headers)
 
-    clients = {client.id: client for client in session.exec(select(Client)).all()}
-    products = {product.id: product for product in session.exec(select(Product)).all()}
-    orders = session.exec(select(ClientOrder).order_by(ClientOrder.id)).all()
+    clients = {
+        client.id: client
+        for client in session.exec(select(Client).where(Client.account_id == account_id)).all()
+    }
+    products = {
+        product.id: product
+        for product in session.exec(select(Product).where(Product.account_id == account_id)).all()
+    }
+    orders = session.exec(
+        select(ClientOrder).where(ClientOrder.account_id == account_id).order_by(ClientOrder.id)
+    ).all()
 
     for order in orders:
         client = clients.get(order.client_id)
@@ -90,7 +98,7 @@ def write_orders_sheet(sheet: Worksheet, session: Session) -> None:
     autosize(sheet)
 
 
-def write_trucks_sheet(sheet: Worksheet, session: Session) -> None:
+def write_trucks_sheet(sheet: Worksheet, session: Session, *, account_id: int) -> None:
     """Лист «Машины»: автопарк как на вкладке «Машины и склады»."""
 
     headers = [
@@ -105,8 +113,13 @@ def write_trucks_sheet(sheet: Worksheet, session: Session) -> None:
     ]
     row = _header(sheet, _title(sheet, "Машины", len(headers)), headers)
 
-    warehouses = {warehouse.id: warehouse for warehouse in session.exec(select(Warehouse)).all()}
-    for truck in session.exec(select(Truck).order_by(Truck.id)).all():
+    warehouses = {
+        warehouse.id: warehouse
+        for warehouse in session.exec(select(Warehouse).where(Warehouse.account_id == account_id)).all()
+    }
+    for truck in session.exec(
+        select(Truck).where(Truck.account_id == account_id).order_by(Truck.id)
+    ).all():
         base = warehouses.get(truck.warehouse_id)
         values = [
             truck.name,
@@ -126,12 +139,16 @@ def write_trucks_sheet(sheet: Worksheet, session: Session) -> None:
     autosize(sheet)
 
 
-def write_stocks_sheet(sheet: Worksheet, session: Session) -> None:
+def write_stocks_sheet(sheet: Worksheet, session: Session, *, account_id: int) -> None:
     """Лист «Склады и остатки»: матрица склад × культура с итогами."""
 
-    products = session.exec(select(Product).order_by(Product.id)).all()
-    warehouses = session.exec(select(Warehouse).order_by(Warehouse.id)).all()
-    stocks = session.exec(select(WarehouseStock)).all()
+    products = session.exec(
+        select(Product).where(Product.account_id == account_id).order_by(Product.id)
+    ).all()
+    warehouses = session.exec(
+        select(Warehouse).where(Warehouse.account_id == account_id).order_by(Warehouse.id)
+    ).all()
+    stocks = session.exec(select(WarehouseStock).where(WarehouseStock.account_id == account_id)).all()
     available = {(stock.warehouse_id, stock.product_id): stock.available_kg for stock in stocks}
 
     headers = ["Склад", "Адрес", *[f"{product.name}, кг" for product in products], "Итого, кг"]

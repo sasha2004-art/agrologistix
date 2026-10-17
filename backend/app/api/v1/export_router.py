@@ -37,17 +37,17 @@ def _content_disposition(run_id: int) -> str:
 )
 def export_run(
     run_id: int,
-    _context: AccessContext,
+    context: AccessContext,
     session: SessionDependency,
 ) -> StreamingResponse:
-    report = load_export_run(session, run_id)
+    report = load_export_run(session, run_id, account_id=context.account_id)
     if report is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Расчёт №{run_id} не найден",
         )
 
-    payload = export_run_xlsx(report, session)
+    payload = export_run_xlsx(report, session, account_id=context.account_id)
     return StreamingResponse(
         BytesIO(payload),
         media_type=XLSX_MEDIA_TYPE,

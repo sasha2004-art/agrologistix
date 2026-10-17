@@ -19,8 +19,11 @@ SessionDependency = Annotated[Session, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 
-def _persist_run(session: Session, outcome: SolverOutcome, weather: WeatherSnapshot) -> int:
+def _persist_run(
+    session: Session, outcome: SolverOutcome, weather: WeatherSnapshot, *, account_id: int
+) -> int:
     run = SimulationRun(
+        account_id=account_id,
         weather_mode=weather.mode.value,
         temp_c=weather.temperature_c,
         precip_mm=weather.precipitation_mm,
@@ -43,6 +46,7 @@ def _persist_run(session: Session, outcome: SolverOutcome, weather: WeatherSnaps
         for stop in route.stops:
             session.add(
                 RouteStop(
+                    account_id=account_id,
                     run_id=run_id,
                     order_id=stop.order_id,
                     truck_id=stop.truck_id,
@@ -70,12 +74,12 @@ def _persist_run(session: Session, outcome: SolverOutcome, weather: WeatherSnaps
 )
 async def optimize(
     _payload: SolverRequest,
-    _context: AccessContext,
+    context: AccessContext,
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> SolverResponse:
-    weather = await get_current_weather(session, settings)
-    solver_input = await build_solver_input(session, settings, weather)
+    weather = await get_current_weather(session, settings, account_id=context.account_id)
+    solver_input = await build_solver_input(session, settings, weather, account_id=context.account_id)
     outcome = await solve_async(solver_input, settings.solver_time_limit_sec)
-    run_id = _persist_run(session, outcome, weather)
+    run_id = _persist_run(session, outcome, weather, account_id=context.account_id)
     return to_solver_response(outcome, run_id=run_id)

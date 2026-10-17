@@ -215,7 +215,7 @@ class ExportRun:
 
 
 def _names(
-    session: Session, stop_rows: list[RouteStop]
+    session: Session, stop_rows: list[RouteStop], *, account_id: int
 ) -> tuple[
     dict[int, Truck],
     dict[int, Warehouse],
@@ -231,27 +231,39 @@ def _names(
     order_ids = {stop.order_id for stop in stop_rows if stop.order_id is not None}
     trucks = {
         truck.id: truck
-        for truck in session.exec(select(Truck).where(Truck.id.in_(truck_ids))).all()
+        for truck in session.exec(
+            select(Truck).where(Truck.account_id == account_id, Truck.id.in_(truck_ids))
+        ).all()
     }
     warehouses = {
         warehouse.id: warehouse
         for warehouse in session.exec(
-            select(Warehouse).where(Warehouse.id.in_(warehouse_ids))
+            select(Warehouse).where(
+                Warehouse.account_id == account_id, Warehouse.id.in_(warehouse_ids)
+            )
         ).all()
     }
     clients = {
         client.id: client
-        for client in session.exec(select(Client).where(Client.id.in_(client_ids))).all()
+        for client in session.exec(
+            select(Client).where(Client.account_id == account_id, Client.id.in_(client_ids))
+        ).all()
     }
     products = {
         product.id: product
-        for product in session.exec(select(Product).where(Product.id.in_(product_ids))).all()
+        for product in session.exec(
+            select(Product).where(Product.account_id == account_id, Product.id.in_(product_ids))
+        ).all()
     }
     orders = {
         order.id: order
-        for order in session.exec(select(ClientOrder).where(ClientOrder.id.in_(order_ids))).all()
+        for order in session.exec(
+            select(ClientOrder).where(ClientOrder.account_id == account_id, ClientOrder.id.in_(order_ids))
+        ).all()
     }
-    stock_rows = session.exec(select(WarehouseStock)).all()
+    stock_rows = session.exec(
+        select(WarehouseStock).where(WarehouseStock.account_id == account_id)
+    ).all()
     stock_by_key = {
         (stock.warehouse_id, stock.product_id): stock
         for stock in stock_rows
@@ -260,21 +272,25 @@ def _names(
     return trucks, warehouses, clients, products, orders, stock_by_key
 
 
-def load_export_run(session: Session, run_id: int) -> ExportRun | None:
+def load_export_run(session: Session, run_id: int, *, account_id: int) -> ExportRun | None:
     """Read a stored run with its stops and related names, or ``None``."""
 
-    run = session.get(SimulationRun, run_id)
+    run = session.exec(
+        select(SimulationRun).where(SimulationRun.account_id == account_id, SimulationRun.id == run_id)
+    ).first()
     if run is None:
         return None
 
     stop_rows = list(
         session.exec(
             select(RouteStop)
-            .where(RouteStop.run_id == run_id)
+            .where(RouteStop.account_id == account_id, RouteStop.run_id == run_id)
             .order_by(RouteStop.truck_id, RouteStop.sequence_order)
         ).all()
     )
-    trucks, warehouses, clients, products, orders, stocks = _names(session, stop_rows)
+    trucks, warehouses, clients, products, orders, stocks = _names(
+        session, stop_rows, account_id=account_id
+    )
 
     grouped: dict[int, list[ExportStop]] = {}
     for stop in stop_rows:

@@ -37,11 +37,11 @@ def _to_response(snapshot: WeatherSnapshot, settings: Settings) -> WeatherRespon
     summary="Read the active Kaluga weather and stress preset",
 )
 async def read_current_weather(
-    _context: AccessContext,
+    context: AccessContext,
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> WeatherResponse:
-    snapshot = await get_current_weather(session, settings)
+    snapshot = await get_current_weather(session, settings, account_id=context.account_id)
     return _to_response(snapshot, settings)
 
 
@@ -52,10 +52,10 @@ async def read_current_weather(
 )
 async def override_weather(
     payload: WeatherOverrideRequest,
-    _context: AccessContext,
+    context: AccessContext,
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> WeatherResponse:
-    write_weather_mode(session, payload.mode)
-    snapshot = await get_current_weather(session, settings)
+    write_weather_mode(session, payload.mode, account_id=context.account_id)
+    snapshot = await get_current_weather(session, settings, account_id=context.account_id)
     return _to_response(snapshot, settings)

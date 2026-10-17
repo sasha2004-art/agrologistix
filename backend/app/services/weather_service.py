@@ -13,10 +13,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.config import Settings
-from app.models.run_models import WEATHER_OVERRIDE_ID, WeatherOverrideState
+from app.models.run_models import WeatherOverrideState
 from app.schemas.enums import WeatherMode
 
 logger = logging.getLogger(__name__)
@@ -75,23 +75,27 @@ def _cache_key(settings: Settings) -> tuple[float, float]:
     return (settings.weather_latitude, settings.weather_longitude)
 
 
-def read_weather_mode(session: Session) -> WeatherMode:
+def read_weather_mode(session: Session, *, account_id: int) -> WeatherMode:
     """Read the persisted preset, creating the default row on first use."""
 
-    state = session.get(WeatherOverrideState, WEATHER_OVERRIDE_ID)
+    state = session.exec(
+        select(WeatherOverrideState).where(WeatherOverrideState.account_id == account_id)
+    ).first()
     if state is None:
-        state = WeatherOverrideState()
+        state = WeatherOverrideState(account_id=account_id)
         session.add(state)
         session.commit()
     return WeatherMode(state.mode)
 
 
-def write_weather_mode(session: Session, mode: WeatherMode) -> WeatherMode:
+def write_weather_mode(session: Session, mode: WeatherMode, *, account_id: int) -> WeatherMode:
     """Persist a new preset and return it."""
 
-    state = session.get(WeatherOverrideState, WEATHER_OVERRIDE_ID)
+    state = session.exec(
+        select(WeatherOverrideState).where(WeatherOverrideState.account_id == account_id)
+    ).first()
     if state is None:
-        state = WeatherOverrideState(mode=mode.value)
+        state = WeatherOverrideState(account_id=account_id, mode=mode.value)
     else:
         state.mode = mode.value
         state.updated_at = datetime.now(UTC)
@@ -155,11 +159,13 @@ async def fetch_open_meteo(
 async def get_current_weather(
     session: Session,
     settings: Settings,
+    *,
+    account_id: int,
     client: httpx.AsyncClient | None = None,
 ) -> WeatherSnapshot:
     """Return the active snapshot: preset first, then cache, then Open-Meteo."""
 
-    mode = read_weather_mode(session)
+    mode = read_weather_mode(session, account_id=account_id)
     if mode is not WeatherMode.NORMAL:
         return preset_snapshot(mode)
 

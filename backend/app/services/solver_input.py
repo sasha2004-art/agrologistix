@@ -48,6 +48,8 @@ def _fixed_routes(
     orders: list[ClientOrder],
     clients_by_id: dict[int, Client],
     trucks: list[Truck],
+    *,
+    account_id: int,
 ) -> tuple[SolverFixedRoute, ...]:
     """Готовые рейсы из фиксаций: заявка «В работе» со своей машиной и складом.
 
@@ -60,7 +62,7 @@ def _fixed_routes(
     orders_by_id = {int(order.id or 0): order for order in orders}
     trucks_by_id = {int(truck.id or 0): truck for truck in trucks}
     routes: list[SolverFixedRoute] = []
-    for fixed in load_fixed_assignments(session):
+    for fixed in load_fixed_assignments(session, account_id=account_id):
         order = orders_by_id.get(fixed.order_id)
         client = clients_by_id.get(fixed.client_id)
         if order is None or client is None:
@@ -99,11 +101,15 @@ async def build_solver_input(
     session: Session,
     settings: Settings,
     weather: WeatherSnapshot,
+    *,
+    account_id: int,
 ) -> SolverInput:
     """Assemble the engine input from SQLite and the cached route matrix."""
 
     warehouses = session.exec(
-        select(Warehouse).where(Warehouse.is_active.is_(True)).order_by(Warehouse.id)
+        select(Warehouse)
+        .where(Warehouse.account_id == account_id, Warehouse.is_active.is_(True))
+        .order_by(Warehouse.id)
     ).all()
     active_warehouse_ids = [int(warehouse.id or 0) for warehouse in warehouses]
     products = session.exec(select(Product).order_by(Product.id)).all()
@@ -111,12 +117,17 @@ async def build_solver_input(
     # counted by the solver or by the stock-shortage warning.
     stocks = session.exec(
         select(WarehouseStock)
-        .where(WarehouseStock.warehouse_id.in_(active_warehouse_ids))
+        .where(
+            WarehouseStock.account_id == account_id,
+            WarehouseStock.warehouse_id.in_(active_warehouse_ids),
+        )
         .order_by(WarehouseStock.id)
     ).all()
-    clients = session.exec(select(Client).order_by(Client.id)).all()
-    orders = session.exec(select(ClientOrder).order_by(ClientOrder.id)).all()
-    trucks = session.exec(select(Truck).order_by(Truck.id)).all()
+    clients = session.exec(select(Client).where(Client.account_id == account_id).order_by(Client.id)).all()
+    orders = session.exec(
+        select(ClientOrder).where(ClientOrder.account_id == account_id).order_by(ClientOrder.id)
+    ).all()
+    trucks = session.exec(select(Truck).where(Truck.account_id == account_id).order_by(Truck.id)).all()
 
     clients_by_id = {client.id: client for client in clients}
     # Only points that can appear in the plan are resolved through the distance
@@ -142,7 +153,9 @@ async def build_solver_input(
     legs: list[SolverLeg] = []
     if unique_points:
         coordinates = [Coordinate(lat=lat, lon=lon) for lat, lon in unique_points]
-        matrix = await build_distance_matrix(session, coordinates, settings)
+        matrix = await build_distance_matrix(
+            session, coordinates, settings, account_id=account_id
+        )
         for row_index in range(len(coordinates)):
             for column_index in range(len(coordinates)):
                 if row_index == column_index:
@@ -179,7 +192,7 @@ async def build_solver_input(
         if order.id is not None
         and order.delivery_status in (DeliveryStatus.IN_PROGRESS, DeliveryStatus.DELIVERED)
     )
-    fixed_routes = _fixed_routes(session, orders, clients_by_id, trucks)
+    fixed_routes = _fixed_routes(session, orders, clients_by_id, trucks, account_id=account_id)
 
     return SolverInput(
         products=tuple(

@@ -41,6 +41,66 @@ def create_database_engine(settings: Settings | None = None) -> Engine:
 # Columns added after the first release; create_all() never alters existing tables.
 _SQLITE_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     (
+        "warehouse",
+        "account_id",
+        "ALTER TABLE warehouse ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "product",
+        "account_id",
+        "ALTER TABLE product ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "warehouse_stock",
+        "account_id",
+        "ALTER TABLE warehouse_stock ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "client",
+        "account_id",
+        "ALTER TABLE client ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "client_order",
+        "account_id",
+        "ALTER TABLE client_order ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "truck",
+        "account_id",
+        "ALTER TABLE truck ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "simulation_run",
+        "account_id",
+        "ALTER TABLE simulation_run ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "route_stop",
+        "account_id",
+        "ALTER TABLE route_stop ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "delivered_order_stock",
+        "account_id",
+        "ALTER TABLE delivered_order_stock ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "fixed_assignment",
+        "account_id",
+        "ALTER TABLE fixed_assignment ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "route_cache",
+        "account_id",
+        "ALTER TABLE route_cache ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
+        "weather_override",
+        "account_id",
+        "ALTER TABLE weather_override ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1",
+    ),
+    (
         "simulation_run",
         "total_shipped_kg",
         "ALTER TABLE simulation_run ADD COLUMN total_shipped_kg FLOAT NOT NULL DEFAULT 0",

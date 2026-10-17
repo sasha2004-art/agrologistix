@@ -1,8 +1,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from sqlmodel import Session
 
 from app.core.config import Settings, get_settings
+from app.core.database import get_session
 from app.core.rate_limit import LIMITER, client_key
 from app.core.security import AccessContext, authenticate_pin
 from app.schemas.auth_schemas import AuthResponse
@@ -13,6 +15,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _UNAUTHORIZED_RESPONSE = {"model": APIErrorResponse, "description": "Invalid or missing access PIN"}
 _TOO_MANY_RESPONSE = {"model": APIErrorResponse, "description": "Too many failed PIN attempts"}
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
+SessionDependency = Annotated[Session, Depends(get_session)]
 AccessPinHeader = Annotated[str | None, Header(alias="X-Access-Pin")]
 
 
@@ -44,6 +47,7 @@ def _too_many(retry_after: float) -> HTTPException:
 def verify_pin(
     request: Request,
     settings: SettingsDependency,
+    session: SessionDependency,
     x_access_pin: AccessPinHeader = None,
 ) -> AuthResponse:
     key = client_key(request)
@@ -55,12 +59,12 @@ def verify_pin(
     if x_access_pin is None:
         raise _unauthorized("X-Access-Pin header is required")
 
-    context = authenticate_pin(x_access_pin, settings)
+    context = authenticate_pin(x_access_pin, settings, session)
     if context is None:
         LIMITER.register_failure(key, settings)
         raise _unauthorized("Invalid access PIN")
     LIMITER.reset(key)
-    return context
+    return context.to_auth_response()
 
 
 @router.get(
@@ -72,4 +76,4 @@ def verify_pin(
     summary="Read the current authenticated session",
 )
 def read_session(context: AccessContext) -> AuthResponse:
-    return context
+    return context.to_auth_response()

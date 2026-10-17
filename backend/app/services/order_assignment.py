@@ -61,6 +61,8 @@ async def assign_order(
     settings: Settings,
     order: ClientOrder,
     weather: WeatherSnapshot,
+    *,
+    account_id: int,
 ) -> OrderAssignment | None:
     """Pick the cheapest feasible truck/warehouse pair for one order.
 
@@ -68,8 +70,12 @@ async def assign_order(
     (no stock of the product on its base, capacity or dirt-approach mismatch).
     """
 
-    client = session.get(Client, order.client_id)
-    product = session.get(Product, order.product_id)
+    client = session.exec(
+        select(Client).where(Client.id == order.client_id, Client.account_id == account_id)
+    ).first()
+    product = session.exec(
+        select(Product).where(Product.id == order.product_id, Product.account_id == account_id)
+    ).first()
     if client is None or product is None:
         return None
 
@@ -79,14 +85,20 @@ async def assign_order(
 
     warehouses = {
         int(warehouse.id or 0): warehouse
-        for warehouse in session.exec(select(Warehouse).where(Warehouse.is_active.is_(True))).all()
+        for warehouse in session.exec(
+            select(Warehouse).where(Warehouse.account_id == account_id, Warehouse.is_active.is_(True))
+        ).all()
     }
     stocks = session.exec(
-        select(WarehouseStock).where(WarehouseStock.product_id == order.product_id)
+        select(WarehouseStock).where(
+            WarehouseStock.account_id == account_id, WarehouseStock.product_id == order.product_id
+        )
     ).all()
     stock_by_warehouse = {stock.warehouse_id: stock for stock in stocks if stock.available_kg > 0.0}
     trucks = session.exec(
-        select(Truck).where(Truck.status == TruckStatus.ACTIVE.value).order_by(Truck.id)
+        select(Truck)
+        .where(Truck.account_id == account_id, Truck.status == TruckStatus.ACTIVE.value)
+        .order_by(Truck.id)
     ).all()
 
     # Added to the first stop of the fixed route, so one truck carries one trip.
@@ -97,11 +109,13 @@ async def assign_order(
     reserved_stock: dict[tuple[int, int], float] = {}
     other_orders = {
         int(item.id or 0): item
-        for item in session.exec(select(ClientOrder)).all()
+        for item in session.exec(select(ClientOrder).where(ClientOrder.account_id == account_id)).all()
         if item.id is not None
     }
     current_order_id = int(order.id or 0)
-    for fixed in session.exec(select(FixedAssignment)).all():
+    for fixed in session.exec(
+        select(FixedAssignment).where(FixedAssignment.account_id == account_id)
+    ).all():
         if fixed.order_id == current_order_id:
             continue
         other = other_orders.get(fixed.order_id)
@@ -144,6 +158,7 @@ async def assign_order(
             Coordinate(lat=warehouse.lat, lon=warehouse.lon),
             Coordinate(lat=client.lat, lon=client.lon),
             settings,
+            account_id=account_id,
         )
         travel_hours = leg.distance_km / truck.cruise_speed_kmh * surface * rain
         cargo = CargoProfile(
@@ -186,17 +201,21 @@ async def assign_order(
 
 
 def save_fixed_assignment(
-    session: Session, assignment: OrderAssignment, order: ClientOrder
+    session: Session, assignment: OrderAssignment, order: ClientOrder, *, account_id: int
 ) -> FixedAssignment:
     """Сохранить (или обновить) фиксацию маршрута для заявки."""
 
     fixed = session.exec(
-        select(FixedAssignment).where(FixedAssignment.order_id == assignment.order_id)
+        select(FixedAssignment).where(
+            FixedAssignment.account_id == account_id,
+            FixedAssignment.order_id == assignment.order_id,
+        )
     ).first()
     geometry_json = json.dumps([[lat, lon] for lat, lon in assignment.geometry])
     if fixed is None:
         fixed = FixedAssignment(
             order_id=assignment.order_id,
+            account_id=account_id,
             truck_id=assignment.truck_id,
             warehouse_id=assignment.warehouse_id,
             client_id=order.client_id,
@@ -219,19 +238,27 @@ def save_fixed_assignment(
     return fixed
 
 
-def clear_fixed_assignment(session: Session, order_id: int) -> None:
+def clear_fixed_assignment(session: Session, order_id: int, *, account_id: int) -> None:
     """Убрать фиксацию: заявка вернулась «В плане» или закрыта."""
 
     fixed = session.exec(
-        select(FixedAssignment).where(FixedAssignment.order_id == order_id)
+        select(FixedAssignment).where(
+            FixedAssignment.account_id == account_id, FixedAssignment.order_id == order_id
+        )
     ).first()
     if fixed is not None:
         session.delete(fixed)
         session.commit()
 
 
-def load_fixed_assignments(session: Session) -> list[FixedAssignment]:
-    return list(session.exec(select(FixedAssignment).order_by(FixedAssignment.id)).all())
+def load_fixed_assignments(session: Session, *, account_id: int) -> list[FixedAssignment]:
+    return list(
+        session.exec(
+            select(FixedAssignment)
+            .where(FixedAssignment.account_id == account_id)
+            .order_by(FixedAssignment.id)
+        ).all()
+    )
 
 
 def assignment_geometry(fixed: FixedAssignment) -> list[tuple[float, float]]:
