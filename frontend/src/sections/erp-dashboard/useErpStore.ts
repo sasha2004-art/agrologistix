@@ -71,6 +71,9 @@ export function remainingKg(order: ClientOrder): number {
   return Math.max(0, order.requested_kg - order.delivered_kg)
 }
 
+/** Ключ массовой отметки доставки: по нему UI рисует общий индикатор. */
+export const ORDERS_DELIVER_KEY = 'orders:deliver'
+
 export const useErpStore = defineStore('erp', () => {
   const auth = useAuthStore()
   const notifications = useNotificationStore()
@@ -377,6 +380,49 @@ export const useErpStore = defineStore('erp', () => {
     })
   }
 
+  /**
+   * Массовая отметка заказов доставленными: по одному PATCH на заказ — бэкенд
+   * списывает сток по стопам последнего плана. Затем один перезапрос состояния,
+   * одно уведомление и пометка плана устаревшим, а не по тосту на заказ.
+   * На ошибке (обычно 409: остаток склада изменился после расчёта) останавливаемся:
+   * продолжать списание по устаревшему плану нельзя, тосты сообщат, сколько успело.
+   */
+  async function deliverOrders(orderIds: number[]): Promise<boolean> {
+    const accessPin = auth.accessPin
+    if (!accessPin) {
+      notifications.push('error', 'Требуется вход по коду доступа.')
+      return false
+    }
+    const unique = [...new Set(orderIds)]
+    if (unique.length === 0) return false
+
+    pendingKeys.value.add(ORDERS_DELIVER_KEY)
+    let done = 0
+    let failure: unknown = null
+    try {
+      for (const orderId of unique) {
+        try {
+          const updated = await patchOrder(orderId, { delivery_status: 'delivered' }, accessPin)
+          if (state.value) state.value.orders = replaceById(state.value.orders, updated)
+          done += 1
+        } catch (error) {
+          failure = error
+          break
+        }
+      }
+    } finally {
+      pendingKeys.value.delete(ORDERS_DELIVER_KEY)
+    }
+
+    if (done > 0) {
+      await loadState({ force: true, silent: true })
+      solver.markPlanStale()
+      notifications.push('success', `Отмечено доставленными: ${done} из ${unique.length}`)
+    }
+    if (failure) notifications.push('error', describeApiError(failure))
+    return done > 0 && failure === null
+  }
+
   function clear(): void {
     state.value = null
     status.value = 'idle'
@@ -438,6 +484,7 @@ export const useErpStore = defineStore('erp', () => {
     updateOrder,
     updateTruck,
     updateStock,
+    deliverOrders,
     clear,
   }
 })

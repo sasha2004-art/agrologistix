@@ -67,7 +67,7 @@ export function roadLabel(roadType: RoadType | null): string {
 
 export function statusLabel(status: DeliveryStatus | null): string {
   if (status === 'delivered') return 'Доставлено'
-  if (status === 'pending') return 'В работе'
+  if (status === 'pending') return 'В плане'
   return ''
 }
 

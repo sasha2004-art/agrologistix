@@ -37,7 +37,7 @@
       </li>
       <li class="legend-item">
         <span class="legend-marker legend-marker--pending" aria-hidden="true" />
-        Заказ в работе
+        Заказ в плане
       </li>
       <li class="legend-item">
         <span class="legend-marker legend-marker--delivered" aria-hidden="true" />

@@ -86,7 +86,7 @@
                 :aria-label="`Заказ №${row.order.id}: переключить статус доставки`"
                 @click="toggleDelivered(row)"
               >
-                {{ row.order.delivery_status === 'delivered' ? 'Доставлено' : 'В работе' }}
+                {{ row.order.delivery_status === 'delivered' ? 'Доставлено' : 'В плане' }}
               </v-btn>
             </td>
           </tr>
