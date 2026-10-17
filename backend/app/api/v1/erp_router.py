@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, SQLModel, select
 
+from app.core.config import Settings, get_settings
 from app.core.database import get_session
 from app.core.security import AccessContext, AdminContext
 from app.models.erp_models import (
@@ -21,6 +22,7 @@ from app.schemas.erp_schemas import (
     ClientResponse,
     DemoResetResponse,
     ERPStateResponse,
+    OrderAssignmentResponse,
     ProductResponse,
     TruckPatch,
     TruckResponse,
@@ -29,13 +31,15 @@ from app.schemas.erp_schemas import (
     WarehouseStockResponse,
 )
 from app.schemas.error_schemas import APIErrorResponse
+from app.services.order_assignment import assign_order
 from app.services.seed_kaluga import reset_demo_database
-from app.services.weather_service import reset_weather_cache
+from app.services.weather_service import get_current_weather, reset_weather_cache
 
 router = APIRouter(prefix="/erp", tags=["erp"])
 system_router = APIRouter(prefix="/system", tags=["system"])
 
 SessionDependency = Annotated[Session, Depends(get_session)]
+SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 _NOT_FOUND_RESPONSE = {"model": APIErrorResponse, "description": "Entity was not found"}
 _BAD_REQUEST_RESPONSE = {"model": APIErrorResponse, "description": "Request cannot be applied"}
@@ -231,6 +235,51 @@ def patch_client_order(
     session.commit()
     session.refresh(order)
     return ClientOrderResponse.model_validate(order)
+
+
+@router.post(
+    "/orders/{order_id}/assign",
+    response_model=OrderAssignmentResponse,
+    responses={
+        status.HTTP_404_NOT_FOUND: _NOT_FOUND_RESPONSE,
+        status.HTTP_409_CONFLICT: _CONFLICT_RESPONSE,
+    },
+    summary="Pick the cheapest truck and route for one client order",
+)
+async def assign_client_order(
+    order_id: int,
+    _context: AccessContext,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> OrderAssignmentResponse:
+    """Подбирает оптимальную машину и маршрут для заявки, которую берут в работу."""
+
+    order = _get_or_404(session, ClientOrder, order_id, "Заказ")
+    weather = await get_current_weather(session, settings)
+    assignment = await assign_order(session, settings, order, weather)
+    if assignment is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Нет подходящей машины: проверьте остатки урожая, "
+                "допуск на грунт и состояние автопарка"
+            ),
+        )
+
+    return OrderAssignmentResponse(
+        order_id=assignment.order_id,
+        truck_id=assignment.truck_id,
+        truck_name=assignment.truck_name,
+        warehouse_id=assignment.warehouse_id,
+        warehouse_name=assignment.warehouse_name,
+        shipped_kg=assignment.shipped_kg,
+        distance_km=assignment.distance_km,
+        duration_min=assignment.duration_min,
+        trip_cost_rub=assignment.trip_cost_rub,
+        spoilage_loss_rub=assignment.spoilage_loss_rub,
+        total_cost_rub=assignment.total_cost_rub,
+        expected_freshness=assignment.expected_freshness,
+    )
 
 
 @router.patch(

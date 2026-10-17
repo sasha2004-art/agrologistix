@@ -83,7 +83,9 @@
                     variant="tonal"
                     :color="statusMeta(row.order.delivery_status).color"
                     :prepend-icon="statusMeta(row.order.delivery_status).icon"
-                    :loading="erp.isPending(`order:${row.order.id}`)"
+                    :loading="
+                      erp.isPending(`order:${row.order.id}`) || assignment.isPending(row.order.id)
+                    "
                     :aria-label="`Заказ №${row.order.id}: изменить этап поставки`"
                   >
                     {{ statusMeta(row.order.delivery_status).label }}
@@ -100,6 +102,10 @@
                   />
                 </v-list>
               </v-menu>
+              <!-- Подобранные маршрут и машина показываются у заявок «В работе». -->
+              <span v-if="assignmentNote(row)" class="cell-note assignment-note">
+                {{ assignmentNote(row) }}
+              </span>
             </td>
           </tr>
         </tbody>
@@ -112,10 +118,12 @@
 import StatePanel from '@/shared/components/StatePanel.vue'
 import EditableNumberField from '@/shared/components/EditableNumberField.vue'
 import { useErpStore, type OrderRow } from './useErpStore'
+import { assignmentSummary, useAssignmentStore } from './useAssignmentStore'
 import { formatKg } from '@/shared/utils/format'
 import type { DeliveryStatus } from '@/shared/types/domain'
 
 const erp = useErpStore()
+const assignment = useAssignmentStore()
 
 function reload(): void {
   void erp.loadState({ force: true })
@@ -136,9 +144,19 @@ function statusMeta(status: DeliveryStatus) {
   return STATUS_OPTIONS.find((option) => option.value === status) ?? STATUS_OPTIONS[0]
 }
 
-function setStatus(row: OrderRow, status: DeliveryStatus): void {
+async function setStatus(row: OrderRow, status: DeliveryStatus): Promise<void> {
   if (row.order.delivery_status === status) return
+  // «В работе» — сначала подбираем оптимальные маршрут и машину:
+  // без подходящего варианта заявка в работу не уходит.
+  if (status === 'in_progress' && !(await assignment.assign(row.order.id))) return
   void erp.updateOrder(row.order.id, { delivery_status: status })
+}
+
+/** Строка с подобранным вариантом у заявки, взятой «В работе». */
+function assignmentNote(row: OrderRow): string {
+  if (row.order.delivery_status !== 'in_progress') return ''
+  const picked = assignment.forOrder(row.order.id)
+  return picked ? `Оптимально: ${assignmentSummary(picked)}` : ''
 }
 
 /** A partially shipped order keeps the leftover demand after PATCH delivered. */
@@ -192,5 +210,10 @@ function partialDelivery(deliveredKg: number, requestedKg: number): boolean {
   display: block;
   font-size: 12px;
   color: #5b5175;
+}
+
+.assignment-note {
+  max-width: 260px;
+  white-space: normal;
 }
 </style>
