@@ -51,21 +51,15 @@
                 {{ formatKg(row.order.requested_kg - row.order.delivered_kg) }}
               </span>
             </td>
-            <td class="text-right">
-              <EditableNumberField
-                :model-value="row.order.purchase_price_rub"
-                :min="1"
-                :step="10"
-                suffix="₽"
-                :loading="erp.isPending(`order:${row.order.id}`)"
-                :aria-label="`Заказ №${row.order.id}: цена за кг в рублях`"
-                @commit="(value) => savePrice(row, value)"
-              />
+            <td class="text-right mono">
+              <!-- Цена приходит вместе с заказом от покупателя: диспетчер её не меняет. -->
+              {{ formatPrice(row.order.purchase_price_rub) }}
             </td>
             <td>
               <!-- Дорога только иконкой: расшифровка — в подсказке и aria-label. -->
               <v-icon
-                :icon="row.client.road_type === 'dirt' ? 'mdi-road-variant' : 'mdi-road'"
+                :icon="row.client.road_type === 'dirt' ? 'mdi-image-filter-hdr' : 'mdi-highway'"
+                :color="row.client.road_type === 'dirt' ? 'warning' : undefined"
                 size="20"
                 :aria-label="row.client.road_type === 'dirt' ? 'Грунтовка' : 'Асфальт'"
               >
@@ -116,10 +110,9 @@
 
 <script setup lang="ts">
 import StatePanel from '@/shared/components/StatePanel.vue'
-import EditableNumberField from '@/shared/components/EditableNumberField.vue'
 import { useErpStore, type OrderRow } from './useErpStore'
 import { assignmentSummary, useAssignmentStore } from './useAssignmentStore'
-import { formatKg } from '@/shared/utils/format'
+import { formatKg, formatPrice } from '@/shared/utils/format'
 import type { DeliveryStatus } from '@/shared/types/domain'
 
 const erp = useErpStore()
@@ -127,10 +120,6 @@ const assignment = useAssignmentStore()
 
 function reload(): void {
   void erp.loadState({ force: true })
-}
-
-function savePrice(row: OrderRow, value: number): void {
-  void erp.updateOrder(row.order.id, { purchase_price_rub: value })
 }
 
 /** Три этапа поставки: заявка ждёт плана → груз в пути → доставлено. */

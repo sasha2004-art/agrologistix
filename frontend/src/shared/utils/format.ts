@@ -10,9 +10,16 @@ const rubFormatter = new Intl.NumberFormat('ru-RU', {
   currency: 'RUB',
   maximumFractionDigits: 0,
 })
+// Цена за кг приходит в заказе и бывает дробной (52,5 ₽), поэтому без округления до целого.
+const priceFormatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 })
 
 export function formatDecimal(value: number): string {
   return decimalFormatter.format(value)
+}
+
+/** Цена ₽/кг без единицы измерения: целые — «160», дробные — «52,5». */
+export function formatPrice(value: number): string {
+  return priceFormatter.format(value)
 }
 
 export function formatRub(value: number): string {
