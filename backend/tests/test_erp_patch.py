@@ -12,6 +12,42 @@ def read_state(client: TestClient) -> dict:
     return response.json()
 
 
+def test_patch_product_reference_cost_is_persisted(client: TestClient) -> None:
+    response = client.patch(
+        "/api/v1/erp/products/1",
+        headers=AUTH,
+        json={"base_cost_rub": 123.5},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["base_cost_rub"] == 123.5
+
+    products = read_state(client)["products"]
+    assert next(product for product in products if product["id"] == 1)["base_cost_rub"] == 123.5
+
+
+def test_patch_product_validates_price_and_id(client: TestClient) -> None:
+    negative = client.patch(
+        "/api/v1/erp/products/1",
+        headers=AUTH,
+        json={"base_cost_rub": -1},
+    )
+    unknown = client.patch(
+        "/api/v1/erp/products/9999",
+        headers=AUTH,
+        json={"base_cost_rub": 10},
+    )
+    unknown_field = client.patch(
+        "/api/v1/erp/products/1",
+        headers=AUTH,
+        json={"base_cost_rub": 10, "name": "replacement"},
+    )
+
+    assert negative.status_code == 422
+    assert unknown.status_code == 404
+    assert unknown_field.status_code == 422
+
+
 def test_patch_order_price_is_persisted(client: TestClient) -> None:
     response = client.patch(
         "/api/v1/erp/orders/1",

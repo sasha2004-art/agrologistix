@@ -140,6 +140,11 @@ export interface ProductCreate {
   base_cost_rub: number
 }
 
+/** erp_schemas.ProductPatch */
+export interface ProductPatch {
+  base_cost_rub: number
+}
+
 /** erp_create_schemas.ClientCreate */
 export interface ClientCreate {
   name: string

@@ -38,7 +38,12 @@
             <th scope="col">Название</th>
             <th scope="col" class="text-right">Порча, доля/час</th>
             <th scope="col" class="text-right">Оптимальная t, °C</th>
-            <th scope="col" class="text-right">Себестоимость, ₽/кг</th>
+            <th scope="col" class="text-right">
+              <span class="column-label">Себестоимость, ₽/кг</span>
+              <v-tooltip activator="parent" location="top">
+                Справочная цена: сейчас не влияет на TCO, который считается по цене заказа.
+              </v-tooltip>
+            </th>
             <th scope="col" class="text-right">Партий на складах</th>
           </tr>
         </thead>
@@ -48,7 +53,17 @@
             <td>{{ product.name }}</td>
             <td class="text-right mono">{{ product.base_spoilage_rate.toFixed(3) }}</td>
             <td class="text-right mono">{{ product.optimal_temp_c.toFixed(1) }}</td>
-            <td class="text-right mono">{{ formatPrice(product.base_cost_rub) }}</td>
+            <td class="text-right">
+              <EditableNumberField
+                :model-value="product.base_cost_rub"
+                :min="0.01"
+                :step="1"
+                suffix="₽"
+                :loading="erp.isPending(`product:${product.id}`)"
+                :aria-label="`${product.name}: справочная себестоимость за кг`"
+                @commit="(value) => saveProductCost(product.id, value)"
+              />
+            </td>
             <td class="text-right mono">{{ stockCount(product.id) }}</td>
           </tr>
         </tbody>
@@ -62,9 +77,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
+import EditableNumberField from '@/shared/components/EditableNumberField.vue'
 import CreateProductDialog from './create/CreateProductDialog.vue'
 import { useErpStore } from './useErpStore'
-import { formatPrice } from '@/shared/utils/format'
 
 const erp = useErpStore()
 const createOpen = ref(false)
@@ -85,6 +100,10 @@ function stockCount(productId: number): number {
 function reload(): void {
   void erp.loadState({ force: true })
 }
+
+function saveProductCost(productId: number, value: number): void {
+  void erp.updateProduct(productId, { base_cost_rub: value })
+}
 </script>
 
 <style scoped lang="scss">
@@ -93,5 +112,9 @@ function reload(): void {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.excel-table :deep(.v-table__wrapper > table) {
+  min-width: 960px;
 }
 </style>

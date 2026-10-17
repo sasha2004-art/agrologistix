@@ -131,6 +131,10 @@ class ClientOrderPatch(APIModel):
     delivery_status: DeliveryStatus | None = None
 
 
+class ProductPatch(APIModel):
+    base_cost_rub: float = Field(gt=0.0, allow_inf_nan=False)
+
+
 class TruckPatch(APIModel):
     status: TruckStatus
 

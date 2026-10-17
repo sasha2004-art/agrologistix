@@ -67,9 +67,17 @@
                 {{ formatKg(row.order.requested_kg - row.order.delivered_kg) }}
               </span>
             </td>
-            <td class="text-right mono">
-              <!-- Цена приходит вместе с заказом от покупателя: диспетчер её не меняет. -->
-              {{ formatPrice(row.order.purchase_price_rub) }}
+            <td class="text-right">
+              <!-- Цена за кг влияет на выручку, потери и выбор партии в расчёте. -->
+              <EditableNumberField
+                :model-value="row.order.purchase_price_rub"
+                :min="MIN_PRICE_RUB"
+                :step="0.5"
+                suffix="₽"
+                :loading="erp.isPending(`order:${row.order.id}`)"
+                :aria-label="`Заказ №${row.order.id}, ${row.product.name}: цена за кг`"
+                @commit="(value) => savePrice(row, value)"
+              />
             </td>
             <td>
               <!-- Дорога только иконкой: расшифровка — в подсказке и aria-label. -->
@@ -130,11 +138,12 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
+import EditableNumberField from '@/shared/components/EditableNumberField.vue'
 import CreateClientDialog from './create/CreateClientDialog.vue'
 import CreateOrderDialog from './create/CreateOrderDialog.vue'
 import { useErpStore, type OrderRow } from './useErpStore'
 import { assignmentSummary, useAssignmentStore } from './useAssignmentStore'
-import { formatKg, formatPrice } from '@/shared/utils/format'
+import { formatKg } from '@/shared/utils/format'
 import type { DeliveryStatus } from '@/shared/types/domain'
 
 const erp = useErpStore()
@@ -142,8 +151,15 @@ const clientOpen = ref(false)
 const orderOpen = ref(false)
 const assignment = useAssignmentStore()
 
+/** Заказ с нулевой ценой не пройдёт валидацию PATCH (`purchase_price_rub > 0`). */
+const MIN_PRICE_RUB = 0.01
+
 function reload(): void {
   void erp.loadState({ force: true })
+}
+
+function savePrice(row: OrderRow, value: number): void {
+  void erp.updateOrder(row.order.id, { purchase_price_rub: value })
 }
 
 /** Три этапа поставки: заявка ждёт плана → груз в пути → доставлено. */
@@ -233,9 +249,10 @@ function partialDelivery(deliveredKg: number, requestedKg: number): boolean {
   font-size: 18px;
 }
 
-/* Таблица шире панели — даём горизонтальный скролл вместо сжатия колонок. */
+/* Таблица шире панели — даём горизонтальный скролл вместо сжатия колонок.
+   Запас под редактируемое поле цены (150 px) и подпись «отгружено/остаток». */
 .excel-table :deep(.v-table__wrapper > table) {
-  min-width: 900px;
+  min-width: 1020px;
 }
 
 .cell-note {
