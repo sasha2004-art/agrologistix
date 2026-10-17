@@ -167,6 +167,7 @@ Metrics:
 - Сделать идемпотентную инициализацию при старте приложения.
 - Добавить `POST /system/reset-demo` только для администратора.
 - Выполнить первый тестовый деплой на целевой VPS после создания SQLite и seed-данных: установить backend как `systemd`-сервис, настроить standalone Nginx, проверить права на `./data/`, запись `.db-wal`, `GET /health` и время ответа.
+- Формировать `/opt/agrologistix/.env` из GitHub-переменных и секретов через `deploy/sync-backend-env.sh`: `APP_ENV`, `USER_ACCESS_PIN`, `ADMIN_ACCESS_PIN` (обязательные для production) и `MAPBOX_SECRET_TOKEN` (опциональный; без него расстояния считаются по haversine×1.3).
 
 **Dev 2 — Frontend**
 

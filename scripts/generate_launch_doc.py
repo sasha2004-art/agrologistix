@@ -118,12 +118,17 @@ python scripts/generate_launch_doc.py --check
 2. В `{production["backend_install_directory"]}/backend` выполняется `uv sync --locked --no-dev`.
 3. Backend запускается одним процессом `uvicorn` через
    `systemd`-юнит `{production["backend_service_name"]}`.
-4. GitHub Actions собирает frontend командой `npm ci && npm run build`.
-5. Каталог `{production["frontend_build_directory"]}` копируется в
+4. Перед перезапуском `deploy/deploy.sh` вызывает
+   `deploy/sync-backend-env.sh`, который обновляет `{production["backend_env_file"]}`
+   (`APP_ENV`, `USER_ACCESS_PIN`, `ADMIN_ACCESS_PIN`, `MAPBOX_SECRET_TOKEN`) и
+   сохраняет остальные строки файла: значения приходят из GitHub
+   `vars`/`secrets`, а `systemd` читает их через `EnvironmentFile`.
+5. GitHub Actions собирает frontend командой `npm ci && npm run build`.
+6. Каталог `{production["frontend_build_directory"]}` копируется в
    `{production["frontend_web_root"]}`.
-6. Standalone Nginx раздаёт статику, делает SPA fallback на `index.html` и
+7. Standalone Nginx раздаёт статику, делает SPA fallback на `index.html` и
    проксирует `/api/` на `127.0.0.1:{backend["dev_port"]}`.
-7. Nginx завершает TLS сертификатом Let's Encrypt из
+8. Nginx завершает TLS сертификатом Let's Encrypt из
    `{production["tls_certificate_dir"]}`; HTTP редиректится на HTTPS, кроме
    `/health` и ACME-challenge.
 
@@ -137,7 +142,7 @@ After=network.target
 [Service]
 User=agrologistix
 WorkingDirectory={production["backend_install_directory"]}
-EnvironmentFile={production["backend_install_directory"]}/.env
+EnvironmentFile={production["backend_env_file"]}
 ExecStart={production["backend_install_directory"]}/backend/.venv/bin/uvicorn {backend["module"]} --host 127.0.0.1 --port {backend["dev_port"]} --workers 1
 Restart=always
 RestartSec=3

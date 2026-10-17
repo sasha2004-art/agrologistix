@@ -85,12 +85,17 @@ python scripts/generate_launch_doc.py --check
 2. В `/opt/agrologistix/backend` выполняется `uv sync --locked --no-dev`.
 3. Backend запускается одним процессом `uvicorn` через
    `systemd`-юнит `agrologistix-backend.service`.
-4. GitHub Actions собирает frontend командой `npm ci && npm run build`.
-5. Каталог `frontend/dist` копируется в
+4. Перед перезапуском `deploy/deploy.sh` вызывает
+   `deploy/sync-backend-env.sh`, который обновляет `/opt/agrologistix/.env`
+   (`APP_ENV`, `USER_ACCESS_PIN`, `ADMIN_ACCESS_PIN`, `MAPBOX_SECRET_TOKEN`) и
+   сохраняет остальные строки файла: значения приходят из GitHub
+   `vars`/`secrets`, а `systemd` читает их через `EnvironmentFile`.
+5. GitHub Actions собирает frontend командой `npm ci && npm run build`.
+6. Каталог `frontend/dist` копируется в
    `/var/www/agrologistix`.
-6. Standalone Nginx раздаёт статику, делает SPA fallback на `index.html` и
+7. Standalone Nginx раздаёт статику, делает SPA fallback на `index.html` и
    проксирует `/api/` на `127.0.0.1:8000`.
-7. Nginx завершает TLS сертификатом Let's Encrypt из
+8. Nginx завершает TLS сертификатом Let's Encrypt из
    `/etc/letsencrypt/live/<domain>`; HTTP редиректится на HTTPS, кроме
    `/health` и ACME-challenge.
 
