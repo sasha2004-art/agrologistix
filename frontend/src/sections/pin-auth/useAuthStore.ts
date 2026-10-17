@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { verifyPin } from '@/shared/api/httpClient'
+import { ApiError, fetchSession, verifyPin } from '@/shared/api/httpClient'
 import type { UserRole } from '@/shared/types/domain'
 
 const SESSION_KEY = 'agrologistix-auth'
@@ -44,6 +44,8 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => role.value !== null && accessPin.value !== null)
   const is_admin = computed(() => role.value === 'admin')
   const isVerifying = ref(false)
+  /** Ключ подтверждён сервером в этой сессии приложения, а не только в sessionStorage. */
+  const isVerified = ref(false)
 
   async function login(pin: string): Promise<boolean> {
     isVerifying.value = true
@@ -52,6 +54,7 @@ export const useAuthStore = defineStore('auth', () => {
       if (!result.access_pin_valid) return false
       role.value = result.role
       accessPin.value = pin
+      isVerified.value = true
       writeSession({ role: result.role, accessPin: pin })
       return true
     } finally {
@@ -59,11 +62,48 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Проверяет сохранённый ключ на сервере: дашборд открывается только тогда,
+   * когда сервер подтвердил PIN.
+   *
+   * Сервер недоступен — не повод выкидывать диспетчера: пускаем с прежним
+   * статусом, а экраны сами покажут ошибку загрузки. Отказ (401/403) — повод.
+   */
+  async function verifySession(): Promise<boolean> {
+    const pin = accessPin.value
+    if (!pin) return false
+    if (isVerified.value) return true
+    try {
+      const result = await fetchSession(pin)
+      role.value = result.role
+      isVerified.value = true
+      writeSession({ role: result.role, accessPin: pin })
+      return true
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        logout()
+        return false
+      }
+      return true
+    }
+  }
+
   function logout(): void {
     role.value = null
     accessPin.value = null
+    isVerified.value = false
     writeSession(null)
   }
 
-  return { role, accessPin, isAuthenticated, is_admin, isVerifying, login, logout }
+  return {
+    role,
+    accessPin,
+    isAuthenticated,
+    is_admin,
+    isVerifying,
+    isVerified,
+    login,
+    verifySession,
+    logout,
+  }
 })
